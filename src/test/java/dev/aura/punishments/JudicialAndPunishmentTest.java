@@ -503,7 +503,16 @@ class JudicialAndPunishmentTest {
     }
 
     @Test
+    void kickNeedsAConnectedPlayer() throws Exception {
+        var offline = r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.KICK, 0, "Disrupting the spawn area.", List.of())));
+        assertEquals(Code.INVALID, offline.code());
+        assertTrue(offline.message().contains("not online"));
+        assertEquals(0, fx.db.<Integer>txSync(cn -> Repo.Punishments.forTarget(cn, steve.uuid(), 10, 0).size()), "nothing recorded for an offline kick");
+    }
+
+    @Test
     void kickRequiresNoDurationAndIsRecordedAsCompleted() throws Exception {
+        fx.online.add(steve.uuid());
         var res = r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.KICK, 0, "Disrupting the spawn area.", List.of())));
         assertTrue(res.isOk(), res.message());
         assertEquals(PunishStatus.COMPLETED, res.value().status());
@@ -512,6 +521,7 @@ class JudicialAndPunishmentTest {
     @Test
     void warningToOfflinePlayerIsQueuedForDelivery() throws Exception {
         Actor warner = Fx.staff("Warner", 30, Fx.concat(Fx.JR_MOD, Perms.punish(PunishType.WARN)));
+        fx.online.clear();
         var res = r(fx.punishments.issueQuick(warner, new PunishmentService.Request(steve, PunishType.WARN, 0, "Please stop spamming chat.", List.of())));
         assertTrue(res.isOk());
         assertFalse(res.value().delivered(), "player was offline");

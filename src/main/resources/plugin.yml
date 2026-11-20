@@ -53,7 +53,6 @@ permissions:
       aurapunishments.notify.*: true
       aurapunishments.immunity.bypass: true
       aurapunishments.legacy.bypass: true
-      aurapunishments.mute.bypass: true
   aurapunishments.command:
     description: Use /ap (help and the subcommands you separately hold permission for).
     default: false

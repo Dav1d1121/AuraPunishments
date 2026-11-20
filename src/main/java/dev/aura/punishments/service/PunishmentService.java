@@ -100,7 +100,13 @@ public final class PunishmentService extends Svc {
         }
         final String cleanReason = reason;
         final long dur2 = duration;
-        return checkTarget(actor, r.target().uuid()).thenCompose(tc -> {
+        // A kick needs a connected player; recording one against an offline player would do nothing.
+        CompletableFuture<Boolean> online = type == PunishType.KICK
+                ? core.main.call(() -> core.enforcement.isOnline(r.target().uuid())) : CompletableFuture.completedFuture(true);
+        return online.thenCompose(isOn -> {
+            if (!isOn) return done(Result.<Void>fail(Code.INVALID, r.target().name() + " is not online, so there is nobody to kick."));
+            return checkTarget(actor, r.target().uuid());
+        }).thenCompose(tc -> {
             if (!tc.isOk()) return done(tc.<Punishment>cast());
             return db(c -> {
                 Long caseId = null;

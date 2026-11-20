@@ -34,6 +34,8 @@ public final class Fx implements AutoCloseable {
     public final List<DomainEvent> events = new ArrayList<>();
     public final Map<UUID, LevelResolver.TargetAuth> auth = new HashMap<>();
     public final Set<UUID> judges = new HashSet<>();
+    /** Players the fake server considers connected. */
+    public final Set<UUID> online = new HashSet<>();
     public long now = 1_800_000_000_000L;
 
     public Fx() throws Exception { this(null, new Mutator()); }
@@ -58,6 +60,13 @@ public final class Fx implements AutoCloseable {
             }
         };
         core = new Core(db, () -> now, Logger.getLogger("test"), MainThread.INLINE, s, oc, jail, lr, events::add);
+        core.enforcement = new Enforcement() {
+            @Override public boolean isOnline(UUID uuid) { return online.contains(uuid); }
+            @Override public void disconnect(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
+            @Override public void noticeMute(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
+            @Override public void noticeUnmute(UUID uuid) { }
+            @Override public boolean deliverWarning(UUID uuid, dev.aura.punishments.model.Records.Punishment p, boolean late) { return online.contains(uuid); }
+        };
         punishments = new PunishmentService(core);
         custody = new CustodyService(core, punishments);
         cases = new CaseService(core, custody);

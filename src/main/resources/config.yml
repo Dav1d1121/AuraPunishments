@@ -98,7 +98,7 @@ custody:
   cell-name: ""
   # Mute the prisoner in JailReloaded while held (JailReloaded's own mute flag).
   mute-while-held: false
-  # Reconcile AuraPunishments' custody records with JailReloaded this often (seconds).
+  # [RESTART] Reconcile AuraPunishments' custody records with JailReloaded this often (seconds).
   reconcile-interval-seconds: 60
   # Block /unjail, /unjailforce and similar JailReloaded commands for prisoners who are
   # held for an open case, unless the sender has aurapunishments.custody.override.
@@ -331,5 +331,5 @@ integrations:
   jailreloaded:
     enabled: true
   luckperms:
-    # Subscribe to LuckPerms permission changes so open GUIs close when access is revoked.
+    # [RESTART] Subscribe to LuckPerms permission changes so open GUIs close when access is revoked.
     close-guis-on-permission-change: true
