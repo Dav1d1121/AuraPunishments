@@ -21,7 +21,12 @@ final class PlayerNames {
             if (sender instanceof Player s && !s.canSee(o)) continue;
             if (o.getName().toLowerCase(Locale.ROOT).startsWith(p)) out.add(o.getName());
         }
-        out.addAll(gui.resolver.knownNames(prefix, 25));
+        for (String known : gui.resolver.knownNames(prefix, 60)) {
+            // a vanished online player must not be revealed through the stored-profile list either
+            Player online = Bukkit.getPlayerExact(known);
+            if (online != null && sender instanceof Player s && !s.canSee(online)) continue;
+            out.add(known);
+        }
         return out.stream().limit(30).toList();
     }
 }

@@ -91,7 +91,14 @@ public final class GuiManager implements Listener {
 
     // ---- events ---------------------------------------------------------------
     private static Menu holder(Inventory inv) {
-        return inv != null && inv.getHolder(false) instanceof Menu m ? m : null;
+        if (inv == null) return null;
+        Object h;
+        try {
+            h = inv.getHolder(false); // Paper: does not create block-state snapshots for other plugins' chests
+        } catch (RuntimeException e) {
+            h = inv.getHolder();       // test servers without the snapshot-free variant
+        }
+        return h instanceof Menu m ? m : null;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)

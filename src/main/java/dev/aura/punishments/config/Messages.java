@@ -26,16 +26,32 @@ public final class Messages {
         this.defaults = defaults;
     }
 
-    /** Validate that every message parses as MiniMessage. */
+    /**
+     * Validate messages.yml: every value must be text (or a list of text) and must deserialise. MiniMessage is
+     * deliberately lenient, so a malformed tag argument is shown as literal text rather than rejected; this check
+     * catches wrong value types and hard parse failures, not every typo.
+     */
     public static Messages parse(YamlConfiguration user, YamlConfiguration defaults) throws ConfigException {
         List<String> problems = new ArrayList<>();
         for (String key : user.getKeys(true)) {
             Object v = user.get(key);
-            if (v instanceof String s) {
+            if (v instanceof org.bukkit.configuration.ConfigurationSection) continue;
+            List<String> texts = new ArrayList<>();
+            if (v instanceof String str) {
+                texts.add(str);
+            } else if (v instanceof List<?> list) {
+                for (Object o : list) {
+                    if (o instanceof String str) texts.add(str);
+                    else problems.add("messages.yml " + key + ": list entries must be text");
+                }
+            } else {
+                problems.add("messages.yml " + key + ": must be text or a list of text (got " + (v == null ? "nothing" : v.getClass().getSimpleName()) + ")");
+            }
+            for (String t : texts) {
                 try {
-                    MM.deserialize(s.replace("<prefix>", ""), TagResolver.empty());
+                    MM.deserialize(t.replace("<prefix>", ""), TagResolver.empty());
                 } catch (RuntimeException e) {
-                    problems.add("messages.yml " + key + ": not valid MiniMessage (" + e.getMessage() + ")");
+                    problems.add("messages.yml " + key + ": cannot be parsed (" + e.getMessage() + ")");
                 }
             }
         }

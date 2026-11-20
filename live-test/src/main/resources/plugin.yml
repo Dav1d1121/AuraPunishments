@@ -1,0 +1,6 @@
+name: APLiveTest
+version: '1.0'
+main: dev.aura.livetest.LiveTest
+api-version: '26.3'
+depend: [AuraPunishments]
+softdepend: [JailReloaded, LuckPerms]

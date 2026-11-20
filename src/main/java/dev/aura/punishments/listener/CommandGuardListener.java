@@ -47,7 +47,7 @@ public final class CommandGuardListener implements Listener {
     }
 
     /** All names a typed label may refer to: itself, without namespace, the real command name and its aliases. */
-    static Set<String> names(String label) {
+    public static Set<String> names(String label) {
         Set<String> out = new HashSet<>();
         String l = label.toLowerCase(Locale.ROOT);
         out.add(l);

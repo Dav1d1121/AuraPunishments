@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  * AuraPunishments: GUI-driven moderation, judicial case management and punishment enforcement for Aurehaven.
  * Jailing is delegated to JailReloaded; this plugin never implements a jail of its own.
  */
-public final class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks {
+public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks {
     private Core core;
     private Database db;
     private DiscordService discord;
@@ -65,9 +65,9 @@ public final class AuraPunishmentsPlugin extends JavaPlugin implements Gui.Admin
     @Override
     public void onEnable() {
         long t0 = System.currentTimeMillis();
-        saveResource("config.yml", false);
-        saveResource("offenses.yml", false);
-        saveResource("messages.yml", false);
+        for (String f : List.of("config.yml", "offenses.yml", "messages.yml")) {
+            if (!new File(getDataFolder(), f).exists()) saveResource(f, false);
+        }
 
         Settings settings;
         OffenseCatalog offenses;
