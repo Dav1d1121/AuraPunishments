@@ -46,22 +46,30 @@ public final class CommandGuardListener implements Listener {
         this.prompts = prompts;
     }
 
-    /** All names a typed label may refer to: itself, without namespace, the real command name and its aliases. */
+    /**
+     * The name(s) a typed label really refers to. The label is resolved through the server's command map to the
+     * command that would actually execute (so every alias of /msg, /ban, ... is covered, and a label owned by a
+     * different command is judged by that command, e.g. Towny's /town answering /t). Only when no command is
+     * registered under the label does the typed text itself count.
+     */
     public static Set<String> names(String label) {
         Set<String> out = new HashSet<>();
         String l = label.toLowerCase(Locale.ROOT);
-        out.add(l);
         String bare = l.contains(":") ? l.substring(l.indexOf(':') + 1) : l;
-        out.add(bare);
+        Command c = null;
         try {
-            Command c = Bukkit.getCommandMap().getCommand(l);
+            c = Bukkit.getCommandMap().getCommand(l);
             if (c == null) c = Bukkit.getCommandMap().getCommand(bare);
-            if (c != null) {
-                out.add(c.getName().toLowerCase(Locale.ROOT));
-                for (String a : c.getAliases()) out.add(a.toLowerCase(Locale.ROOT));
-            }
         } catch (RuntimeException ignored) {
             // command map not available: fall back to the typed label
+        }
+        if (c != null) {
+            String n = c.getName().toLowerCase(Locale.ROOT);
+            out.add(n);
+            out.add(n.contains(":") ? n.substring(n.indexOf(':') + 1) : n);
+        } else {
+            out.add(l);
+            out.add(bare);
         }
         return out;
     }

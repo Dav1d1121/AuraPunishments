@@ -330,7 +330,7 @@ class CaseAndCustodyTest {
         });
         fx.jail.jail(new dev.aura.punishments.integration.JailPort.JailRequest(t.uuid(), "Steve", c.id(),
                 "AP-" + String.format("%04d", c.id()), "x", "JrMod", -1, null, null, false));
-        r(fx.custody.reconcile());
+        r(fx.custody.reconcileOnStartup());
         Custody cu = fx.db.txSync(cn -> Repo.Custodies.liveForCase(cn, c.id()));
         assertNotNull(cu);
         assertEquals(CustodyStatus.ACTIVE, cu.status());
@@ -348,6 +348,8 @@ class CaseAndCustodyTest {
             return null;
         });
         r(fx.custody.reconcile());
+        assertNotNull(fx.db.txSync(cn -> Repo.Custodies.liveForCase(cn, c.id())), "a request younger than the grace period may still be in flight: periodic pass leaves it");
+        r(fx.custody.reconcileOnStartup());
         assertNull(fx.db.txSync(cn -> Repo.Custodies.liveForCase(cn, c.id())));
         assertEquals(CustodyStatus.FAILED, fx.db.txSync(cn -> Repo.Custodies.forCase(cn, c.id())).get(0).status());
     }

@@ -463,6 +463,33 @@ class JudicialAndPunishmentTest {
     }
 
     @Test
+    void concurrentPunishmentsOfTheSamePlayerOnlyOneSucceeds() throws Exception {
+        Actor a = Fx.staff("A", 30, Fx.concat(Fx.JR_MOD, Perms.punish(PunishType.WARN)));
+        Actor b = Fx.staff("B", 30, Fx.concat(Fx.JR_MOD, Perms.punish(PunishType.WARN)));
+        var req = new PunishmentService.Request(steve, PunishType.MUTE, Durations.HOUR, "Spamming the global chat channel.", List.of());
+        var f1 = fx.punishments.issueQuick(a, req);
+        var f2 = fx.punishments.issueQuick(b, req);
+        var r1 = r(f1);
+        var r2 = r(f2);
+        assertEquals(1, (r1.isOk() ? 1 : 0) + (r2.isOk() ? 1 : 0), "two staff muting the same player at once yields exactly one mute");
+        assertTrue((r1.isOk() ? r2 : r1).code() == Code.DUPLICATE);
+        assertEquals(1, fx.db.<Integer>txSync(cn -> Repo.Punishments.activeFor(cn, steve.uuid()).size()));
+    }
+
+    @Test
+    void concurrentCustodyRequestsHoldThePlayerOnce() throws Exception {
+        Case c1 = mkCase("harassment", false);
+        fx.now += 11 * Durations.MINUTE;
+        Case c2 = r(fx.cases.create(mod, new CaseService.CreateRequest(steve, "theft", Severity.MODERATE,
+                "Stole items from several chests in town.", null, List.of(Fx.ev())))).orThrow();
+        var f1 = fx.custody.initiate(mod, c1.id());
+        var f2 = fx.custody.initiate(mod, c2.id());
+        int ok = (r(f1).isOk() ? 1 : 0) + (r(f2).isOk() ? 1 : 0);
+        assertEquals(1, ok, "only one custody can exist for a player");
+        assertEquals(1, fx.jail.prisoners.size());
+    }
+
+    @Test
     void revokeNeedsPermissionAndReason() throws Exception {
         Actor jrAdmin = Fx.staff("JrAdmin", 70, Fx.concat(Fx.JR_MOD, Perms.punish(PunishType.MUTE), Perms.REVOKE));
         var p = r(fx.punishments.issueQuick(jrAdmin, new PunishmentService.Request(steve, PunishType.MUTE, Durations.HOUR, "Spamming the global chat channel.", List.of()))).value();

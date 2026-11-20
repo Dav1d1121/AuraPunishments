@@ -100,6 +100,7 @@ public final class LiveTest extends JavaPlugin {
                 case "2" -> phase2();
                 case "3" -> phase3();
                 case "4" -> phase4();
+                case "5" -> phase5();
                 default -> check("known phase", false, phase);
             }
         } catch (Throwable t) {
@@ -408,6 +409,49 @@ public final class LiveTest extends JavaPlugin {
 
     private void phase4() throws Exception {
         degraded("incompatible");
+    }
+
+    /** With the REAL EssentialsX (and Towny) loaded: every real alias of a punishment/chat command is covered by the guards. */
+    private void phase5() throws Exception {
+        var pm = getServer().getPluginManager();
+        check("real EssentialsX is loaded", pm.getPlugin("Essentials") != null, "");
+        check("real Towny is loaded", pm.getPlugin("Towny") != null, "");
+        var settings = ap.core().settings;
+        List<String> legacy = List.of("ban", "tempban", "banip", "unban", "kick", "mute", "tempmute", "unmute", "pardon", "essentials:ban", "essentials:mute", "essentials:kick", "minecraft:ban", "minecraft:kick");
+        for (String label : legacy) {
+            var names = dev.aura.punishments.listener.CommandGuardListener.names(label);
+            check("legacy command /" + label + " is covered", names.stream().anyMatch(settings.legacy.blocked()::contains), names.toString());
+        }
+        List<String> chat = List.of("msg", "tell", "w", "whisper", "m", "r", "reply", "mail", "me", "essentials:msg", "essentials:r", "pm");
+        for (String label : chat) {
+            if (label.equals("mail")) continue; // only "mail send" is blocked; reading mail stays allowed
+            var names = dev.aura.punishments.listener.CommandGuardListener.names(label);
+            check("muted-chat command /" + label + " is covered", names.stream().anyMatch(settings.mute.blockedCommands()::contains), names.toString());
+        }
+        // every alias EssentialsX itself registers for /msg and /ban resolves back to a blocked name
+        for (String base : List.of("msg", "r", "ban", "kick", "mute")) {
+            var cmd = Bukkit.getPluginCommand(base);
+            if (cmd == null) {
+                results.add("SKIP no plugin command for /" + base + " (EssentialsX version lacks it)");
+                continue;
+            }
+            for (String alias : cmd.getAliases()) {
+                var names = dev.aura.punishments.listener.CommandGuardListener.names(alias);
+                boolean covered = names.stream().anyMatch(settings.legacy.blocked()::contains) || names.stream().anyMatch(settings.mute.blockedCommands()::contains);
+                check("EssentialsX alias /" + alias + " (of /" + base + ") covered", covered, names.toString());
+            }
+        }
+        check("Towny /town and its /t alias are NOT blocked for muted players", dev.aura.punishments.listener.CommandGuardListener.names("town").stream().noneMatch(settings.mute.blockedCommands()::contains)
+                && dev.aura.punishments.listener.CommandGuardListener.names("t").stream().noneMatch(settings.mute.blockedCommands()::contains),
+                dev.aura.punishments.listener.CommandGuardListener.names("t").toString());
+        check("harmless commands are not blocked: /spawn", dev.aura.punishments.listener.CommandGuardListener.names("spawn").stream().noneMatch(settings.legacy.blocked()::contains)
+                && dev.aura.punishments.listener.CommandGuardListener.names("spawn").stream().noneMatch(settings.mute.blockedCommands()::contains), "");
+        check("JailReloaded still answers /jail (not shadowed by EssentialsX)", Bukkit.getPluginCommand("jail") != null && Bukkit.getPluginCommand("jail").getPlugin().getName().equals("JailReloaded"),
+                Bukkit.getPluginCommand("jail") == null ? "none" : Bukkit.getPluginCommand("jail").getPlugin().getName());
+        check("AuraPunishments commands registered", Bukkit.getPluginCommand("punish") != null && Bukkit.getPluginCommand("ap") != null, "");
+        check("commands declare permissions (for AuraCommandFilter)", "aurapunishments.punish".equals(Bukkit.getPluginCommand("punish").getPermission())
+                && "aurapunishments.dashboard".equals(Bukkit.getPluginCommand("punishments").getPermission())
+                && "aurapunishments.command".equals(Bukkit.getPluginCommand("ap").getPermission()), "");
     }
 
     private void degraded(String what) throws Exception {

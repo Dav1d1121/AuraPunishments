@@ -228,7 +228,6 @@ mute:
     - msg
     - m
     - w
-    - t
     - pm
     - tell
     - whisper

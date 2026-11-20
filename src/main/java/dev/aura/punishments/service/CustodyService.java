@@ -373,6 +373,18 @@ public final class CustodyService extends Svc {
      * differences. Safe to run at any time; run at startup and periodically.
      */
     public CompletableFuture<Result<Integer>> reconcile() {
+        return reconcile(false);
+    }
+
+    /** Startup variant: nothing can be in flight yet, so interrupted requests are resolved immediately. */
+    public CompletableFuture<Result<Integer>> reconcileOnStartup() {
+        return reconcile(true);
+    }
+
+    /** Requests younger than this are left alone by the periodic pass: they may still be talking to JailReloaded. */
+    static final long IN_FLIGHT_GRACE_MS = 60_000;
+
+    private CompletableFuture<Result<Integer>> reconcile(boolean startup) {
         if (!core.jail.available()) return done(Result.fail(Code.UNAVAILABLE, "JailReloaded unavailable; reconciliation skipped."));
         return core.main.call(() -> {
             Map<UUID, PrisonerState> m = new java.util.HashMap<>();
@@ -389,6 +401,7 @@ public final class CustodyService extends Svc {
                     boolean tagged = ps != null && ps.reason() != null && ps.reason().contains(tag(cu.caseId()));
                     switch (cu.status()) {
                         case REQUESTED -> {
+                            if (!startup && now - cu.requestedAt() < IN_FLIGHT_GRACE_MS) break; // possibly still in flight
                             if (ps != null && tagged) {
                                 long deadline = now + core.settings.custody.reviewDeadline();
                                 Repo.Custodies.markActive(c, cu.id(), cu.requestedAt(), cu.requestedAt() + core.settings.custody.reviewDeadline(),

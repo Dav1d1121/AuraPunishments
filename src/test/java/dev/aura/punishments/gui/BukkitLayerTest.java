@@ -325,6 +325,18 @@ class BukkitLayerTest {
     }
 
     @Test
+    void aLabelOwnedByAnotherCommandIsJudgedByThatCommand() {
+        PlayerMock mod = fx.staff("Mod", McFx.basicStaff());
+        PlayerMock steve = fx.server.addPlayer("Steve");
+        fx.registerCommand("msg", "tx");          // messaging command with alias tx
+        fx.registerCommand("town", "t");          // Towny-style: /t belongs to /town
+        mute(steve, mod);
+        assertTrue(blocked(steve, "/tx Bob hi"), "alias of /msg");
+        assertFalse(blocked(steve, "/town"), "/town stays usable while muted");
+        assertFalse(blocked(steve, "/t spawn"), "an alias owned by /town is judged as /town");
+    }
+
+    @Test
     void muteExpiryRestoresSpeech() throws Exception {
         PlayerMock mod = fx.staff("Mod", McFx.basicStaff());
         PlayerMock steve = fx.server.addPlayer("Steve");

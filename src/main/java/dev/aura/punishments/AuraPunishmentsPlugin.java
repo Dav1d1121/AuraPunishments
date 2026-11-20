@@ -184,7 +184,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         startTasks();
         // Recover anything interrupted by a crash or restart.
-        custody.reconcile().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex()).exceptionally(t -> {
+        custody.reconcileOnStartup().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex()).exceptionally(t -> {
             getLogger().warning("Startup recovery failed: " + t);
             return null;
         });

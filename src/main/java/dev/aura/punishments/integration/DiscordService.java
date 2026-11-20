@@ -25,10 +25,11 @@ import java.util.logging.Logger;
  * rate-limited Discord can never delay or block a moderation action. Mentions are disabled in every
  * message so staff-typed text cannot ping @everyone. Embeds never contain IP addresses or private notes.
  */
-public final class DiscordService {
+public class DiscordService {
     private record Job(String url, String json, int attempt) {}
 
     private final Supplier<Settings> settings;
+    private final java.util.function.Predicate<String> urlCheck;
     private final Logger log;
     private final BlockingQueue<Job> queue = new LinkedBlockingQueue<>(500);
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
@@ -40,7 +41,13 @@ public final class DiscordService {
     private final Thread worker;
 
     public DiscordService(Supplier<Settings> settings, Logger log) {
+        this(settings, log, Settings::validWebhook);
+    }
+
+    /** @param urlCheck decides which webhook URLs may be used (production: https Discord webhooks only) */
+    public DiscordService(Supplier<Settings> settings, Logger log, java.util.function.Predicate<String> urlCheck) {
         this.settings = settings;
+        this.urlCheck = urlCheck;
         this.log = log;
         this.worker = new Thread(this::loop, "AuraPunishments-Discord");
         this.worker.setDaemon(true);
@@ -53,13 +60,26 @@ public final class DiscordService {
         return "enabled, sent=" + sent + " failed=" + failed + (lastError == null ? "" : " lastError=" + lastError) + " queued=" + queue.size();
     }
 
+    /** Transport hook (tests redirect to a local server). Production sends to the configured URL unchanged. */
+    protected String target(String configuredUrl) {
+        return configuredUrl;
+    }
+
+    public int sentCount() {
+        return sent;
+    }
+
+    public int failedCount() {
+        return failed;
+    }
+
     public void send(DomainEvent e) {
         Settings s = settings.get();
         if (!s.discord.enabled()) return;
         Settings.DiscordEvent ev = s.discord.events().get(e.type().discordKey);
         if (ev != null && !ev.enabled()) return;
         String url = ev != null && ev.webhook() != null && !ev.webhook().isBlank() ? ev.webhook() : s.discord.webhook();
-        if (!Settings.validWebhook(url)) return;
+        if (url == null || !urlCheck.test(url)) return;
         String json = body(s, e);
         if (!queue.offer(new Job(url, json, 0))) warn("Discord queue is full; dropping a notification");
     }
@@ -125,7 +145,7 @@ public final class DiscordService {
         int attempt = job.attempt();
         while (running) {
             try {
-                HttpRequest req = HttpRequest.newBuilder(URI.create(job.url()))
+                HttpRequest req = HttpRequest.newBuilder(URI.create(target(job.url())))
                         .timeout(Duration.ofSeconds(s.discord.timeoutSeconds()))
                         .header("Content-Type", "application/json")
                         .POST(HttpRequest.BodyPublishers.ofString(job.json())).build();
