@@ -134,15 +134,15 @@ final class CaseMenu extends Menu {
         action(19, manage, Material.COMPARATOR, "<aqua><b>Change status",
                 List.of("<gray>Current: <white>" + c.status().display(), "<gray>Investigate, schedule, start trial, close"), (p, t) -> statusMenu());
         action(20, can(Perms.JUDICIAL_MANAGE), Material.LECTERN, "<light_purple><b>Assign judge",
-                List.of("<gray>Judge: <white>" + (c.judgeName() == null ? "none" : c.judgeName()), "<yellow>Click: assign yourself", "<yellow>Right-click: assign another player"), (p, t) -> judgeClick(p, t));
+                List.of("<gray>Judge: <white>" + esc(c.judgeName() == null ? "none" : c.judgeName()), "<yellow>Click: assign yourself", "<yellow>Right-click: assign another player"), (p, t) -> judgeClick(p, t));
         action(21, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.CLOCK, "<light_purple><b>Schedule trial",
                 List.of("<gray>Trial: <white>" + (c.trialAt() == null ? "not scheduled" : Gui.time(c.trialAt())), "<gray>Enter yyyy-MM-dd HH:mm or e.g. 2d"), (p, t) -> trialClick(p));
         action(22, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.NAME_TAG, "<light_purple><b>Hearing reference",
-                List.of("<gray>Discord channel or link: <white>" + (c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 30))), (p, t) -> hearingClick(p));
+                List.of("<gray>Discord channel or link: <white>" + esc(c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 30))), (p, t) -> hearingClick(p));
         action(23, can(Perms.CASE_MANAGE), Material.ANVIL, "<yellow><b>Edit details",
                 List.of("<gray>Change description / severity", "<gray>(before the trial begins)"), (p, t) -> editMenu());
         action(24, can(Perms.CASE_MANAGE), Material.PLAYER_HEAD, "<yellow><b>Reassign prosecutor",
-                List.of("<gray>Prosecutor: <white>" + c.prosecutorName()), (p, t) -> prosecutorClick(p));
+                List.of("<gray>Prosecutor: <white>" + esc(String.valueOf(c.prosecutorName()))), (p, t) -> prosecutorClick(p));
 
         // ---- judicial row
         boolean awaitingVerdict = c.status() == CaseStatus.IN_TRIAL || c.status() == CaseStatus.AWAITING_VERDICT;
@@ -175,8 +175,9 @@ final class CaseMenu extends Menu {
         }
     }
 
+    /** Neutralise MiniMessage tags in free text that must be placed inside a lore template. */
     private static String esc(String s) {
-        return s == null ? "" : s.replace("<", "").replace(">", "");
+        return s == null ? "" : net.kyori.adventure.text.minimessage.MiniMessage.miniMessage().escapeTags(s);
     }
 
     // ------------------------------------------------------------------ actions

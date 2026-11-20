@@ -172,6 +172,30 @@ class GuiFlowTest {
         assertTrue(fx.plugin.punishments().banFor(steve.getUniqueId(), null).isEmpty());
     }
 
+    @Test
+    void freeTextIsNeverInterpretedAsFormattingInMenus() throws Exception {
+        PlayerMock o = owner("Owner");
+        PlayerMock steve = fx.server.addPlayer("Steve");
+        var actor = Actors.of(o);
+        Case c = fx.join(fx.plugin.cases().create(actor, new CaseService.CreateRequest(new Target(steve.getUniqueId(), "Steve", true), "chat_misconduct",
+                Severity.MINOR, "Excessive caps <red><bold>in chat today", "ctx <click:run_command:/op me>x", List.of()))).orThrow();
+        c = fx.join(fx.plugin.cases().setHearingRef(actor, c.id(), c.version(), "<rainbow>voice-1</rainbow> <click:open_url:https://evil.example>x")).orThrow();
+        Menus.openCase(fx.gui, o, c.id());
+        assertTrue(fx.awaitMenu(o, CaseMenu.class));
+        StringBuilder all = new StringBuilder();
+        for (var it : fx.top(o).getContents()) {
+            if (it == null || !it.hasItemMeta()) continue;
+            var meta = it.getItemMeta();
+            if (meta.lore() != null) for (var line : meta.lore()) {
+                all.append(McFx.plain(line)).append('\n');
+                assertNull(line.clickEvent());
+                for (var child : line.children()) assertNull(child.clickEvent(), "no click events from typed text");
+            }
+        }
+        assertTrue(all.toString().contains("<rainbow>") || all.toString().contains("voice-1"), "typed text is shown as text: " + all);
+        assertFalse(all.toString().contains("evil.example") && !all.toString().contains("<click"), "tags were not interpreted");
+    }
+
     // ------------------------------------------------------------ every other screen renders with real data
     @Test
     void everyScreenRendersWithRealData() throws Exception {
