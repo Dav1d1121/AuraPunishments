@@ -1,4 +1,4 @@
-AuraCommandFilter scan report - 2026-11-20T04:59:12.697634112Z
+AuraCommandFilter scan report - 2026-11-20T05:08:42.309559674Z
 Index generation 2, 1652 keys
 
 UNRESOLVED (no permission metadata; hidden from players)

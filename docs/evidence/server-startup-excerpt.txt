@@ -1,0 +1,19 @@
+[05:06:15 INFO]: Starting minecraft server version 26.3
+[05:06:15 INFO]: This server is running Paper version 26.3-256-main@1eda666 (2026-11-19T04:49:17Z) (Implementing API version 26.3.build.256-stable)
+[05:06:16 INFO]: [AuraPunishments] Loading server plugin AuraPunishments v1.0.0
+[05:06:17 INFO]: [LuckPerms] Successfully enabled. (took 747ms)
+[05:06:18 INFO]: [AuraCommandFilter] Enabled. Filtering 225 command keys using LuckPerms (no command lists to maintain).
+[05:06:20 INFO]: [JailReloaded] Storage: SQLite | jail3.sqlite
+[05:06:20 INFO]: [JailReloaded] Loaded: 1 jails | 0 cells | 2 prisoners
+[05:06:20 INFO]: [JailReloaded] Ready in 273 ms.
+[05:06:20 INFO]: [AuraPunishments] Enabling AuraPunishments v1.0.0
+[05:06:20 INFO]: [AuraPunishments] AuraPunishments 1.0.0 enabled in 101ms (schema v1, 9 active punishments).
+[05:06:20 INFO]: [AuraPunishments] JailReloaded: JailReloaded 1.2.2 (compatible)
+[05:06:20 INFO]: [AuraPunishments] LuckPerms: connected (offline staff protection active)
+[05:06:20 INFO]: [AuraPunishments] AuraCommandFilter detected: commands declare permissions, so they stay hidden from players who cannot use them.
+[05:06:20 INFO]: [AuraPunishments] EssentialsX detected: legacy punishment commands are redirected (config legacy-commands). Remove its punishment permissions in LuckPerms; see docs/PERMISSIONS.md.
+[05:06:20 INFO]: [AuraPunishments] Discord webhooks are disabled (config discord.enabled).
+[05:06:20 INFO]: Done (12.435s)! For help, type "help"
+[05:06:23 INFO]: [AuraPunishments] Configuration reloaded and validated.
+[05:06:23 INFO]: [AuraPunishments] Configuration reloaded by CONSOLE. Settings marked [RESTART] in config.yml (database) were not changed.
+[05:06:24 INFO]: [AuraPunishments] Disabling AuraPunishments v1.0.0

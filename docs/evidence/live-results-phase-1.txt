@@ -15,8 +15,8 @@ PASS second custody for same player refused  -- LiveSteve is already in custody 
 PASS guilty verdict recorded
 PASS jail sentence imposed
 PASS same JailReloaded record converted (no second jail)
-PASS time-served credit applied (>=2s)  -- credit=2842ms
-PASS JailReloaded time unit is milliseconds & matches  -- remaining=7197158 expected~7197158
+PASS time-served credit applied (>=2s)  -- credit=2841ms
+PASS JailReloaded time unit is milliseconds & matches  -- remaining=7197159 expected~7197159
 PASS custody SERVING without review deadline  -- SERVING
 PASS custody for Alex
 PASS not guilty verdict

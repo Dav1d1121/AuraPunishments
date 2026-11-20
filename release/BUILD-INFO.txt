@@ -1,0 +1,9 @@
+AuraPunishments 1.0.0
+Source commit : 4bd660cb7aa2893d07fafc6748d938f964060279   (branch claude/loving-gauss-yj9j6n; the jar was built from exactly this commit with a clean working tree)
+Packaged      : 2026-11-20T05:08Z
+Toolchain     : OpenJDK 25.0.5.1, Gradle 9.2.1, compiled against io.papermc.paper:paper-api:26.3.build.256-stable
+Target        : Paper 26.3 (api-version 26.3), Java 25
+Tested        : 127 automated tests (0 failed); 132 live checks on Paper 26.3.build.256-stable with JailReloaded 1.2.2, AuraCommandFilter 1.0.0, LuckPerms 5.5.71, EssentialsX 2.22.0, Towny 0.103.2.0 (0 failed)
+Evidence      : docs/TEST_REPORT.md, docs/evidence/
+SHA-256       : 9966ef8e3122825d3a7379d692c4a4d14135f8e5301a18e55b1451c3acddf0bc
+Note          : This file and the jar were added in a follow-up commit that changes no source; the source commit above is the release commit.

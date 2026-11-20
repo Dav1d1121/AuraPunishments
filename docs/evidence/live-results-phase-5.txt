@@ -48,6 +48,8 @@ PASS EssentialsX alias /eunmute (of /mute) covered  -- [mute]
 PASS Towny /town and its /t alias are NOT blocked for muted players  -- [town]
 PASS harmless commands are not blocked: /spawn
 PASS JailReloaded still answers /jail (not shadowed by EssentialsX)  -- JailReloaded
+PASS console passes the /ap command permission
+PASS console /ap reload runs through the real command dispatcher  -- audit admin.reload 2 -> 3
 PASS AuraPunishments commands registered
 PASS commands declare permissions (for AuraCommandFilter)
-== phase 5: 51 passed, 0 failed ==
+== phase 5: 53 passed, 0 failed ==
