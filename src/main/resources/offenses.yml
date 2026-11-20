@@ -1,0 +1,221 @@
+# ============================================================================
+#  AuraPunishments 1.0.0 - offenses.yml
+#  Offense categories, sentencing presets and evidence rules.  /ap reload applies changes.
+#
+#  Each offense:
+#    display            Name shown in the GUI.
+#    description        One-line help text (GUI lore).
+#    icon               Bukkit Material name for the GUI.
+#    severity           Default severity: MINOR | MODERATE | MAJOR | SEVERE.
+#    direct-eligible    true = may be handled through the Direct Punishment pathway
+#                       (still needs the staff member's direct permission, the minimum
+#                       severity from config.yml, evidence and a written justification).
+#    permission         Optional extra node required to charge this offense.
+#    evidence:
+#      minimum-for-case    Evidence items required to open a case (0 = none).
+#      minimum-for-direct  Evidence items required for direct punishment.
+#    allowed-punishments  Sentence types this offense may result in:
+#                         WARN, MUTE, BAN, IPBAN, JAIL.
+#    max-duration       Longest timed sentence for this offense ("permanent" = no cap).
+#    recommendations    Suggested sentence by number of PRIOR guilty findings.
+#                       The greatest "priors" value that is <= the player's count applies.
+#                       The judge always keeps the final decision.
+#    presets            Quick duration buttons in the sentencing screens, per type.
+#
+#  Prior findings count only GUILTY verdicts (and, if enabled, direct punishments) that were
+#  not overturned. Acquittals, dismissals and unproven allegations never count.
+# ============================================================================
+offenses:
+  chat_misconduct:
+    display: "Chat Misconduct"
+    description: "Spam, excessive caps, toxicity, inappropriate language."
+    icon: PAPER
+    severity: MINOR
+    direct-eligible: false
+    evidence: { minimum-for-case: 0, minimum-for-direct: 1 }
+    allowed-punishments: [WARN, MUTE, JAIL]
+    max-duration: 7d
+    recommendations:
+      - { priors: 0, type: WARN }
+      - { priors: 1, type: MUTE, duration: 1h }
+      - { priors: 2, type: MUTE, duration: 6h }
+      - { priors: 3, type: MUTE, duration: 1d }
+      - { priors: 5, type: MUTE, duration: 7d }
+    presets:
+      MUTE: [30m, 1h, 6h, 1d, 3d, 7d]
+      JAIL: [30m, 1h, 3h]
+
+  harassment:
+    display: "Harassment"
+    description: "Targeted abuse, threats, doxxing attempts, hate speech."
+    icon: SKELETON_SKULL
+    severity: MODERATE
+    direct-eligible: false
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, MUTE, BAN, JAIL]
+    max-duration: 30d
+    recommendations:
+      - { priors: 0, type: MUTE, duration: 1d }
+      - { priors: 1, type: MUTE, duration: 3d }
+      - { priors: 2, type: BAN, duration: 3d }
+      - { priors: 3, type: BAN, duration: 14d }
+      - { priors: 5, type: BAN, duration: 30d }
+    presets:
+      MUTE: [1d, 3d, 7d, 14d]
+      BAN: [1d, 3d, 7d, 14d, 30d]
+      JAIL: [1h, 3h, 6h]
+
+  advertising:
+    display: "Advertising"
+    description: "Advertising other servers or unapproved services."
+    icon: OAK_SIGN
+    severity: MINOR
+    direct-eligible: false
+    evidence: { minimum-for-case: 0, minimum-for-direct: 1 }
+    allowed-punishments: [WARN, MUTE, BAN]
+    max-duration: 14d
+    recommendations:
+      - { priors: 0, type: WARN }
+      - { priors: 1, type: MUTE, duration: 1d }
+      - { priors: 2, type: BAN, duration: 3d }
+      - { priors: 3, type: BAN, duration: 14d }
+    presets:
+      MUTE: [1h, 1d, 3d, 7d]
+      BAN: [1d, 3d, 7d, 14d]
+
+  griefing:
+    display: "Griefing"
+    description: "Destroying or defacing another player's builds or the world."
+    icon: TNT
+    severity: MODERATE
+    direct-eligible: false
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, BAN, JAIL]
+    max-duration: 30d
+    recommendations:
+      - { priors: 0, type: JAIL, duration: 3h }
+      - { priors: 1, type: BAN, duration: 3d }
+      - { priors: 2, type: BAN, duration: 14d }
+      - { priors: 3, type: BAN, duration: 30d }
+    presets:
+      BAN: [1d, 3d, 7d, 14d, 30d]
+      JAIL: [1h, 3h, 6h, 1d]
+
+  theft:
+    display: "Theft"
+    description: "Stealing from chests, shops, plots or players."
+    icon: CHEST
+    severity: MODERATE
+    direct-eligible: false
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, BAN, JAIL]
+    max-duration: 30d
+    recommendations:
+      - { priors: 0, type: JAIL, duration: 3h }
+      - { priors: 1, type: BAN, duration: 3d }
+      - { priors: 2, type: BAN, duration: 14d }
+      - { priors: 3, type: BAN, duration: 30d }
+    presets:
+      BAN: [1d, 3d, 7d, 14d, 30d]
+      JAIL: [1h, 3h, 6h, 1d]
+
+  towny_violation:
+    display: "Towny Rule Violation"
+    description: "Violating town, nation or plot rules enforced by staff."
+    icon: BELL
+    severity: MINOR
+    direct-eligible: false
+    evidence: { minimum-for-case: 0, minimum-for-direct: 1 }
+    allowed-punishments: [WARN, MUTE, BAN, JAIL]
+    max-duration: 14d
+    recommendations:
+      - { priors: 0, type: WARN }
+      - { priors: 1, type: JAIL, duration: 1h }
+      - { priors: 2, type: BAN, duration: 1d }
+      - { priors: 4, type: BAN, duration: 7d }
+    presets:
+      BAN: [1d, 3d, 7d, 14d]
+      JAIL: [30m, 1h, 3h]
+
+  cheating:
+    display: "Cheating / Hacked Client"
+    description: "Unfair advantage through modified clients (killaura, fly, xray...)."
+    icon: DIAMOND_SWORD
+    severity: MAJOR
+    direct-eligible: true
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, BAN, IPBAN]
+    max-duration: permanent
+    recommendations:
+      - { priors: 0, type: BAN, duration: 14d }
+      - { priors: 1, type: BAN, duration: 60d }
+      - { priors: 2, type: BAN, duration: permanent }
+    presets:
+      BAN: [7d, 14d, 30d, 60d, 180d, permanent]
+      IPBAN: [30d, permanent]
+
+  exploiting:
+    display: "Exploiting"
+    description: "Abusing bugs, dupes or unintended mechanics."
+    icon: COMMAND_BLOCK
+    severity: MAJOR
+    direct-eligible: true
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, BAN, IPBAN, JAIL]
+    max-duration: permanent
+    recommendations:
+      - { priors: 0, type: BAN, duration: 7d }
+      - { priors: 1, type: BAN, duration: 30d }
+      - { priors: 2, type: BAN, duration: permanent }
+    presets:
+      BAN: [3d, 7d, 14d, 30d, 90d, permanent]
+      JAIL: [3h, 6h, 1d, 3d]
+
+  staff_obstruction:
+    display: "Staff Obstruction"
+    description: "Ignoring, deceiving or obstructing staff during an investigation."
+    icon: SHIELD
+    severity: MODERATE
+    direct-eligible: false
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [WARN, MUTE, BAN, JAIL]
+    max-duration: 30d
+    recommendations:
+      - { priors: 0, type: WARN }
+      - { priors: 1, type: MUTE, duration: 1d }
+      - { priors: 2, type: BAN, duration: 7d }
+    presets:
+      MUTE: [1d, 3d, 7d]
+      BAN: [1d, 3d, 7d, 14d, 30d]
+
+  severe_malicious:
+    display: "Severe Malicious Activity"
+    description: "Server attacks, mass griefing, malicious exploitation, serious threats."
+    icon: WITHER_SKELETON_SKULL
+    severity: SEVERE
+    direct-eligible: true
+    evidence: { minimum-for-case: 1, minimum-for-direct: 2 }
+    allowed-punishments: [BAN, IPBAN, JAIL]
+    max-duration: permanent
+    recommendations:
+      - { priors: 0, type: BAN, duration: permanent }
+    presets:
+      BAN: [30d, 180d, permanent]
+      IPBAN: [30d, permanent]
+      JAIL: [1d, 7d]
+
+  other:
+    display: "Other / Custom"
+    description: "Anything that does not fit a listed category. Describe it fully."
+    icon: BOOK
+    severity: MINOR
+    direct-eligible: false
+    evidence: { minimum-for-case: 0, minimum-for-direct: 1 }
+    allowed-punishments: [WARN, MUTE, BAN, JAIL]
+    max-duration: 30d
+    recommendations:
+      - { priors: 0, type: WARN }
+    presets:
+      MUTE: [1h, 1d, 7d]
+      BAN: [1d, 7d, 30d]
+      JAIL: [1h, 3h, 6h]

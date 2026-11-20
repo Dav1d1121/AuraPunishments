@@ -1,0 +1,339 @@
+# ============================================================================
+#  AuraPunishments 1.0.0 - config.yml
+#  Edit, then run /ap reload. A reload is validated first: if anything below is
+#  invalid the OLD settings stay active and the problems are listed in chat/console.
+#
+#  Settings marked [RESTART] are read once at startup and need a server restart.
+#  Durations use: s, m, h, d, w, mo (30d), y  - e.g. 30m, 1h30m, 2d, 1w.
+#  Durations can also be the word "permanent" where noted.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+#  General
+# ---------------------------------------------------------------------------
+general:
+  # Extra console logging for troubleshooting. Never logs IP addresses.
+  debug: false
+  # Staff members only ever see GUI actions they may use? true = locked actions are hidden,
+  # false = locked actions are shown greyed-out with the reason.
+  hide-locked-actions: false
+
+# ---------------------------------------------------------------------------
+#  Database  [RESTART]
+# ---------------------------------------------------------------------------
+database:
+  # Only "sqlite" is implemented in 1.0.0. The schema and data layer are written so a
+  # MySQL/MariaDB dialect can be added later without changing the services.
+  type: sqlite
+  # File inside plugins/AuraPunishments/
+  file: punishments.db
+  # How long a database operation may take before the staff member is told it failed.
+  timeout-seconds: 15
+
+# ---------------------------------------------------------------------------
+#  GUI behaviour
+# ---------------------------------------------------------------------------
+gui:
+  # Minimum time between two clicks from the same player (duplicate-click protection).
+  click-cooldown-ms: 250
+  # How long a chat prompt (reason, evidence, notes) waits for the staff member to type.
+  prompt-timeout-seconds: 90
+  # Word that cancels a chat prompt.
+  prompt-cancel-word: cancel
+  # Rows per list page are fixed by the GUI layout (28 entries per page).
+  # Sounds used for feedback. Use a valid Minecraft sound key or "none".
+  sounds:
+    click: ui.button.click
+    success: entity.experience_orb.pickup
+    error: entity.villager.no
+
+# ---------------------------------------------------------------------------
+#  Cases
+# ---------------------------------------------------------------------------
+cases:
+  # Text length rules for case descriptions, reasons and notes.
+  min-description-length: 10
+  max-description-length: 400
+  min-reason-length: 5
+  max-reason-length: 250
+  max-note-length: 400
+  # Evidence is required when a case is created? Offense-specific minimums in
+  # offenses.yml are always enforced in addition to this.
+  require-evidence-on-create: false
+  # Stop a flood of duplicate cases: a second open case for the same player and offense
+  # within this window is refused (the staff member is shown the existing case instead).
+  duplicate-window: 10m
+  # Maximum number of active (not voided) evidence items on one case.
+  max-evidence-per-case: 40
+  # Evidence reference limits.
+  max-evidence-reference-length: 512
+  min-written-report-length: 30
+
+# ---------------------------------------------------------------------------
+#  Pretrial custody (JailReloaded does the actual imprisonment)
+# ---------------------------------------------------------------------------
+custody:
+  # Master switch. When false, pretrial detention is disabled everywhere.
+  enabled: true
+  # Review deadline for pretrial detention. An unresolved case must not mean
+  # indefinite imprisonment.
+  review-deadline: 48h
+  # In-game and Discord alerts are sent this long BEFORE the deadline (once each).
+  alert-before: [12h, 1h]
+  # After the deadline passes, the overdue alert repeats at this interval.
+  overdue-repeat: 1h
+  # What happens when the deadline passes with no decision:
+  #   ALERT_THEN_RELEASE - alert staff, then automatically release after grace-period.
+  #   ALERT_ONLY         - alert only. A judge must always release manually.
+  on-deadline: ALERT_THEN_RELEASE
+  # Time after the deadline before an automatic release (ALERT_THEN_RELEASE only).
+  grace-period: 12h
+  # A judge may extend a custody deadline (with a reason) up to this many times.
+  max-extensions: 2
+  extension-length: 24h
+  # Name of the JailReloaded jail to use. Empty = the jail chosen by JailReloaded's own
+  # default-jail setting (jailing default-jail in its config).
+  jail-name: ""
+  # Cell name inside that jail. Empty = let JailReloaded choose.
+  cell-name: ""
+  # Mute the prisoner in JailReloaded while held (JailReloaded's own mute flag).
+  mute-while-held: false
+  # Reconcile AuraPunishments' custody records with JailReloaded this often (seconds).
+  reconcile-interval-seconds: 60
+  # Block /unjail, /unjailforce and similar JailReloaded commands for prisoners who are
+  # held for an open case, unless the sender has aurapunishments.custody.override.
+  guard-jail-commands: true
+  guarded-jail-commands: [unjail, unjailforce, jail, handcuff, unhandcuff]
+
+# ---------------------------------------------------------------------------
+#  Judicial workflow
+# ---------------------------------------------------------------------------
+judicial:
+  # May the staff member who opened a case also be its judge? The owner is the only
+  # judge at launch, so this defaults to true.
+  prosecutor-may-judge: true
+  # When a judge is assigned, only that judge (or a holder of aurapunishments.judicial.verdict.any)
+  # may enter the verdict and sentence.
+  require-assigned-judge-for-verdict: true
+  # Minimum length for a verdict reasoning / dismissal reason.
+  min-verdict-reason-length: 10
+  # Time-served credit: pretrial detention time is deducted from timed sentences.
+  time-served:
+    enabled: true
+    # 1.0 = every hour in pretrial custody counts as one hour of the sentence.
+    rate: 1.0
+    # Sentence types that receive the credit.
+    applies-to: [JAIL, MUTE, BAN, IPBAN]
+
+# ---------------------------------------------------------------------------
+#  Escalation / repeat offenses
+# ---------------------------------------------------------------------------
+escalation:
+  # category = prior GUILTY findings for the same offense category only,
+  # all      = prior GUILTY findings of any category.
+  scope: category
+  # Count previously issued (non-overturned) direct punishments as prior findings.
+  count-direct-punishments: true
+  # Acquittals, dismissals, overturned verdicts and unproven allegations NEVER count.
+
+# ---------------------------------------------------------------------------
+#  Direct punishments (major offenses only - not the primary workflow)
+# ---------------------------------------------------------------------------
+direct:
+  enabled: true
+  # The charged severity must be at least this to qualify.
+  minimum-severity: MAJOR
+  min-description-length: 30
+  # Why the ordinary judicial process is being bypassed. Mandatory.
+  min-justification-length: 30
+  # Evidence items required (each offense may require more in offenses.yml).
+  min-evidence: 1
+  # Confirmation requires typing the player's name for these (extra safety).
+  type-name-to-confirm: [BAN, IPBAN]
+
+# ---------------------------------------------------------------------------
+#  Emergency protective actions (separately authorised, auto-expiring)
+# ---------------------------------------------------------------------------
+emergency:
+  enabled: true
+  # Types that may be used as an emergency action. Jail is not available here: use
+  # pretrial custody through a case.
+  allowed-types: [MUTE, BAN]
+  default-duration: 6h
+  max-duration: 24h
+  # Senior staff must review the action within this time or the alerts escalate.
+  review-deadline: 12h
+  # Repeat the "review overdue" alert this often.
+  overdue-repeat: 1h
+
+# ---------------------------------------------------------------------------
+#  Punishments: duration limits and evidence requirements
+# ---------------------------------------------------------------------------
+punishments:
+  # Evidence required to issue a QUICK punishment (outside a case / direct pathway).
+  # Cases, direct punishments and emergency actions have their own rules above.
+  quick:
+    require-reason: true
+    require-evidence: [IPBAN, BAN]
+    # Permanent quick punishments additionally need the ".permanent" permission node.
+  # Staff can only issue a TIMED punishment up to the longest tier they hold:
+  #   aurapunishments.limit.<type>.<tier>
+  # e.g. a Jr Mod with aurapunishments.limit.mute.short may mute for up to 1h.
+  # Permanent punishments use aurapunishments.punish.<type>.permanent instead.
+  limits:
+    mute:
+      short: 1h
+      medium: 1d
+      long: 7d
+      extended: 30d
+    ban:
+      short: 1d
+      medium: 7d
+      long: 30d
+      extended: 180d
+    ipban:
+      short: 1d
+      medium: 7d
+      long: 30d
+    jail:
+      short: 1h
+      medium: 6h
+      long: 1d
+      extended: 7d
+  # Warnings are delivered at next login if the player is offline.
+  warning-delivery: true
+  # Delay (ticks) before a kicked/banned player is disconnected, so the message is shown.
+  # 0 disconnects immediately.
+  kick-delay-ticks: 0
+
+# ---------------------------------------------------------------------------
+#  Staff protections
+# ---------------------------------------------------------------------------
+protections:
+  # Strict hierarchy: you may only act against players with a LOWER authority level.
+  # Level comes from LuckPerms nodes aurapunishments.level.<number> (highest number wins).
+  enforce-hierarchy: true
+  # Players can never open or punish themselves.
+  block-self-targeting: true
+  # Targets holding this node cannot be punished at all (except by the immunity bypass).
+  immunity-node: aurapunishments.immune
+
+# ---------------------------------------------------------------------------
+#  Mute enforcement
+# ---------------------------------------------------------------------------
+mute:
+  # Commands (without the slash, any namespace prefix ignored) blocked while muted.
+  # Covers EssentialsX private messaging and TownyChat channel shortcuts.
+  blocked-commands:
+    - msg
+    - m
+    - w
+    - t
+    - pm
+    - tell
+    - whisper
+    - r
+    - reply
+    - emsg
+    - etell
+    - ewhisper
+    - epm
+    - er
+    - ereply
+    - mail
+    - me
+    - action
+    - describe
+    - g
+    - lc
+    - tc
+    - nc
+    - ac
+    - ch
+    - channel
+    - say
+  # Commands blocked only for a given first argument, e.g. "mail send".
+  blocked-subcommands:
+    - "mail send"
+    - "mail sendall"
+    - "town say"
+    - "nation say"
+  # Staff can still be muted; muted players may still use staff help commands listed here.
+  allowed-commands: [help, rules, ap, punish]
+
+# ---------------------------------------------------------------------------
+#  Legacy punishment commands (EssentialsX / vanilla)
+# ---------------------------------------------------------------------------
+legacy-commands:
+  # AuraPunishments is the authority for punishments. When enabled, players who run the
+  # listed commands (vanilla, EssentialsX, bukkit: / minecraft: / essentials: forms) are
+  # stopped and told to use /punish unless they hold aurapunishments.legacy.bypass.
+  # Console is never blocked.
+  block: true
+  blocked: [ban, ban-ip, banip, tempban, tempbanip, unban, unbanip, pardon, pardon-ip, kick,
+            kickall, mute, tempmute, unmute, warn, unwarn, togglejail, setjail, deljail,
+            eban, etempban, ekick, emute, eunban, ebanip, eunbanip]
+  # NOTE: /jail and /unjail belong to JailReloaded and are not listed here. For prisoners held
+  # for an open case they are guarded by custody.guard-jail-commands instead.
+
+# ---------------------------------------------------------------------------
+#  Notifications to staff in-game
+# ---------------------------------------------------------------------------
+notifications:
+  # Players with aurapunishments.notify.<event> receive these. Console always logs them.
+  case-created: true
+  custody-started: true
+  custody-alerts: true
+  verdicts: true
+  direct-punishments: true
+  emergency: true
+
+# ---------------------------------------------------------------------------
+#  Discord webhooks (notification only - hearings happen in Discord manually)
+# ---------------------------------------------------------------------------
+discord:
+  enabled: false
+  # Default webhook for every event. https://discord.com/api/webhooks/...
+  webhook-url: ""
+  username: "AuraPunishments"
+  avatar-url: ""
+  # Per-event switches and optional per-event webhook overrides.
+  # Events never include IP addresses or private notes. A failure here never blocks moderation.
+  events:
+    case-created: { enabled: true, webhook-url: "" }
+    custody-started: { enabled: true, webhook-url: "" }
+    custody-released: { enabled: true, webhook-url: "" }
+    trial-scheduled: { enabled: true, webhook-url: "" }
+    verdict: { enabled: true, webhook-url: "" }
+    sentence: { enabled: true, webhook-url: "" }
+    direct-punishment: { enabled: true, webhook-url: "" }
+    emergency-action: { enabled: true, webhook-url: "" }
+    appeal: { enabled: true, webhook-url: "" }
+    reversal: { enabled: true, webhook-url: "" }
+    custody-alert: { enabled: true, webhook-url: "" }
+  timeout-seconds: 10
+  max-retries: 3
+
+# ---------------------------------------------------------------------------
+#  Retention
+# ---------------------------------------------------------------------------
+retention:
+  # Audit entries older than this many days are pruned (the hash chain is re-anchored so
+  # verification still works). 0 = keep forever (recommended).
+  audit-days: 0
+  # Cases, evidence, punishments and notes are never deleted automatically.
+
+# ---------------------------------------------------------------------------
+#  Integrations
+# ---------------------------------------------------------------------------
+integrations:
+  # JailReloaded is required for pretrial custody and jail sentences. When it is missing
+  # or incompatible, everything else keeps working and custody actions fail safely with a
+  # clear message (nothing is faked).
+  jailreloaded:
+    enabled: true
+  luckperms:
+    # Subscribe to LuckPerms permission changes so open GUIs close when access is revoked.
+    close-guis-on-permission-change: true
+  placeholderapi:
+    enabled: true
