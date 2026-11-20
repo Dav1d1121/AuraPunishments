@@ -153,6 +153,10 @@ public final class CaseService extends Svc {
         if (!perm.isOk()) return done(perm.cast());
         Result<Void> access = targetAccess(actor);
         if (!access.isOk()) return done(access.cast());
+        if (core.settings.protections.blockSelf() && actor.uuid() != null && actor.uuid().equals(t.uuid()) && !actor.isPrivileged()
+                && !actor.has(Perms.IMMUNITY_BYPASS)) {
+            return done(Result.fail(Code.HIERARCHY, "You cannot open your own punishment screen."));
+        }
         return db(c -> {
             Profile pr = Repo.Profiles.get(c, t.uuid());
             boolean viewCases = core.auth.canViewAnyCase(actor);
@@ -207,6 +211,32 @@ public final class CaseService extends Svc {
     public CompletableFuture<Result<Page<Case>>> historyFor(Actor actor, UUID uuid, int page, int pageSize) {
         if (!core.auth.has(actor, Perms.HISTORY_VIEW)) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to view history."));
         return db(c -> Result.ok(new Page<>(Repo.Cases.forAccused(c, uuid, pageSize, page * pageSize), Repo.Cases.countForAccused(c, uuid), page, pageSize)));
+    }
+
+    /** Cases about one player (visible to the actor), newest first. */
+    public CompletableFuture<Result<Page<Case>>> historyForCases(Actor actor, UUID uuid, int page, int pageSize) {
+        if (!core.auth.canViewAnyCase(actor)) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to view cases."));
+        return db(c -> {
+            List<Case> visible = new ArrayList<>();
+            for (Case cs : Repo.Cases.forAccused(c, uuid, 500, 0)) if (core.auth.canViewCase(actor, cs)) visible.add(cs);
+            int from = Math.min(visible.size(), page * pageSize);
+            int to = Math.min(visible.size(), from + pageSize);
+            return Result.ok(new Page<>(new ArrayList<>(visible.subList(from, to)), visible.size(), page, pageSize));
+        });
+    }
+
+    /** Open (still being worked) cases about one player, for "pick a case" steps. */
+    public CompletableFuture<Result<Page<Case>>> openCasesFor(Actor actor, UUID uuid, int page, int pageSize) {
+        if (!core.auth.canViewAnyCase(actor)) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to view cases."));
+        return db(c -> {
+            List<Case> visible = new ArrayList<>();
+            for (Case cs : Repo.Cases.forAccused(c, uuid, 500, 0)) {
+                if (cs.status().isOpenForWork() && core.auth.canViewCase(actor, cs)) visible.add(cs);
+            }
+            int from = Math.min(visible.size(), page * pageSize);
+            int to = Math.min(visible.size(), from + pageSize);
+            return Result.ok(new Page<>(new ArrayList<>(visible.subList(from, to)), visible.size(), page, pageSize));
+        });
     }
 
     public CompletableFuture<Result<Long>> priors(UUID accused, String offenseKey, long excludeCase) {

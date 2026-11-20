@@ -50,6 +50,21 @@ public final class CustodyService extends Svc {
         punishments.bind(this);
     }
 
+    private volatile Map<String, Custody> heldByName = Map.of();
+
+    /** Live custody for a player name (any case), from an in-memory index refreshed after every change. */
+    public java.util.Optional<Custody> heldByName(String name) {
+        return java.util.Optional.ofNullable(name == null ? null : heldByName.get(name.toLowerCase(java.util.Locale.ROOT)));
+    }
+
+    public CompletableFuture<Void> refreshIndex() {
+        return core.db.tx(c -> Repo.Custodies.allLive(c)).thenAccept(list -> {
+            Map<String, Custody> m = new java.util.HashMap<>();
+            for (Custody cu : list) m.put(cu.name().toLowerCase(java.util.Locale.ROOT), cu);
+            heldByName = Map.copyOf(m);
+        }).exceptionally(t -> null);
+    }
+
     public static String tag(long caseId) {
         return "AP-" + String.format("%04d", caseId);
     }
@@ -156,6 +171,7 @@ public final class CustodyService extends Svc {
             if (cu.status() == CustodyStatus.FAILED) {
                 return Result.<Custody>fail(Code.EXTERNAL, "Detention failed: " + cu.lastError());
             }
+            refreshIndex();
             core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_STARTED).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
                     .summary("Detained in " + cu.jailName()).field("Jail", cu.jailName())
                     .field("Review deadline", "<t:" + (cu.deadline() / 1000) + ":R>").build());
@@ -273,6 +289,7 @@ public final class CustodyService extends Svc {
             return Result.ok(Repo.Custodies.get(c, cu.id()));
         }).thenApply(res -> {
             if (res.isOk()) {
+                refreshIndex();
                 core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_RELEASED).caseId(cu.caseId()).player(cu.name()).actor(actor.name())
                         .summary(pending ? "Release accepted (completes at next login)" : "Released").field("Reason", Text.truncate(reason, 200)).build());
             }
@@ -344,7 +361,10 @@ public final class CustodyService extends Svc {
                 }
             }
             return Result.<Void>ok();
-        }).thenAccept(r -> events.forEach(core::emit));
+        }).thenAccept(r -> {
+            events.forEach(core::emit);
+            refreshIndex();
+        });
     }
 
     // ------------------------------------------------------------------ reconciliation

@@ -1,0 +1,253 @@
+name: AuraPunishments
+version: '${version}'
+main: dev.aura.punishments.AuraPunishmentsPlugin
+api-version: '26.3'
+description: GUI-based moderation, judicial case management and punishment system for Aurehaven.
+authors: [Aurehaven]
+load: POSTWORLD
+# JailReloaded must be enabled first when present. Everything else is optional.
+softdepend: [JailReloaded, LuckPerms, AuraCommandFilter, Essentials, Towny, TownyChat, CoreProtect, DiscordSRV, TAB, GrimAC, PlaceholderAPI]
+
+# Every command declares a permission so AuraCommandFilter (which derives command visibility and tab
+# completion from declared permissions) hides it from players who cannot use it.
+commands:
+  punish:
+    description: Open a player's disciplinary management GUI.
+    usage: /punish <player>
+    permission: aurapunishments.punish
+    permission-message: You do not have permission to use this command.
+  punishments:
+    description: Open the staff punishment dashboard.
+    usage: /punishments
+    permission: aurapunishments.dashboard
+    permission-message: You do not have permission to use this command.
+  aurapunishments:
+    description: AuraPunishments cases, history, judicial tools and administration.
+    usage: /ap help
+    aliases: [ap]
+    permission: aurapunishments.command
+    permission-message: You do not have permission to use this command.
+
+# Everything is default-deny, including for operators. Grant through LuckPerms (see docs/PERMISSIONS.md).
+permissions:
+  aurapunishments.*:
+    description: Every AuraPunishments permission (does NOT include aurapunishments.level.N or limit tiers; see docs).
+    default: false
+    children:
+      aurapunishments.command: true
+      aurapunishments.punish: true
+      aurapunishments.punish.others: true
+      aurapunishments.dashboard: true
+      aurapunishments.history.view: true
+      aurapunishments.report: true
+      aurapunishments.case.*: true
+      aurapunishments.custody.*: true
+      aurapunishments.punish.*: true
+      aurapunishments.direct.*: true
+      aurapunishments.emergency.*: true
+      aurapunishments.judicial.*: true
+      aurapunishments.sensitive.*: true
+      aurapunishments.audit.view: true
+      aurapunishments.admin: true
+      aurapunishments.admin.reload: true
+      aurapunishments.notify.*: true
+      aurapunishments.immunity.bypass: true
+      aurapunishments.legacy.bypass: true
+      aurapunishments.mute.bypass: true
+  aurapunishments.command:
+    description: Use /ap (help and the subcommands you separately hold permission for).
+    default: false
+  aurapunishments.punish:
+    description: Open the punishment GUI (/punish). Does NOT grant authority to punish.
+    default: false
+  aurapunishments.punish.others:
+    description: Access another player's disciplinary management (required to target anyone).
+    default: false
+  aurapunishments.dashboard:
+    description: Open the staff dashboard (/punishments).
+    default: false
+  aurapunishments.history.view:
+    description: View punishment and case history.
+    default: false
+  aurapunishments.report:
+    description: Submit incident reports (limited case creation; cannot start custody).
+    default: false
+  aurapunishments.case.*:
+    default: false
+    children:
+      aurapunishments.case.view.own: true
+      aurapunishments.case.view.all: true
+      aurapunishments.case.create: true
+      aurapunishments.case.manage: true
+      aurapunishments.case.close: true
+      aurapunishments.case.evidence.add: true
+      aurapunishments.case.evidence.view: true
+      aurapunishments.case.evidence.void: true
+      aurapunishments.case.note.add: true
+      aurapunishments.case.note.view: true
+      aurapunishments.case.note.void: true
+      aurapunishments.case.appeal.file: true
+  aurapunishments.case.view.own:
+    description: See only cases you prosecute or judge.
+    default: false
+  aurapunishments.case.view.all:
+    description: See every case.
+    default: false
+  aurapunishments.case.create:
+    description: Open full disciplinary cases.
+    default: false
+  aurapunishments.case.manage:
+    description: Edit case details, change investigation status, reassign prosecutor.
+    default: false
+  aurapunishments.case.close:
+    description: Administratively close cases.
+    default: false
+  aurapunishments.case.evidence.add:
+    description: Submit evidence.
+    default: false
+  aurapunishments.case.evidence.view:
+    description: View evidence.
+    default: false
+  aurapunishments.case.evidence.void:
+    description: Void or correct evidence (never deleted).
+    default: false
+  aurapunishments.case.note.add:
+    description: Add staff notes.
+    default: false
+  aurapunishments.case.note.view:
+    description: View staff notes.
+    default: false
+  aurapunishments.case.note.void:
+    description: Void staff notes.
+    default: false
+  aurapunishments.case.appeal.file:
+    description: Record an appeal against a sentence or direct punishment.
+    default: false
+  aurapunishments.custody.*:
+    default: false
+    children:
+      aurapunishments.custody.view: true
+      aurapunishments.custody.initiate: true
+      aurapunishments.custody.release: true
+      aurapunishments.custody.override: true
+  aurapunishments.custody.view:
+    description: View custody status and the custody list.
+    default: false
+  aurapunishments.custody.initiate:
+    description: Start pretrial detention (JailReloaded imprisons the player).
+    default: false
+  aurapunishments.custody.release:
+    description: Release a prisoner held for a case (with a recorded reason).
+    default: false
+  aurapunishments.custody.override:
+    description: Use JailReloaded commands against prisoners held for an open case.
+    default: false
+  aurapunishments.punish.*:
+    default: false
+    children:
+      aurapunishments.punish.warn: true
+      aurapunishments.punish.kick: true
+      aurapunishments.punish.mute: true
+      aurapunishments.punish.mute.permanent: true
+      aurapunishments.punish.ban: true
+      aurapunishments.punish.ban.permanent: true
+      aurapunishments.punish.ipban: true
+      aurapunishments.punish.ipban.permanent: true
+      aurapunishments.punish.revoke: true
+      aurapunishments.punish.revoke.any: true
+  aurapunishments.punish.warn: { description: "Issue warnings.", default: false }
+  aurapunishments.punish.kick: { description: "Kick players.", default: false }
+  aurapunishments.punish.mute: { description: "Issue timed mutes (needs a duration tier limit node).", default: false }
+  aurapunishments.punish.mute.permanent: { description: "Issue permanent mutes.", default: false }
+  aurapunishments.punish.ban: { description: "Issue timed bans (needs a duration tier limit node).", default: false }
+  aurapunishments.punish.ban.permanent: { description: "Issue permanent bans.", default: false }
+  aurapunishments.punish.ipban: { description: "Issue timed IP bans (needs a duration tier limit node).", default: false }
+  aurapunishments.punish.ipban.permanent: { description: "Issue permanent IP bans.", default: false }
+  aurapunishments.punish.revoke: { description: "Revoke punishments you issued through the quick pathway.", default: false }
+  aurapunishments.punish.revoke.any: { description: "Revoke any punishment, including judicial and direct ones.", default: false }
+  # Duration tier limits shipped in the default config.yml (tiers are configurable; LuckPerms supports aurapunishments.limit.<type>.*)
+  aurapunishments.limit.mute.short: { description: "Mute up to the 'short' tier (default 1h).", default: false }
+  aurapunishments.limit.mute.medium: { description: "Mute up to the 'medium' tier (default 1d).", default: false }
+  aurapunishments.limit.mute.long: { description: "Mute up to the 'long' tier (default 7d).", default: false }
+  aurapunishments.limit.mute.extended: { description: "Mute up to the 'extended' tier (default 30d).", default: false }
+  aurapunishments.limit.ban.short: { description: "Ban up to the 'short' tier (default 1d).", default: false }
+  aurapunishments.limit.ban.medium: { description: "Ban up to the 'medium' tier (default 7d).", default: false }
+  aurapunishments.limit.ban.long: { description: "Ban up to the 'long' tier (default 30d).", default: false }
+  aurapunishments.limit.ban.extended: { description: "Ban up to the 'extended' tier (default 180d).", default: false }
+  aurapunishments.limit.ipban.short: { description: "IP ban up to the 'short' tier (default 1d).", default: false }
+  aurapunishments.limit.ipban.medium: { description: "IP ban up to the 'medium' tier (default 7d).", default: false }
+  aurapunishments.limit.ipban.long: { description: "IP ban up to the 'long' tier (default 30d).", default: false }
+  aurapunishments.limit.jail.short: { description: "Jail sentence up to the 'short' tier (default 1h).", default: false }
+  aurapunishments.limit.jail.medium: { description: "Jail sentence up to the 'medium' tier (default 6h).", default: false }
+  aurapunishments.limit.jail.long: { description: "Jail sentence up to the 'long' tier (default 1d).", default: false }
+  aurapunishments.limit.jail.extended: { description: "Jail sentence up to the 'extended' tier (default 7d).", default: false }
+  aurapunishments.direct.*:
+    default: false
+    children:
+      aurapunishments.direct: true
+      aurapunishments.direct.mute: true
+      aurapunishments.direct.mute.permanent: true
+      aurapunishments.direct.ban: true
+      aurapunishments.direct.ban.permanent: true
+      aurapunishments.direct.ipban: true
+      aurapunishments.direct.ipban.permanent: true
+  aurapunishments.direct: { description: "Use the direct punishment pathway (also needs a per-type direct node).", default: false }
+  aurapunishments.direct.mute: { description: "Direct mute.", default: false }
+  aurapunishments.direct.mute.permanent: { description: "Direct permanent mute.", default: false }
+  aurapunishments.direct.ban: { description: "Direct ban.", default: false }
+  aurapunishments.direct.ban.permanent: { description: "Direct permanent ban.", default: false }
+  aurapunishments.direct.ipban: { description: "Direct IP ban.", default: false }
+  aurapunishments.direct.ipban.permanent: { description: "Direct permanent IP ban.", default: false }
+  aurapunishments.emergency.*:
+    default: false
+    children:
+      aurapunishments.emergency.use: true
+      aurapunishments.emergency.review: true
+  aurapunishments.emergency.use: { description: "Apply emergency protective actions.", default: false }
+  aurapunishments.emergency.review: { description: "Review emergency actions (also receives emergency alerts).", default: false }
+  aurapunishments.judicial.*:
+    default: false
+    children:
+      aurapunishments.judicial.view: true
+      aurapunishments.judicial.manage: true
+      aurapunishments.judicial.verdict: true
+      aurapunishments.judicial.verdict.any: true
+      aurapunishments.judicial.sentence: true
+      aurapunishments.judicial.release: true
+      aurapunishments.judicial.overturn: true
+  aurapunishments.judicial.view: { description: "Open the judicial dashboard and judicial lists.", default: false }
+  aurapunishments.judicial.manage: { description: "Assign judges, schedule trials, manage trial status and extend custody.", default: false }
+  aurapunishments.judicial.verdict: { description: "Enter verdicts (also required to be assigned as judge).", default: false }
+  aurapunishments.judicial.verdict.any: { description: "Enter a verdict on a case assigned to a different judge.", default: false }
+  aurapunishments.judicial.sentence: { description: "Impose sentences.", default: false }
+  aurapunishments.judicial.release: { description: "Release prisoners as part of judicial decisions.", default: false }
+  aurapunishments.judicial.overturn: { description: "Overturn findings and decide appeals.", default: false }
+  aurapunishments.sensitive.*:
+    default: false
+    children:
+      aurapunishments.sensitive.ip: true
+      aurapunishments.sensitive.notes: true
+  aurapunishments.sensitive.ip: { description: "See IP addresses.", default: false }
+  aurapunishments.sensitive.notes: { description: "Read and write sensitive staff notes.", default: false }
+  aurapunishments.audit.view: { description: "View the audit log.", default: false }
+  aurapunishments.admin: { description: "Diagnostics, audit verification and administrative tools.", default: false }
+  aurapunishments.admin.reload: { description: "Reload the configuration.", default: false }
+  aurapunishments.immune: { description: "Cannot be targeted by disciplinary actions (except by immunity bypass).", default: false }
+  aurapunishments.immunity.bypass: { description: "Ignore hierarchy, self-targeting and immunity protections. Owner-level.", default: false }
+  aurapunishments.legacy.bypass: { description: "Use vanilla/EssentialsX punishment commands (/ban, /mute ...) that are normally redirected.", default: false }
+  aurapunishments.mute.bypass: { description: "Not blocked from chat commands while muted. Intended for nobody.", default: false }
+  aurapunishments.notify.*:
+    default: false
+    children:
+      aurapunishments.notify.case-created: true
+      aurapunishments.notify.custody-started: true
+      aurapunishments.notify.custody-alerts: true
+      aurapunishments.notify.verdicts: true
+      aurapunishments.notify.direct-punishments: true
+      aurapunishments.notify.emergency: true
+  aurapunishments.notify.case-created: { description: "Alerts when cases are opened and trials scheduled.", default: false }
+  aurapunishments.notify.custody-started: { description: "Alerts for pretrial custody.", default: false }
+  aurapunishments.notify.custody-alerts: { description: "Custody deadline alerts.", default: false }
+  aurapunishments.notify.verdicts: { description: "Verdict, sentence, appeal and reversal alerts.", default: false }
+  aurapunishments.notify.direct-punishments: { description: "Direct punishment alerts.", default: false }
+  aurapunishments.notify.emergency: { description: "Emergency action alerts.", default: false }

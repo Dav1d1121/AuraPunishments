@@ -335,5 +335,3 @@ integrations:
   luckperms:
     # Subscribe to LuckPerms permission changes so open GUIs close when access is revoked.
     close-guis-on-permission-change: true
-  placeholderapi:
-    enabled: true

@@ -23,8 +23,22 @@ public final class PlayerResolver extends Svc {
 
     public record Target(UUID uuid, String name, boolean online) {}
 
+    private final java.util.Set<String> known = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
     public PlayerResolver(Core core) {
         super(core);
+    }
+
+    /** Load every known player name into memory for tab completion (startup). */
+    public CompletableFuture<Void> loadKnownNames() {
+        return core.db.tx(c -> dev.aura.punishments.db.Sql.query(c, "SELECT name FROM profiles", rs -> rs.getString(1)))
+                .thenAccept(known::addAll).exceptionally(t -> null);
+    }
+
+    /** Names (case preserved) starting with the prefix; only meaningful for staff who may open other players. */
+    public List<String> knownNames(String prefix, int limit) {
+        String p = prefix == null ? "" : prefix.toLowerCase(java.util.Locale.ROOT);
+        return known.stream().filter(n -> n.toLowerCase(java.util.Locale.ROOT).startsWith(p)).sorted().limit(limit).toList();
     }
 
     /** Must be called on the main thread (reads online players). */
@@ -83,6 +97,7 @@ public final class PlayerResolver extends Svc {
 
     /** Record that a player joined (name, last IP, authority level). Fire-and-forget on the DB thread. */
     public CompletableFuture<Void> recordJoin(UUID uuid, String name, String ip, int level) {
+        known.add(name);
         return core.db.tx(c -> {
             Repo.Profiles.upsert(c, uuid, name, ip, level, core.clock.now());
             return null;

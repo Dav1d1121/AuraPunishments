@@ -81,7 +81,6 @@ public final class Settings {
     public final int auditRetentionDays;
     public final boolean jailEnabled;
     public final boolean closeGuisOnPermissionChange;
-    public final boolean placeholderApi;
 
     private Settings(YamlConfiguration y, List<String> p) {
         this.debug = y.getBoolean("general.debug", false);
@@ -247,7 +246,6 @@ public final class Settings {
         this.auditRetentionDays = range(y, "retention.audit-days", 0, 0, 36500, p);
         this.jailEnabled = y.getBoolean("integrations.jailreloaded.enabled", true);
         this.closeGuisOnPermissionChange = y.getBoolean("integrations.luckperms.close-guis-on-permission-change", true);
-        this.placeholderApi = y.getBoolean("integrations.placeholderapi.enabled", true);
     }
 
     public static Settings parse(YamlConfiguration y) throws ConfigException {
