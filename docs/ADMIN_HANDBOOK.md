@@ -48,7 +48,7 @@ Check the console for the startup summary:
 [AuraPunishments] AuraCommandFilter detected: ...
 ```
 
-`/ap status` (permission `aurapunishments.admin`) prints the same information plus database health, Discord state and
+`/ap status` (permission `aurapunishments.admin`, or the console) prints the same information plus database health, Discord state and
 counts of custody / pending operations.
 
 ### Required JailReloaded setup
@@ -199,7 +199,7 @@ manager later without touching the services.
 
 ## 8. Security model (summary)
 
-* Default-deny permissions; every action re-checked at execution; `/punish` access alone grants nothing.
+* Default-deny permissions (the only default-op node is `aurapunishments.command`, so the console can run `/ap`; subcommands still need their own nodes for players); every action re-checked at execution; `/punish` access alone grants nothing.
 * Strict staff hierarchy (offline-aware), self-protection, immunity, duration tiers, separate direct and emergency nodes.
 * GUI: all clicks/drags cancelled, stale or duplicated windows closed, 250 ms click cooldown, in-flight lock, typed-name
   confirmation for bans, optimistic version checks (a case changed by someone else is refused, not overwritten).

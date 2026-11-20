@@ -28,7 +28,8 @@ commands:
     permission: aurapunishments.command
     permission-message: You do not have permission to use this command.
 
-# Everything is default-deny, including for operators. Grant through LuckPerms (see docs/PERMISSIONS.md).
+# Everything is default-deny, including for operators, except aurapunishments.command (default op) so the console can
+# run /ap. Grant everything else through LuckPerms (see docs/PERMISSIONS.md).
 permissions:
   aurapunishments.*:
     description: Every AuraPunishments permission (does NOT include aurapunishments.level.N or limit tiers; see docs).
@@ -54,8 +55,8 @@ permissions:
       aurapunishments.immunity.bypass: true
       aurapunishments.legacy.bypass: true
   aurapunishments.command:
-    description: Use /ap (help and the subcommands you separately hold permission for).
-    default: false
+    description: Use /ap (help and the subcommands you separately hold permission for). Default OP so the server console can run /ap; every subcommand still needs its own node.
+    default: op
   aurapunishments.punish:
     description: Open the punishment GUI (/punish). Does NOT grant authority to punish.
     default: false

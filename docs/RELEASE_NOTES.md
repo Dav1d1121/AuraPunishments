@@ -15,7 +15,7 @@ First release. Target: Paper 26.3, Java 25, JailReloaded 1.2.x, LuckPerms.
   **emergency protective actions** (separately authorised, <=24h, senior notification, review deadline, auto-expire).
 * **Enforcement**: login bans/IP bans, mutes across public chat, private messages and TownyChat/EssentialsX channel commands,
   warnings (delivered at next login if offline), kicks, expiry across restarts, revocation, full history.
-* **Safety**: default-deny permissions, strict (offline-aware) staff hierarchy, immunity, duration tiers, optimistic versioning
+* **Safety**: default-deny permissions (console can run `/ap`), strict (offline-aware) staff hierarchy, immunity, duration tiers, optimistic versioning
   for concurrent edits, duplicate-click/stale-window/item-movement protection, typed-name confirmation, hash-chained audit log.
 * **Integration**: JailReloaded through a verified, recoverable adapter; AuraCommandFilter-compatible command metadata; legacy
   `/ban /mute /kick ...` redirected to `/punish`; Discord webhooks (best-effort, async, mention-safe).

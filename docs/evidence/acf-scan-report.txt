@@ -1,0 +1,209 @@
+AuraCommandFilter scan report - 2026-11-20T04:59:12.697634112Z
+Index generation 2, 1652 keys
+
+UNRESOLVED (no permission metadata; hidden from players)
+  Essentials (1):
+    r
+  JailReloaded (2):
+    togglejaildebug
+    unhandcuff
+  LuckPerms (1):
+    luckperms
+  Towny (5):
+    accept
+    cancel
+    confirm
+    deny
+    invite
+
+INFERRED (declared-node correlation)
+  Essentials (152):
+    afk
+    antioch
+    anvil
+    back
+    backup
+    balance
+    balancetop
+    ban
+    banip
+    beezooka
+    bigtree
+    book
+    bottom
+    break
+    broadcast
+    broadcastworld
+    burn
+    cartographytable
+    clearinventory
+    clearinventoryconfirmtoggle
+    compass
+    condense
+    createkit
+    customtext
+    delhome
+    deljail
+    delkit
+    delwarp
+    depth
+    disposal
+    eco
+    editsign
+    enchant
+    enderchest
+    essentials
+    exp
+    ext
+    feed
+    fireball
+    firework
+    fly
+    gamemode
+    gc
+    getpos
+    give
+    god
+    grindstone
+    hat
+    heal
+    help
+    helpop
+    home
+    ice
+    ignore
+    info
+    invsee
+    item
+    itemdb
+    itemlore
+    itemname
+    jailedplayers
+    jails
+    jump
+    kick
+    kickall
+    kill
+    kit
+    kitreset
+    kittycannon
+    lightning
+    list
+    loom
+    mail
+    me
+    more
+    motd
+    msg
+    msgtoggle
+    mute
+    near
+    nick
+    nuke
+    pay
+    payconfirmtoggle
+    paytoggle
+    ping
+    playtime
+    potion
+    powertool
+    powertoollist
+    powertooltoggle
+    ptime
+    pweather
+    realname
+    recipe
+    remove
+    renamehome
+    repair
+    rest
+    rtoggle
+    rules
+    seen
+    sell
+    sethome
+    setjail
+    settpr
+    setwarp
+    setworth
+    showkit
+    skull
+    smithingtable
+    socialspy
+    spawner
+    spawnmob
+    speed
+    stonecutter
+    sudo
+    suicide
+    tempban
+    tempbanip
+    thunder
+    time
+    togglejail
+    top
+    tp
+    tpa
+    tpaall
+    tpacancel
+    tpaccept
+    tpahere
+    tpall
+    tpauto
+    tpdeny
+    tphere
+    tpo
+    tpoffline
+    tpohere
+    tppos
+    tpr
+    tptoggle
+    tree
+    unban
+    unbanip
+    unlimited
+    vanish
+    warp
+    warpinfo
+    weather
+    whois
+    workbench
+    world
+    worth
+  JailReloaded (4):
+    handcuff
+    jail
+    unjail
+    unjailforce
+  Towny (7):
+    nation
+    plot
+    resident
+    town
+    towny
+    townyadmin
+    townyworld
+
+METADATA WARNINGS
+  JailReloaded (2):
+    /jail: label 'jail' is also claimed by [essentials] - only this command answers '/jail'; the other is reachable only as 'essentials:jail'
+    /unjail: label 'unjail' is also claimed by [essentials] - only this command answers '/unjail'; the other is reachable only as 'essentials:unjail'
+  Towny (1):
+    /town: label 't' is also claimed by [essentials] - only this command answers '/t'; the other is reachable only as 'essentials:t'
+  server (6):
+    /restart: 1 of 1 declared permission(s) are not registered with Bukkit (Bukkit treats them as op-only unless a permission plugin grants them): [bukkit.command.restart]
+    /spark: 11 of 11 declared permission(s) are not registered with Bukkit (Bukkit treats them as op-only unless a permission plugin grants them): [spark.tickmonitor, spark.gc, spark] ...
+    /spigot: 1 of 1 declared permission(s) are not registered with Bukkit (Bukkit treats them as op-only unless a permission plugin grants them): [bukkit.command.spigot]
+    /timings: 1 of 1 declared permission(s) are not registered with Bukkit (Bukkit treats them as op-only unless a permission plugin grants them): [bukkit.command.timings]
+    /tps: 1 of 1 declared permission(s) are not registered with Bukkit (Bukkit treats them as op-only unless a permission plugin grants them): [bukkit.command.tps]
+    /tps: label 'tps' is also claimed by [essentials] - only this command answers '/tps'; the other is reachable only as 'essentials:tps'
+
+SERVER REQUIREMENT (implemented through Brigadier; the requirement is opaque, the server evaluates it)
+  server (6):
+    icanhasbukkit
+    mspt
+    pl
+    plugins
+    ver
+    version
+

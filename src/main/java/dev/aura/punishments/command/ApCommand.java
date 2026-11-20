@@ -40,26 +40,31 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
     private final Gui gui;
     private final List<Sub> subs;
 
+    /** The server console is always trusted; everyone else needs the node. */
+    private static boolean has(CommandSender s, String node) {
+        return s instanceof org.bukkit.command.ConsoleCommandSender || s.hasPermission(node);
+    }
+
     public ApCommand(Gui gui) {
         this.gui = gui;
-        Predicate<CommandSender> viewCases = s -> s.hasPermission(Perms.CASE_VIEW_ALL) || s.hasPermission(Perms.CASE_VIEW_OWN);
+        Predicate<CommandSender> viewCases = s -> has(s, Perms.CASE_VIEW_ALL) || has(s, Perms.CASE_VIEW_OWN);
         this.subs = List.of(
                 new Sub("help", "/ap help", "Show the commands you can use", s -> true),
                 new Sub("case", "/ap case <id>", "Open a case", s -> viewCases.test(s) && s instanceof Player),
                 new Sub("cases", "/ap cases [all|open|trial|verdict|sentence|appeals|mine]", "Browse cases", s -> viewCases.test(s) && s instanceof Player),
-                new Sub("history", "/ap history <player>", "View a player's disciplinary history", s -> s.hasPermission(Perms.HISTORY_VIEW)),
-                new Sub("judge", "/ap judge", "Open the judicial dashboard", s -> s.hasPermission(Perms.JUDICIAL_VIEW) && s instanceof Player),
-                new Sub("warn", "/ap warn <player> <reason>", "Issue a warning", s -> s.hasPermission(Perms.punish(PunishType.WARN))),
-                new Sub("kick", "/ap kick <player> <reason>", "Kick a player", s -> s.hasPermission(Perms.punish(PunishType.KICK))),
-                new Sub("mute", "/ap mute <player> <duration> <reason> [-e <evidence>]", "Mute a player", s -> s.hasPermission(Perms.punish(PunishType.MUTE))),
-                new Sub("ban", "/ap ban <player> <duration> <reason> [-e <evidence>]", "Ban a player", s -> s.hasPermission(Perms.punish(PunishType.BAN))),
-                new Sub("ipban", "/ap ipban <player> <duration> <reason> [-e <evidence>]", "IP-ban a player", s -> s.hasPermission(Perms.punish(PunishType.IPBAN))),
-                new Sub("unmute", "/ap unmute <player> <reason>", "Revoke an active mute", s -> s.hasPermission(Perms.REVOKE) || s.hasPermission(Perms.REVOKE_ANY)),
-                new Sub("unban", "/ap unban <player> <reason>", "Revoke an active ban", s -> s.hasPermission(Perms.REVOKE) || s.hasPermission(Perms.REVOKE_ANY)),
-                new Sub("admin", "/ap admin", "Open the administration screen", s -> (s.hasPermission(Perms.ADMIN) || s.hasPermission(Perms.AUDIT_VIEW)) && s instanceof Player),
-                new Sub("status", "/ap status", "Show system status and integrations", s -> s.hasPermission(Perms.ADMIN)),
-                new Sub("audit", "/ap audit [verify]", "Verify the audit log integrity", s -> s.hasPermission(Perms.ADMIN)),
-                new Sub("reload", "/ap reload", "Reload and validate the configuration", s -> s.hasPermission(Perms.ADMIN_RELOAD)));
+                new Sub("history", "/ap history <player>", "View a player's disciplinary history", s -> has(s, Perms.HISTORY_VIEW)),
+                new Sub("judge", "/ap judge", "Open the judicial dashboard", s -> has(s, Perms.JUDICIAL_VIEW) && s instanceof Player),
+                new Sub("warn", "/ap warn <player> <reason>", "Issue a warning", s -> has(s, Perms.punish(PunishType.WARN))),
+                new Sub("kick", "/ap kick <player> <reason>", "Kick a player", s -> has(s, Perms.punish(PunishType.KICK))),
+                new Sub("mute", "/ap mute <player> <duration> <reason> [-e <evidence>]", "Mute a player", s -> has(s, Perms.punish(PunishType.MUTE))),
+                new Sub("ban", "/ap ban <player> <duration> <reason> [-e <evidence>]", "Ban a player", s -> has(s, Perms.punish(PunishType.BAN))),
+                new Sub("ipban", "/ap ipban <player> <duration> <reason> [-e <evidence>]", "IP-ban a player", s -> has(s, Perms.punish(PunishType.IPBAN))),
+                new Sub("unmute", "/ap unmute <player> <reason>", "Revoke an active mute", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
+                new Sub("unban", "/ap unban <player> <reason>", "Revoke an active ban", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
+                new Sub("admin", "/ap admin", "Open the administration screen", s -> (has(s, Perms.ADMIN) || has(s, Perms.AUDIT_VIEW)) && s instanceof Player),
+                new Sub("status", "/ap status", "Show system status and integrations", s -> has(s, Perms.ADMIN)),
+                new Sub("audit", "/ap audit [verify]", "Verify the audit log integrity", s -> has(s, Perms.ADMIN)),
+                new Sub("reload", "/ap reload", "Reload and validate the configuration", s -> has(s, Perms.ADMIN_RELOAD)));
     }
 
     // ------------------------------------------------------------------ helpers
@@ -85,7 +90,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!sender.hasPermission(Perms.COMMAND)) {
+        if (!has(sender, Perms.COMMAND)) {
             gui.messages().send(sender, "command.no-permission");
             return true;
         }
@@ -135,8 +140,8 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
         for (Sub s : subs) {
             if (s.visible().test(sender)) gui.messages().send(sender, "command.help-line", "usage", s.usage(), "description", s.description());
         }
-        if (sender.hasPermission(Perms.PUNISH)) gui.messages().send(sender, "command.help-line", "usage", "/punish <player>", "description", "Open a player's punishment screen");
-        if (sender.hasPermission(Perms.DASHBOARD)) gui.messages().send(sender, "command.help-line", "usage", "/punishments", "description", "Open the staff dashboard");
+        if (has(sender, Perms.PUNISH)) gui.messages().send(sender, "command.help-line", "usage", "/punish <player>", "description", "Open a player's punishment screen");
+        if (has(sender, Perms.DASHBOARD)) gui.messages().send(sender, "command.help-line", "usage", "/punishments", "description", "Open the staff dashboard");
     }
 
     private void openCase(CommandSender sender, String[] a) {
@@ -173,7 +178,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
     }
 
     private void history(CommandSender sender, String[] a) {
-        if (!sender.hasPermission(Perms.HISTORY_VIEW)) {
+        if (!has(sender, Perms.HISTORY_VIEW)) {
             gui.messages().send(sender, "command.no-permission");
             return;
         }
@@ -265,7 +270,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
     // ------------------------------------------------------------------ tab completion
     @Override
     public List<String> onTabComplete(CommandSender sender, Command cmd, String alias, String[] args) {
-        if (!sender.hasPermission(Perms.COMMAND)) return List.of();
+        if (!has(sender, Perms.COMMAND)) return List.of();
         if (args.length == 1) {
             String p = args[0].toLowerCase(Locale.ROOT);
             return subs.stream().filter(s -> s.visible().test(sender)).map(Sub::name).filter(n -> n.startsWith(p)).toList();
@@ -274,7 +279,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
         Sub s = subs.stream().filter(x -> x.name().equals(sub)).findFirst().orElse(null);
         if (s == null || !s.visible().test(sender)) return List.of();
         boolean needsPlayer = List.of("history", "warn", "kick", "mute", "ban", "ipban", "unmute", "unban").contains(sub);
-        if (args.length == 2 && needsPlayer && sender.hasPermission(Perms.PUNISH_OTHERS)) return PlayerNames.suggest(gui, sender, args[1]);
+        if (args.length == 2 && needsPlayer && has(sender, Perms.PUNISH_OTHERS)) return PlayerNames.suggest(gui, sender, args[1]);
         if (args.length == 2 && sub.equals("cases")) return List.of("all", "open", "trial", "verdict", "sentence", "appeals", "mine");
         if (args.length == 3 && List.of("mute", "ban", "ipban").contains(sub)) {
             PunishType t = PunishType.valueOf(sub.toUpperCase(Locale.ROOT));
@@ -286,7 +291,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
             }
             return out;
         }
-        if (args.length == 2 && sub.equals("audit") && sender.hasPermission(Perms.ADMIN)) return List.of("verify");
+        if (args.length == 2 && sub.equals("audit") && has(sender, Perms.ADMIN)) return List.of("verify");
         return List.of();
     }
 }

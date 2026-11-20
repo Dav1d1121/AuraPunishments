@@ -448,6 +448,13 @@ public final class LiveTest extends JavaPlugin {
                 && dev.aura.punishments.listener.CommandGuardListener.names("spawn").stream().noneMatch(settings.mute.blockedCommands()::contains), "");
         check("JailReloaded still answers /jail (not shadowed by EssentialsX)", Bukkit.getPluginCommand("jail") != null && Bukkit.getPluginCommand("jail").getPlugin().getName().equals("JailReloaded"),
                 Bukkit.getPluginCommand("jail") == null ? "none" : Bukkit.getPluginCommand("jail").getPlugin().getName());
+        // The server console must be able to run /ap (all AuraPunishments nodes default to false, even for ops).
+        check("console passes the /ap command permission", Bukkit.getConsoleSender().hasPermission("aurapunishments.command"), "");
+        long before = ap.core().db.txSync(cn -> dev.aura.punishments.db.Sql.count(cn, "SELECT COUNT(*) FROM audit_log WHERE action='admin.reload'"));
+        onMain(() -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), "ap reload"));
+        Thread.sleep(800);
+        long after = ap.core().db.txSync(cn -> dev.aura.punishments.db.Sql.count(cn, "SELECT COUNT(*) FROM audit_log WHERE action='admin.reload'"));
+        check("console /ap reload runs through the real command dispatcher", after == before + 1, "audit admin.reload " + before + " -> " + after);
         check("AuraPunishments commands registered", Bukkit.getPluginCommand("punish") != null && Bukkit.getPluginCommand("ap") != null, "");
         check("commands declare permissions (for AuraCommandFilter)", "aurapunishments.punish".equals(Bukkit.getPluginCommand("punish").getPermission())
                 && "aurapunishments.dashboard".equals(Bukkit.getPluginCommand("punishments").getPermission())

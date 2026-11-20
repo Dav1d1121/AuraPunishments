@@ -1,6 +1,6 @@
 # AuraPunishments 1.0.0 - Permission Matrix
 
-Everything is **default-deny**, including for server operators. Nothing in this plugin trusts a rank *name*;
+Everything is **default-deny**, including for server operators, with one deliberate exception: `aurapunishments.command` (the bare `/ap` command, which only shows help and a list of the subcommands you separately hold) defaults to **op** so the server console can run `/ap`. The console is always trusted for `/ap` subcommands; players still need each node. Nothing in this plugin trusts a rank *name*;
 authority comes only from LuckPerms nodes, so your existing Trainee -> Owner groups keep working and you can
 adjust any single privilege without touching code.
 
