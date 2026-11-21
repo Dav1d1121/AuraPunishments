@@ -1,5 +1,7 @@
 package dev.aura.punishments.service;
 
+import java.util.Map;
+import java.util.LinkedHashMap;
 import dev.aura.punishments.config.Settings;
 import dev.aura.punishments.db.Repo;
 import dev.aura.punishments.model.CaseStatus;
@@ -157,9 +159,19 @@ public final class PunishmentService extends Svc {
         }
         Long expires = type.canBeTimed() && durationMs != Durations.PERMANENT ? now + durationMs : null;
         PunishStatus status = type.instant() ? PunishStatus.COMPLETED : PunishStatus.ACTIVE;
-        boolean online = type == PunishType.WARN ? core.enforcement.isOnline(target.uuid()) : true;
+        boolean online = type != PunishType.WARN; // warnings count as delivered only once the player has actually seen them
         long id = Repo.Punishments.insert(c, type, status, target.uuid(), target.name(), ip, reason, actor.dbUuid(), actor.name(),
                 now, expires, caseId, source, offense, online, reviewDeadline, custodyId);
+        if (type == PunishType.WARN) {
+            Settings.WarnRepeat rep = core.settings.warnings.repeat();
+            long n = Repo.Punishments.countWarningsSince(c, target.uuid(), now - rep.window(), rep.sameCategoryOnly() ? offense : null);
+            Map<String, String> pl = new LinkedHashMap<>();
+            pl.put("reason", reason);
+            pl.put("issuer", actor.name());
+            pl.put("id", String.valueOf(id));
+            pl.put("count", String.valueOf(n));
+            core.notifications.enqueue(c, "warn:" + id, target.uuid(), NotificationService.WARNING, "punishment", id, pl);
+        }
         if (audit) {
             boolean elevated = type == PunishType.IPBAN || (type.canBeTimed() && durationMs == Durations.PERMANENT) || source != Source.QUICK;
             audit(c, actor, "punishment." + type.node(), target.uuid(), caseId,
@@ -176,14 +188,7 @@ public final class PunishmentService extends Svc {
             switch (p.type()) {
                 case BAN, IPBAN, KICK -> core.enforcement.disconnect(p.targetUuid(), p);
                 case MUTE -> core.enforcement.noticeMute(p.targetUuid(), p);
-                case WARN -> {
-                    if (core.enforcement.deliverWarning(p.targetUuid(), p, late)) {
-                        core.db.tx(c -> {
-                            Repo.Punishments.markDelivered(c, p.id());
-                            return null;
-                        });
-                    }
-                }
+                case WARN -> core.notifications.deliverPending(p.targetUuid());
                 default -> { }
             }
         }).exceptionally(t -> {
@@ -260,25 +265,10 @@ public final class PunishmentService extends Svc {
         });
     }
 
-    /** Deliver warnings that were issued while the player was offline. */
+    /** Deliver queued notifications (warnings, defendant messages) that were waiting for this player to come online. */
     public CompletableFuture<Void> deliverPending(UUID uuid) {
         if (!core.settings.warningDelivery) return CompletableFuture.completedFuture(null);
-        return core.db.tx(c -> Repo.Punishments.undeliveredWarnings(c, uuid)).thenCompose(list -> {
-            CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
-            for (Punishment p : list) {
-                chain = chain.thenCompose(v -> core.main.call(() -> core.enforcement.deliverWarning(uuid, p, true)).thenCompose(ok -> {
-                    if (!ok) return CompletableFuture.completedFuture(null);
-                    return core.db.tx(c2 -> {
-                        Repo.Punishments.markDelivered(c2, p.id());
-                        return null;
-                    }).thenApply(x -> (Void) null);
-                }));
-            }
-            return chain;
-        }).exceptionally(t -> {
-            core.log.warning("Could not deliver pending warnings: " + t.getMessage());
-            return null;
-        });
+        return core.notifications.deliverPending(uuid);
     }
 
     // ------------------------------------------------------------------ lookups

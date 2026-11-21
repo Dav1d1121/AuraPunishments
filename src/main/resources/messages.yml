@@ -49,6 +49,7 @@ warning:
   notice:
     - "<prefix><gold><bold>OFFICIAL WARNING"
     - "<prefix><gray>Reason: <white><reason>"
+    - "<prefix><gray>Warning on record in the last period: <white><count>"
     - "<prefix><gray>Further breaches may lead to a case against you."
   delivered-later: "<prefix><gold>You received a warning while you were away:"
 
@@ -67,6 +68,58 @@ alert:
   appeal: "<prefix><aqua>Appeal on case <ref> (<player>): <white><detail>"
   reversal: "<prefix><gray>Reversal on case <ref> (<player>): <white><detail>"
   custody-alert: "<prefix><gold><bold>CUSTODY ALERT <white><player> <gray>(case <ref>): <detail>"
+  generic: "<prefix><aqua><title> <gray>(case <ref>, <player>): <white><detail>"
+  warning: "<prefix><gold>Warning issued to <white><player> <gray>by <actor>: <detail>"
+  quick-punishment: "<prefix><gold>Quick punishment: <white><player> <gray>- <detail> <gray>(by <actor>)"
+  review-created: "<prefix><aqua>Owner review <ref> requested for <white><player> <gray>- <detail>"
+  review-decision: "<prefix><aqua>Review decision for <white><player><gray>: <white><detail>"
+  review-evidence: "<prefix><aqua>Review evidence update for <white><player><gray>: <white><detail>"
+  review-reminder: "<prefix><yellow>Review reminder: <white><player> <gray>- <detail>"
+  review-overdue: "<prefix><red>Review overdue: <white><player> <gray>- <detail>"
+  custody-attempt: "<prefix><gold>Custody requested for <white><player> <gray>(case <ref>) - awaiting JailReloaded confirmation."
+  custody-failed: "<prefix><red><bold>CUSTODY FAILED <white><player> <gray>(case <ref>): <detail>"
+  case-status: "<prefix><aqua>Case <ref> (<player>): <white><detail>"
+  trial-postponed: "<prefix><light_purple>Trial for case <ref> (<player>) postponed: <detail>"
+  punishment-modified: "<prefix><gray>Punishment modified (<player>): <white><detail>"
+  appeal-ticket: "<prefix><aqua>Appeal ticket linked to case <ref> (<player>): <white><detail>"
+  admin-action: "<prefix><gray>Admin: <white><detail>"
+  export: "<prefix><gray>Case summary exported for <ref> by <actor>."
+  integration-error: "<prefix><red>Integration problem: <white><detail>"
+  security: "<prefix><red>Security: <white><detail>"
+
+# ---------------------------------------------------------------------------
+#  Defendant communication (sent to the accused; informational, never a finding of guilt unless it is a verdict)
+# ---------------------------------------------------------------------------
+defendant:
+  delivered-later: "<prefix><gold>You have an update on your case from while you were away:"
+  detention:
+    - "<prefix><gold><bold>You are being held pending a hearing."
+    - "<prefix><gray>Case: <white><ref>"
+    - "<prefix><gray>Alleged offense: <white><offense>"
+    - "<prefix><gray>Details: <white><reason>"
+    - "<prefix><gray>This is NOT a finding of guilt. The case will be heard by staff."
+    - "<prefix><gray><instructions>"
+  trial-scheduled:
+    - "<prefix><light_purple><bold>Your hearing has been scheduled."
+    - "<prefix><gray>Case: <white><ref> <gray>- <detail>"
+    - "<prefix><gray><instructions>"
+  trial-postponed:
+    - "<prefix><light_purple>Your hearing has been postponed."
+    - "<prefix><gray>Case: <white><ref> <gray>- <detail>"
+  status:
+    - "<prefix><aqua>Update on case <white><ref><gray>: <white><detail>"
+  verdict:
+    - "<prefix><yellow><bold>A verdict has been entered in case <ref>."
+    - "<prefix><gray>Verdict: <white><detail>"
+  sentence:
+    - "<prefix><red><bold>A sentence has been imposed in case <ref>."
+    - "<prefix><gray>Sentence: <white><detail>"
+  release:
+    - "<prefix><green><bold>You have been released from custody (case <ref>)."
+    - "<prefix><gray><detail>"
+  acquittal:
+    - "<prefix><green><bold>Case <ref> has ended in your favor."
+    - "<prefix><gray><detail>"
 
 # ---------------------------------------------------------------------------
 #  Chat prompts (reason / evidence / note entry)

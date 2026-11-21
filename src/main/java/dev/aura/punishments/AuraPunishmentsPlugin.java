@@ -96,6 +96,17 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         MainThread main = new MainThread() {
             @Override
+            public CompletableFuture<Void> later(long ticks) {
+                CompletableFuture<Void> f = new CompletableFuture<>();
+                try {
+                    Bukkit.getScheduler().runTaskLater(AuraPunishmentsPlugin.this, () -> f.complete(null), Math.max(1, ticks));
+                } catch (RuntimeException e) { // plugin disabled
+                    f.completeExceptionally(e);
+                }
+                return f;
+            }
+
+            @Override
             public <T> CompletableFuture<T> call(Supplier<T> work) {
                 if (Bukkit.isPrimaryThread()) {
                     try {
@@ -120,6 +131,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             }
         };
 
+        // (MainThread.later is added below via the wrapper)
         JailPort port = JailBootstrap.connect(getServer(), getLogger(), settings.jailEnabled);
         core = new Core(db, Clock.SYSTEM, getLogger(), main, settings, offenses, port, null, e -> { });
         core.messages = messages;
@@ -132,7 +144,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         core.events = new BukkitNotifier(this, core, discord);
         BukkitLevelResolver levels = new BukkitLevelResolver(core);
         core.levels = levels;
-        core.enforcement = new BukkitEnforcement(this, core);
+        BukkitEnforcement enforcement = new BukkitEnforcement(this, core);
+        core.enforcement = enforcement;
         try {
             if (getServer().getPluginManager().getPlugin("LuckPerms") != null) {
                 luckPerms = LuckPermsBackend.create();
@@ -163,6 +176,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         gui = new Gui(this, core, resolver, punishments, custody, cases, judicial, direct, admin, this);
         var pm = getServer().getPluginManager();
+        enforcement.promptCheck(u -> { org.bukkit.entity.Player pp = Bukkit.getPlayer(u); return pp != null && gui.prompts().has(pp); });
         pm.registerEvents(gui.prompts(), this);   // prompts first so a typed answer is never treated as chat
         pm.registerEvents(gui.manager(), this);
         pm.registerEvents(new ConnectionListener(core, punishments, resolver, (BukkitEnforcement) core.enforcement), this);

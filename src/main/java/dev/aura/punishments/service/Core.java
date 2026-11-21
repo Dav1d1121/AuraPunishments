@@ -23,6 +23,7 @@ public final class Core {
     public volatile DomainEvent.Sink events;
     public volatile Messages messages;
     public volatile Enforcement enforcement = Enforcement.NONE;
+    public final NotificationService notifications;
 
     public Core(Database db, Clock clock, Logger log, MainThread main, Settings settings, OffenseCatalog offenses,
                 JailPort jail, LevelResolver levels, DomainEvent.Sink events) {
@@ -36,6 +37,7 @@ public final class Core {
         this.levels = levels;
         this.events = events;
         this.auth = new Authority(() -> this.settings);
+        this.notifications = new NotificationService(this);
     }
 
     public void emit(DomainEvent e) {

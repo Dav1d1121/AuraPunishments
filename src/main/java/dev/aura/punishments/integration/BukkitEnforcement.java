@@ -11,7 +11,18 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Map;
 import java.util.UUID;
+import java.time.Duration;
+import dev.aura.punishments.config.Messages;
+import dev.aura.punishments.config.Settings;
+import dev.aura.punishments.model.Records.Notification;
+import dev.aura.punishments.service.NotificationService;
+import net.kyori.adventure.key.Key;
+import net.kyori.adventure.sound.Sound;
+import net.kyori.adventure.text.minimessage.MiniMessage;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.title.Title;
 
 /** Applies punishments to connected players: kick/ban screens and notices. Main thread only. */
 public final class BukkitEnforcement implements Enforcement {
@@ -69,12 +80,75 @@ public final class BukkitEnforcement implements Enforcement {
         if (pl != null) pl.sendMessage(core.messages.get("mute.expired"));
     }
 
+    /** Set by the plugin: true while the player is answering a chat prompt (their title is then not replaced). */
+    private volatile java.util.function.Predicate<UUID> prompting = u -> false;
+
+    public void promptCheck(java.util.function.Predicate<UUID> p) {
+        this.prompting = p == null ? u -> false : p;
+    }
+
     @Override
-    public boolean deliverWarning(UUID uuid, Punishment p, boolean late) {
+    public boolean deliverNotification(UUID uuid, Notification n, boolean late) {
         Player pl = Bukkit.getPlayer(uuid);
-        if (pl == null) return false;
-        if (late) pl.sendMessage(core.messages.get("warning.delivered-later"));
-        for (Component c : core.messages.lines("warning.notice", "reason", p.reason())) pl.sendMessage(c);
+        if (pl == null || !pl.isOnline()) return false;
+        Map<String, String> data = NotificationService.payload(n);
+        if (NotificationService.WARNING.equals(n.kind())) {
+            presentWarning(pl, data, late);
+        } else {
+            presentDefendant(pl, data, late);
+        }
         return true;
+    }
+
+    /** Reason shortened for a title line: control characters removed, never split inside a surrogate pair. */
+    public static String shorten(String reason, int max) {
+        String t = reason == null ? "" : reason.replaceAll("[\\p{Cntrl}\\n\\r]+", " ").trim();
+        if (t.codePointCount(0, t.length()) <= max) return t;
+        int end = t.offsetByCodePoints(0, Math.max(1, max - 1));
+        return t.substring(0, end).stripTrailing() + "\u2026";
+    }
+
+    private void presentWarning(Player pl, Map<String, String> d, boolean late) {
+        Settings.Warnings w = core.settings.warnings;
+        String reason = d.getOrDefault("reason", "");
+        String count = d.getOrDefault("count", "1");
+        if (w.chat()) {
+            if (late) pl.sendMessage(core.messages.get("warning.delivered-later"));
+            for (Component c : core.messages.lines("warning.notice", "reason", reason, "count", count)) pl.sendMessage(c);
+        }
+        try {
+            if (w.title().enabled() && !(w.deferTitleWhilePrompting() && prompting.test(pl.getUniqueId()))) {
+                Settings.WarnTitle t = w.title();
+                MiniMessage mm = Messages.mini();
+                Component sub = t.showReason()
+                        ? mm.deserialize(t.subtitleWithReason(), Placeholder.unparsed("reason", shorten(reason, t.reasonMaxChars())))
+                        : mm.deserialize(t.subtitle());
+                pl.showTitle(Title.title(mm.deserialize(t.title()), sub, Title.Times.times(
+                        Duration.ofMillis(t.fadeIn() * 50L), Duration.ofMillis(t.stay() * 50L), Duration.ofMillis(t.fadeOut() * 50L))));
+            }
+            if (w.sound().enabled()) {
+                Settings.WarnSound so = w.sound();
+                pl.playSound(Sound.sound(Key.key(so.sound()), Sound.Source.valueOf(so.source().toUpperCase(java.util.Locale.ROOT)), so.volume(), so.pitch()));
+            }
+            if (w.actionBar()) pl.sendActionBar(Messages.mini().deserialize(w.actionBarText()));
+        } catch (RuntimeException e) { // a bad sound key or MiniMessage typo must never lose the warning itself
+            core.log.warning("Warning presentation problem (the chat warning was still delivered): " + e.getMessage());
+        }
+    }
+
+    private void presentDefendant(Player pl, Map<String, String> d, boolean late) {
+        String event = d.getOrDefault("event", "STATUS").toLowerCase(java.util.Locale.ROOT).replace('_', '-');
+        String key = "defendant." + event;
+        String[] kv = {"ref", d.getOrDefault("ref", ""), "offense", d.getOrDefault("offense", ""), "reason", d.getOrDefault("reason", ""),
+                "detail", d.getOrDefault("detail", ""), "instructions", d.getOrDefault("instructions", ""), "status", d.getOrDefault("status", "")};
+        if (late) pl.sendMessage(core.messages.get("defendant.delivered-later"));
+        for (Component c : core.messages.lines(key, kv)) pl.sendMessage(c);
+        if (core.settings.defendant.sound()) {
+            try {
+                pl.playSound(Sound.sound(Key.key("block.note_block.chime"), Sound.Source.MASTER, 0.6f, 1.0f));
+            } catch (RuntimeException ignored) {
+                // cosmetic
+            }
+        }
     }
 }

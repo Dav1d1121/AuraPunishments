@@ -15,8 +15,8 @@ public interface Enforcement {
 
     void noticeUnmute(UUID uuid);
 
-    /** @return true when the player was online and saw the warning. */
-    boolean deliverWarning(UUID uuid, Punishment p, boolean late);
+    /** @return true when the player was online and the notification was shown to them. */
+    boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late);
 
     Enforcement NONE = new Enforcement() {
         @Override
@@ -34,7 +34,7 @@ public interface Enforcement {
         public void noticeUnmute(UUID uuid) { }
 
         @Override
-        public boolean deliverWarning(UUID uuid, Punishment p, boolean late) {
+        public boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late) {
             return false;
         }
     };

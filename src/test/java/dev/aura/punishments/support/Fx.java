@@ -65,7 +65,7 @@ public final class Fx implements AutoCloseable {
             @Override public void disconnect(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
             @Override public void noticeMute(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
             @Override public void noticeUnmute(UUID uuid) { }
-            @Override public boolean deliverWarning(UUID uuid, dev.aura.punishments.model.Records.Punishment p, boolean late) { return online.contains(uuid); }
+            @Override public boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late) { if (!online.contains(uuid)) return false; delivered.add(n); return true; }
         };
         punishments = new PunishmentService(core);
         custody = new CustodyService(core, punishments);
@@ -76,6 +76,9 @@ public final class Fx implements AutoCloseable {
     }
 
     /** A staff actor holding exactly these nodes. */
+    /** Notifications that were actually shown to an online player (in order). */
+    public final List<dev.aura.punishments.model.Records.Notification> delivered = new java.util.concurrent.CopyOnWriteArrayList<>();
+
     public static Actor staff(String name, int level, String... nodes) {
         Set<String> n = new HashSet<>(List.of(nodes));
         return Actor.player(UUID.nameUUIDFromBytes(name.getBytes(StandardCharsets.UTF_8)), name, new Actor.PermView() {
