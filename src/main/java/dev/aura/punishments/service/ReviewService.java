@@ -142,6 +142,12 @@ public final class ReviewService extends Svc {
         return Result.ok(r);
     }
 
+    /** Nobody may take or decide a review of a punishment they issued themselves (console/system excepted). */
+    private Result<Review> notOwn(Actor actor, Review r) {
+        if (isOwn(actor, r) && !actor.isPrivileged()) return Result.fail(Code.NO_PERMISSION, "You cannot review a punishment you issued yourself; another reviewer must decide it.");
+        return Result.ok(r);
+    }
+
     public CompletableFuture<Result<Review>> take(Actor actor, long id, long expectedVersion) {
         Result<Void> perm = core.auth.require(actor, Perms.REVIEW_REVIEW, "review punishments");
         if (!perm.isOk()) return done(perm.cast());
@@ -150,6 +156,8 @@ public final class ReviewService extends Svc {
             if (!lr.isOk()) return lr;
             Result<Review> op = open(lr.value());
             if (!op.isOk()) return op;
+            Result<Review> own = notOwn(actor, lr.value());
+            if (!own.isOk()) return own;
             long now = core.clock.now();
             if (!Repo.Reviews.setStatus(c, id, expectedVersion, ReviewStatus.UNDER_REVIEW, actor.name(), null, false, now)) return stale(id);
             Repo.Reviews.addEvent(c, id, now, actor.name(), "TAKEN", "Review started");
@@ -310,14 +318,17 @@ public final class ReviewService extends Svc {
                 Review r = lr.value();
                 Result<Review> op = open(r);
                 if (!op.isOk() && !(to == ReviewStatus.REVERSED && r.status() == ReviewStatus.REVERSED)) return op;
+                Result<Review> own = notOwn(actor, r);
+                if (!own.isOk()) return own;
                 long now = core.clock.now();
                 String detail = to.display();
                 if (to == ReviewStatus.MODIFIED) {
                     Punishment p = r.punishmentId() == null ? null : Repo.Punishments.get(c, r.punishmentId());
                     if (p == null || p.status() != PunishStatus.ACTIVE) return Result.<Review>fail(Code.STATE, "That punishment is no longer active, so it cannot be modified. Reverse it or uphold the review.");
                     Long newExpires = newDuration == null ? p.expiresAt() : newDuration == Durations.PERMANENT ? null : p.issuedAt() + newDuration;
-                    if (newExpires != null && newExpires <= now) return Result.<Review>fail(Code.INVALID, "That duration would already have elapsed. Reverse the punishment instead.");
-                    if (newDuration != null && !core.auth.checkDuration(actor, p.type(), newDuration, true).isOk()) {
+                    if (newDuration != null && newExpires != null && newExpires <= now) return Result.<Review>fail(Code.INVALID, "That duration would already have elapsed. Reverse the punishment instead.");
+                    boolean lengthens = newExpires == null ? p.expiresAt() != null : p.expiresAt() != null && newExpires > p.expiresAt();
+                    if (lengthens && !core.auth.checkDuration(actor, p.type(), newDuration, true).isOk()) {
                         return Result.<Review>fail(Code.LIMIT, "That duration is above what you may set.");
                     }
                     if (!Repo.Punishments.modify(c, p.id(), newExpires, reason == null || reason.isEmpty() ? null : reason, actor.name(), now)) {
@@ -346,8 +357,7 @@ public final class ReviewService extends Svc {
         if (r.punishmentId() != null) {
             core.db.tx(c -> Repo.Punishments.get(c, r.punishmentId())).thenAccept(p -> {
                 if (p == null) return;
-                punishments.cache().remove(p);
-                punishments.cache().add(p); // refresh the cached copy (modified expiry/reason); no-op when no longer active
+                punishments.cache().add(p); // replaces the cached copy atomically the cached copy (modified expiry/reason); no-op when no longer active
             });
         }
         core.emit(DomainEvent.of(DomainEvent.Type.REVIEW_DECISION).key("review-decision:" + r.id() + ":" + r.version()).caseId(r.caseId())
@@ -375,12 +385,21 @@ public final class ReviewService extends Svc {
         if (!cp.isOk()) return done(cp.cast());
         String why = Text.clean(note);
         if (why.length() < 5) return done(Result.fail(Code.INVALID, "Explain why this is being referred (at least 5 characters)."));
+        return core.db.tx(c -> Repo.Reviews.get(c, id)).thenCompose(r0 -> r0 == null
+                ? done(Result.<Long>fail(Code.NOT_FOUND, "Review " + id + " does not exist."))
+                : checkTarget(actor, r0.targetUuid()).thenCompose(tc -> tc.isOk() ? referNow(actor, id, expectedVersion, why) : done(tc.<Long>cast())));
+    }
+
+    private CompletableFuture<Result<Long>> referNow(Actor actor, long id, long expectedVersion, String why) {
         return db(c -> {
             Result<Review> lr = load(c, id);
             if (!lr.isOk()) return lr.<Long>cast();
             Review r = lr.value();
             Result<Review> op = open(r);
             if (!op.isOk()) return op.<Long>cast();
+            if (r.status() == ReviewStatus.FURTHER_INVESTIGATION) return Result.<Long>fail(Code.DUPLICATE, r.ref() + " was already referred.");
+            Result<Review> own = notOwn(actor, r);
+            if (!own.isOk()) return own.<Long>cast();
             long now = core.clock.now();
             long caseId = Repo.Cases.insert(c, CaseStatus.OPEN, CaseKind.STANDARD, r.targetUuid(), r.targetName(), "other", Severity.MODERATE,
                     clip("Referred from owner review " + r.ref() + " (" + r.ptype().display() + "): " + r.reason(), 400), clip(why, 300),
@@ -390,6 +409,10 @@ public final class ReviewService extends Svc {
             Repo.Reviews.addEvent(c, id, now, actor.name(), "REFERRED", "Judicial case " + "AP-" + String.format("%04d", caseId) + " opened: " + why);
             audit(c, actor, "review.refer", r.targetUuid(), caseId, "review=" + id, true);
             return Result.ok(caseId);
+        }).thenApply(res -> {
+            if (res.isOk()) core.emit(DomainEvent.of(DomainEvent.Type.CASE_CREATED).key("case-created:" + res.value()).caseId(res.value()).actor(actor.name())
+                    .summary("Referred from owner review " + "RV-" + String.format("%04d", id)).build());
+            return res;
         });
     }
 

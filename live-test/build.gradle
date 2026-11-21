@@ -15,5 +15,14 @@ dependencies {
     compileOnly files('../libs/CoreProtect-25.1.jar')
 }
 
+// Live driver only: the real server jar (CraftBukkit/NMS) is used to create a connected in-server test player.
+def serverDir = findProperty('serverDir') ?: '/tmp/claude-0/run'
+if (file("$serverDir/versions/26.3/paper-26.3.jar").exists()) {
+    dependencies {
+        compileOnly files("$serverDir/versions/26.3/paper-26.3.jar")
+        compileOnly fileTree(dir: "$serverDir/libraries", include: '**/*.jar')
+    }
+}
+
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
 jar { archiveBaseName = 'APLiveTest' }

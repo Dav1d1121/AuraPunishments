@@ -94,7 +94,7 @@ public final class BukkitEnforcement implements Enforcement {
         if (pl == null || !pl.isOnline()) return false;
         Map<String, String> data = NotificationService.payload(n);
         if (NotificationService.WARNING.equals(n.kind())) {
-            presentWarning(pl, data, late);
+            if (!presentWarning(pl, data, late)) return false;
         } else if (ReviewService.STAFF.equals(n.kind())) {
             String key = "staffnote." + data.getOrDefault("event", "generic");
             pl.sendMessage(core.messages.get(core.messages.has(key) ? key : "staffnote.generic", "ref", data.getOrDefault("ref", ""),
@@ -113,13 +113,16 @@ public final class BukkitEnforcement implements Enforcement {
         return t.substring(0, end).stripTrailing() + "\u2026";
     }
 
-    private void presentWarning(Player pl, Map<String, String> d, boolean late) {
+    /** @return false when nothing at all could be shown (so the warning stays queued instead of being lost). */
+    private boolean presentWarning(Player pl, Map<String, String> d, boolean late) {
+        boolean shown = false;
         Settings.Warnings w = core.settings.warnings;
         String reason = d.getOrDefault("reason", "");
         String count = d.getOrDefault("count", "1");
         if (w.chat()) {
             if (late) pl.sendMessage(core.messages.get("warning.delivered-later"));
             for (Component c : core.messages.lines("warning.notice", "reason", reason, "count", count)) pl.sendMessage(c);
+            shown = true;
         }
         try {
             if (w.title().enabled() && !(w.deferTitleWhilePrompting() && prompting.test(pl.getUniqueId()))) {
@@ -130,15 +133,23 @@ public final class BukkitEnforcement implements Enforcement {
                         : mm.deserialize(t.subtitle());
                 pl.showTitle(Title.title(mm.deserialize(t.title()), sub, Title.Times.times(
                         Duration.ofMillis(t.fadeIn() * 50L), Duration.ofMillis(t.stay() * 50L), Duration.ofMillis(t.fadeOut() * 50L))));
+                shown = true;
             }
             if (w.sound().enabled()) {
                 Settings.WarnSound so = w.sound();
                 pl.playSound(Sound.sound(Key.key(so.sound()), Sound.Source.valueOf(so.source().toUpperCase(java.util.Locale.ROOT)), so.volume(), so.pitch()));
             }
-            if (w.actionBar()) pl.sendActionBar(Messages.mini().deserialize(w.actionBarText()));
+            if (w.actionBar()) {
+                pl.sendActionBar(Messages.mini().deserialize(w.actionBarText()));
+                shown = true;
+            }
         } catch (RuntimeException e) { // a bad sound key or MiniMessage typo must never lose the warning itself
             core.log.warning("Warning presentation problem (the chat warning was still delivered): " + e.getMessage());
         }
+        if (!shown) { // chat disabled and title deferred: show the plain chat line rather than lose the warning
+            for (Component c : core.messages.lines("warning.notice", "reason", reason, "count", count)) pl.sendMessage(c);
+        }
+        return true;
     }
 
     private void presentDefendant(Player pl, Map<String, String> d, boolean late) {

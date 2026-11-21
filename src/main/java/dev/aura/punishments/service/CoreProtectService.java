@@ -69,9 +69,22 @@ public final class CoreProtectService extends Svc {
                 .append(q.player()).append(", last ").append(Durations.format(q.seconds() * 1000));
         if (q.kind() == CoreProtectPort.Kind.BLOCKS) ref.append(", r=").append(q.radius()).append(" @").append(q.world()).append(' ').append(q.x()).append(',').append(q.y()).append(',').append(q.z());
         ref.append(" - ").append(res.total()).append(" result(s)");
-        for (String l : res.lines()) ref.append(" | ").append(l);
+        for (String l : res.lines()) ref.append(" | ").append(redact(l));
         String text = Text.truncate(ref.toString(), core.settings.cases.maxEvidenceRef());
         return cases.addEvidence(actor, caseId, new EvidenceValidator.Input(EvidenceType.COREPROTECT, text, "Snapshot only; weigh like any evidence."));
+    }
+
+    private static final java.util.regex.Pattern SECRET_CMD = java.util.regex.Pattern.compile("(?i)(/?(?:login|l|register|reg|changepassword|cp|password|passwd|authme\\S*|2fa\\S*)\\s+).*");
+    private static final java.util.regex.Pattern IPS = java.util.regex.Pattern.compile("\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b|(?<![0-9A-Za-z:])(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(?![0-9A-Za-z:])");
+
+    /** Snapshots are stored and exported: drop password-type command arguments and IP addresses before they are saved. */
+    public static String redact(String line) {
+        String t = line;
+        String prefix = t.length() > 17 ? t.substring(0, 17) : "";
+        String body = t.length() > 17 ? t.substring(17).trim() : t;
+        body = SECRET_CMD.matcher(body).replaceFirst("$1[hidden]");
+        body = IPS.matcher(body).replaceAll("[ip hidden]");
+        return (prefix.isEmpty() ? "" : prefix.trim() + " ") + body;
     }
 
     public void shutdown() {

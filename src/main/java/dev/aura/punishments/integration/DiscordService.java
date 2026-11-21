@@ -62,8 +62,10 @@ public class DiscordService {
         List<OutboxRow> recentDead(int limit) throws Exception;
     }
 
+    private static final java.util.Set<String> LEGACY_EVENTS = java.util.Set.of("case-created", "custody-started", "custody-released", "trial-scheduled", "verdict",
+            "sentence", "direct-punishment", "emergency-action", "appeal", "reversal", "custody-alert");
     private static final Pattern IPV4 = Pattern.compile("\\b\\d{1,3}(?:\\.\\d{1,3}){3}\\b");
-    private static final Pattern IPV6 = Pattern.compile("\\b(?:[0-9a-fA-F]{1,4}:){4,7}[0-9a-fA-F]{1,4}\\b");
+    private static final Pattern IPV6 = Pattern.compile("(?<![0-9A-Za-z:])(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}(?![0-9A-Za-z:])");
 
     private final Supplier<Settings> settings;
     private final java.util.function.Predicate<String> urlCheck;
@@ -152,6 +154,8 @@ public class DiscordService {
         if (!s.discord.enabled()) return out;
         Settings.DiscordEvent ev = s.discord.events().get(e.type().discordKey);
         if (ev != null && !ev.enabled()) return out;
+        // Upgraded install (no discord.channels section): events that did not exist in 1.0.0 stay off until the admin lists them under discord.events.
+        if (s.discord.legacyLayout() && ev == null && !LEGACY_EVENTS.contains(e.type().discordKey)) return out;
         String cat = ev != null && !ev.category().isEmpty() ? ev.category() : e.type().category;
         if (ev != null && !ev.webhooks().isEmpty()) {
             for (int i = 0; i < ev.webhooks().size(); i++) out.add("ev:" + e.type().discordKey + "#" + i);
@@ -319,7 +323,7 @@ public class DiscordService {
         long now = clock.getAsLong();
         String url = resolve(s, row.dest());
         if (!s.discord.enabled()) { // switched off after queueing: keep the row for when it is switched back on
-            store.retryLater(row.id(), now + 60_000, "discord disabled");
+            pausedUntil = now + 60_000; // keep the row untouched (no attempt burned) and look again in a minute
             return;
         }
         if (url == null || url.isBlank() || !urlCheck.test(url)) {

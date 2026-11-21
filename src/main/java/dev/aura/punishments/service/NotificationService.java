@@ -58,7 +58,10 @@ public final class NotificationService {
 
     /** Very old queued notices (other than warnings, which must always reach the player) are expired. */
     public void expireStale() {
-        core.db.tx(c -> Repo.Notifications.expireOlderThan(c, core.clock.now() - 30L * 86_400_000L));
+        core.db.tx(c -> {
+            Repo.Notifications.expireOlderThan(c, core.clock.now() - 30L * 86_400_000L);
+            return Repo.Notifications.pruneDelivered(c, core.clock.now() - 90L * 86_400_000L);
+        });
     }
 
     /**
@@ -86,10 +89,9 @@ public final class NotificationService {
 
     /** Deliver everything queued for this player if they are online. Safe to call at any time and from any thread. */
     public CompletableFuture<Void> deliverPending(UUID uuid) {
-        if (!inFlight.add(uuid)) { // a loop is already running; it will pick up anything queued meanwhile
-            rerun.add(uuid);
-            return CompletableFuture.completedFuture(null);
-        }
+        rerun.add(uuid); // always request a pass first, so a loop that is finishing can never miss this request
+        if (!inFlight.add(uuid)) return CompletableFuture.completedFuture(null);
+        rerun.remove(uuid);
         return core.main.call(() -> core.enforcement.isOnline(uuid))
                 .thenCompose(on -> !on ? CompletableFuture.<Void>completedFuture(null)
                         : core.db.tx(c -> Repo.Notifications.pendingFor(c, uuid)).thenCompose(list -> step(uuid, list, 0)))
@@ -99,7 +101,7 @@ public final class NotificationService {
                 })
                 .thenCompose(v -> {
                     inFlight.remove(uuid);
-                    return rerun.remove(uuid) ? deliverPending(uuid) : CompletableFuture.<Void>completedFuture(null);
+                    return rerun.contains(uuid) ? deliverPending(uuid) : CompletableFuture.<Void>completedFuture(null);
                 });
     }
 
@@ -107,7 +109,19 @@ public final class NotificationService {
         if (i >= list.size()) return CompletableFuture.completedFuture(null);
         Notification n = list.get(i);
         boolean late = core.clock.now() - n.createdAt() > 60_000;
-        return core.main.call(() -> core.enforcement.deliverNotification(uuid, n, late)).thenCompose(shown -> {
+        return core.main.call(() -> core.enforcement.deliverNotification(uuid, n, late)).handle((shown, ex) -> {
+            if (ex != null) { // one bad notification must not block the player's whole queue
+                core.log.warning("Notification #" + n.id() + " could not be shown: " + ex.getMessage());
+                core.db.tx(c -> {
+                    Repo.Notifications.noteAttempt(c, n.id());
+                    if (n.attempts() + 1 >= 5 && !WARNING.equals(n.kind())) Repo.Notifications.expire(c, n.id());
+                    return null;
+                });
+                return null;
+            }
+            return shown;
+        }).thenCompose(shown -> {
+            if (shown == null) return step(uuid, list, i + 1);
             if (!shown) return CompletableFuture.<Void>completedFuture(null); // went offline: stays queued for next login
             return core.db.tx(c -> {
                 Repo.Notifications.markDelivered(c, n.id(), core.clock.now());

@@ -663,6 +663,10 @@ public final class Repo {
             return update(c, "UPDATE player_notifications SET state='DELIVERED', delivered_at=?, attempts=attempts+1 WHERE id=? AND state='PENDING'", now, id) == 1;
         }
 
+        public static void expire(Connection c, long id) throws SQLException {
+            update(c, "UPDATE player_notifications SET state='EXPIRED' WHERE id=? AND state='PENDING'", id);
+        }
+
         public static void noteAttempt(Connection c, long id) throws SQLException {
             update(c, "UPDATE player_notifications SET attempts=attempts+1 WHERE id=?", id);
         }
@@ -676,6 +680,10 @@ public final class Repo {
         }
 
         /** Very old undelivered notifications are expired so a player returning after months is not flooded. */
+        public static int pruneDelivered(Connection c, long cutoff) throws SQLException {
+            return update(c, "DELETE FROM player_notifications WHERE state IN ('DELIVERED','EXPIRED') AND created_at<?", cutoff);
+        }
+
         public static int expireOlderThan(Connection c, long cutoff) throws SQLException {
             return update(c, "UPDATE player_notifications SET state='EXPIRED' WHERE state='PENDING' AND created_at<? AND kind NOT IN ('WARNING')", cutoff);
         }

@@ -428,7 +428,7 @@ discord:
     custody-alert: { enabled: true }
     warning: { enabled: true }
   timeout-seconds: 10
-  max-retries: 5
+  max-retries: 3
   retry-backoff-seconds: 5
   outbox-retention-days: 14
 

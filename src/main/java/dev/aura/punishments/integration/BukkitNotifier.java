@@ -50,6 +50,7 @@ public final class BukkitNotifier implements DomainEvent.Sink {
                 "deadline", humanize(e.fields().getOrDefault("Review deadline", "")));
         plugin.getLogger().info(PlainTextComponentSerializer.plainText().serialize(msg));
         if (!core.settings.notify(e.type().notifyKey)) return;
+        if (e.type().category.equals(DomainEvent.Cat.OWNER_REVIEW) && !core.settings.review.notifyInGame()) return;
         String node = Perms.notify(e.type().notifyKey);
         for (Player p : Bukkit.getOnlinePlayers()) {
             boolean emergency = e.type() == DomainEvent.Type.EMERGENCY && p.hasPermission(Perms.EMERGENCY_REVIEW);

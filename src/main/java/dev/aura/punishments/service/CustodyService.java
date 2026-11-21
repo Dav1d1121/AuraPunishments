@@ -296,7 +296,7 @@ public final class CustodyService extends Svc {
             if (res.isOk()) {
                 refreshIndex();
                 core.db.tx(c -> Repo.Cases.get(c, cu.caseId())).thenAccept(cs0 -> {
-                    if (cs0 != null) core.notifications.defendant(cs0, "release", pending ? "Your release has been accepted and completes when you next log in." : Text.truncate(reason, 200), "cu" + cu.id());
+                    if (cs0 != null) core.notifications.defendant(cs0, "release", pending ? "Your release has been accepted and completes when you next log in." : (core.settings.defendant.includeReasoning() ? Text.truncate(reason, 200) : "You are no longer held in custody."), "cu" + cu.id());
                 });
                 core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_RELEASED).key("custody-released:" + cu.id() + ":" + pending).caseId(cu.caseId()).player(cu.name()).actor(actor.name())
                         .summary(pending ? "Release accepted (completes at next login)" : "Released").field("Reason", Text.truncate(reason, 200)).build());

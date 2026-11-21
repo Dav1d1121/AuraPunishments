@@ -182,7 +182,7 @@ public final class PunishmentService extends Svc {
                 now, expires, caseId, source, offense, online, reviewDeadline, custodyId);
         if (type == PunishType.WARN) {
             Settings.WarnRepeat rep = core.settings.warnings.repeat();
-            long n = Repo.Punishments.countWarningsSince(c, target.uuid(), now - rep.window(), rep.sameCategoryOnly() ? offense : null);
+            long n = Repo.Punishments.countWarningsSince(c, target.uuid(), now - rep.window(), rep.sameCategoryOnly() && offense != null ? offense : null); // quick warnings carry no offense category: count them all
             Map<String, String> pl = new LinkedHashMap<>();
             pl.put("reason", reason);
             pl.put("issuer", actor.name());
@@ -290,8 +290,7 @@ public final class PunishmentService extends Svc {
 
     /** Deliver queued notifications (warnings, defendant messages) that were waiting for this player to come online. */
     public CompletableFuture<Void> deliverPending(UUID uuid) {
-        if (!core.settings.warningDelivery) return CompletableFuture.completedFuture(null);
-        return core.notifications.deliverPending(uuid);
+        return core.notifications.deliverPending(uuid); // warnings, defendant and staff notices (punishments.warning-delivery is superseded by warnings.notifications.*)
     }
 
     // ------------------------------------------------------------------ warning history

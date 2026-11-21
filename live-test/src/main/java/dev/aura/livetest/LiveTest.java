@@ -39,37 +39,37 @@ import java.util.concurrent.TimeUnit;
  * the online-player paths are covered by the MockBukkit suite.
  */
 public final class LiveTest extends JavaPlugin {
-    private final List<String> results = new ArrayList<>();
-    private int pass;
-    private int fail;
-    private AuraPunishmentsPlugin ap;
+    final List<String> results = new ArrayList<>();
+    int pass;
+    int fail;
+    AuraPunishmentsPlugin ap;
 
-    private void check(String name, boolean cond, String detail) {
+    void check(String name, boolean cond, String detail) {
         if (cond) pass++;
         else fail++;
         results.add((cond ? "PASS " : "FAIL ") + name + (detail == null || detail.isBlank() ? "" : "  -- " + detail));
     }
 
-    private <T> T onMain(Callable<T> c) throws Exception {
+    <T> T onMain(Callable<T> c) throws Exception {
         return Bukkit.getScheduler().callSyncMethod(this, c).get(30, TimeUnit.SECONDS);
     }
 
-    private static <T> Result<T> r(CompletableFuture<Result<T>> f) throws Exception {
+    static <T> Result<T> r(CompletableFuture<Result<T>> f) throws Exception {
         return f.get(30, TimeUnit.SECONDS);
     }
 
-    private static UUID id(String name) {
+    static UUID id(String name) {
         return UUID.nameUUIDFromBytes(("live-" + name).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static Actor god(String name) {
+    static Actor god(String name) {
         return Actor.player(id(name), name, new Actor.PermView() {
             @Override public boolean has(String node) { return true; }
             @Override public int level() { return 1000; }
         });
     }
 
-    private static Actor limited(String name, int level, String... nodes) {
+    static Actor limited(String name, int level, String... nodes) {
         var set = java.util.Set.of(nodes);
         return Actor.player(id(name), name, new Actor.PermView() {
             @Override public boolean has(String node) { return set.contains(node); }
@@ -101,6 +101,7 @@ public final class LiveTest extends JavaPlugin {
                 case "3" -> phase3();
                 case "4" -> phase4();
                 case "5" -> phase5();
+                case "6" -> new Phase6(this).run();
                 default -> check("known phase", false, phase);
             }
         } catch (Throwable t) {
@@ -124,7 +125,7 @@ public final class LiveTest extends JavaPlugin {
     }
 
     // ------------------------------------------------------------------ helpers
-    private void createJail() throws Exception {
+    void createJail() throws Exception {
         onMain(() -> {
             JailMain jm = (JailMain) getServer().getPluginManager().getPlugin("JailReloaded");
             World w = Bukkit.getWorlds().get(0);
@@ -142,11 +143,11 @@ public final class LiveTest extends JavaPlugin {
         });
     }
 
-    private Prisoner prisoner(UUID u) throws Exception {
+    Prisoner prisoner(UUID u) throws Exception {
         return onMain(() -> JailsAPI.getJailManager().getPrisoner(u));
     }
 
-    private Case mkCase(Actor by, String name, String offense) throws Exception {
+    Case mkCase(Actor by, String name, String offense) throws Exception {
         Target t = new Target(id(name), name, false);
         ap.gui().resolver.recordJoin(t.uuid(), name, "10.0.0." + (Math.abs(name.hashCode()) % 200 + 1), 0).get();
         return r(ap.cases().create(by, new CaseService.CreateRequest(t, offense, Severity.MODERATE,
@@ -154,7 +155,7 @@ public final class LiveTest extends JavaPlugin {
                 List.of(new EvidenceValidator.Input(EvidenceType.EXTERNAL_LINK, "https://example.com/proof-" + name, ""))))).orThrow();
     }
 
-    private Case toTrial(Actor owner, Case c) throws Exception {
+    Case toTrial(Actor owner, Case c) throws Exception {
         c = r(ap.cases().transition(owner, c.id(), c.version(), CaseStatus.AWAITING_TRIAL, null)).orThrow();
         c = r(ap.cases().assignJudge(owner, c.id(), c.version(), new Target(owner.uuid(), owner.name(), true))).orThrow();
         return r(ap.cases().transition(owner, c.id(), c.version(), CaseStatus.IN_TRIAL, null)).orThrow();

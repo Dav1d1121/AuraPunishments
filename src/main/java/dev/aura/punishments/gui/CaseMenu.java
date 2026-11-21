@@ -169,8 +169,7 @@ final class CaseMenu extends Menu {
                                             gui.success(p, "Findings overturned.");
                                             reload();
                                         }, this::open)).open()));
-        if (c.kind() == CaseKind.EMERGENCY) {
-            action(35, can(Perms.EXPORT) && gui.exports != null, Material.MAP, "<aqua><b>Export summary",
+        action(35, can(Perms.EXPORT) && gui.exports != null, Material.MAP, "<aqua><b>Export summary",
                 List.of("<gray>Saves a Markdown summary to the", "<gray>plugin's exports folder", "<dark_gray>No IPs or private notes"), (p, t) ->
                         gui.call(p, gui.exports.export(gui.actor(p), c.id(), dev.aura.punishments.service.ExportService.Format.MARKDOWN, true), ex ->
                                 gui.success(p, "Saved " + ex.fileName() + " in the exports folder.")));
@@ -183,7 +182,8 @@ final class CaseMenu extends Menu {
                                     gui.success(p, "Ticket linked.");
                                     reload();
                                 }), this::open));
-        action(34, can(Perms.EMERGENCY_REVIEW), Material.REDSTONE_TORCH, "<red><b>Review emergency action",
+        if (c.kind() == CaseKind.EMERGENCY) {
+            action(34, can(Perms.EMERGENCY_REVIEW), Material.REDSTONE_TORCH, "<red><b>Review emergency action",
                     List.of("<gray>Escalate to trial or revoke"), (p, t) -> emergencyReview());
         }
     }

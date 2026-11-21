@@ -288,10 +288,11 @@ public final class Settings {
         // ---------------- owner review of quick punishments
         EnumSet<PunishType> reviewTypes = y.isList("review.required-types") ? types(y.getStringList("review.required-types"), "review.required-types", p)
                 : EnumSet.of(PunishType.MUTE, PunishType.BAN, PunishType.IPBAN);
-        if (reviewTypes.contains(PunishType.WARN) || reviewTypes.contains(PunishType.JAIL)) {
-            p.add("review.required-types: warnings never require owner review, and jail is not a quick punishment");
+        if (reviewTypes.contains(PunishType.WARN) || reviewTypes.contains(PunishType.JAIL) || reviewTypes.contains(PunishType.KICK)) {
+            p.add("review.required-types: warnings and kicks never require owner review, and jail is not a quick punishment");
             reviewTypes.remove(PunishType.WARN);
             reviewTypes.remove(PunishType.JAIL);
+            reviewTypes.remove(PunishType.KICK);
         }
         long evDeadline = dur(y, "review.evidence-deadline", "24h", false, p);
         long rvDeadline = dur(y, "review.review-deadline", "72h", false, p);
@@ -324,8 +325,8 @@ public final class Settings {
                 y.getBoolean("defendant.include-reasoning", true), y.getBoolean("defendant.sound", false), Set.copyOf(dst));
 
         String exportFolder = y.getString("exports.folder", "exports");
-        if (!exportFolder.matches("[A-Za-z0-9._-]{1,40}")) {
-            p.add("exports.folder: must be a plain folder name inside the plugin folder");
+        if (!exportFolder.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,39}")) {
+            p.add("exports.folder: must be a plain folder name (letters, digits, . _ -; not starting with a dot) inside the plugin folder");
             exportFolder = "exports";
         }
         this.exports = new Exports(y.getBoolean("exports.enabled", true), exportFolder, y.getBoolean("exports.include-timeline", true));
@@ -391,7 +392,7 @@ public final class Settings {
         }
         this.discord = new Discord(dEnabled, defaultUrl, y.getString("discord.username", "AuraPunishments"),
                 y.getString("discord.avatar-url", ""), Map.copyOf(channels), Map.copyOf(events),
-                range(y, "discord.timeout-seconds", 10, 1, 60, p), range(y, "discord.max-retries", 5, 0, 20, p),
+                range(y, "discord.timeout-seconds", 10, 1, 60, p), range(y, "discord.max-retries", 3, 0, 20, p),
                 range(y, "discord.outbox-retention-days", 14, 1, 365, p), 1000L * range(y, "discord.retry-backoff-seconds", 5, 1, 300, p), legacy);
 
         this.auditRetentionDays = range(y, "retention.audit-days", 0, 0, 36500, p);

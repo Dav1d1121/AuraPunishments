@@ -267,9 +267,17 @@ permissions:
       aurapunishments.notify.verdicts: true
       aurapunishments.notify.direct-punishments: true
       aurapunishments.notify.emergency: true
+      aurapunishments.notify.warnings: true
+      aurapunishments.notify.quick-punishments: true
+      aurapunishments.notify.reviews: true
+      aurapunishments.notify.admin: true
   aurapunishments.notify.case-created: { description: "Alerts when cases are opened and trials scheduled.", default: false }
   aurapunishments.notify.custody-started: { description: "Alerts for pretrial custody.", default: false }
   aurapunishments.notify.custody-alerts: { description: "Custody deadline alerts.", default: false }
   aurapunishments.notify.verdicts: { description: "Verdict, sentence, appeal and reversal alerts.", default: false }
   aurapunishments.notify.direct-punishments: { description: "Direct punishment alerts.", default: false }
   aurapunishments.notify.emergency: { description: "Emergency action alerts.", default: false }
+  aurapunishments.notify.warnings: { description: "Alerts when warnings are issued.", default: false }
+  aurapunishments.notify.quick-punishments: { description: "Alerts when quick mutes/bans are issued.", default: false }
+  aurapunishments.notify.reviews: { description: "Alerts for owner-review activity (new, decisions, reminders, overdue).", default: false }
+  aurapunishments.notify.admin: { description: "Configuration, integration and security notices.", default: false }
