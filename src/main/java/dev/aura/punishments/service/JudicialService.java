@@ -37,7 +37,8 @@ public final class JudicialService extends Svc {
     private final CustodyService custody;
     private final PunishmentService punishments;
 
-    public record SentenceSpec(PunishType type, long durationMs, String reason, boolean creditTimeServed) {}
+    /** @param creditTimeServed null = use judicial.time-served.default-credit-for (jail: automatic; bans/mutes: only when the judge asks for it) */
+    public record SentenceSpec(PunishType type, long durationMs, String reason, Boolean creditTimeServed) {}
 
     public record VerdictResult(Case c, String custodyNote) {}
 
@@ -172,7 +173,9 @@ public final class JudicialService extends Svc {
             if (cs0 == null) return done(Result.<SentenceResult>fail(Code.NOT_FOUND, "Case " + caseId + " does not exist."));
             return checkTarget(actor, cs0.accusedUuid()).thenCompose(h -> {
                 if (!h.isOk()) return done(h.<SentenceResult>cast());
-                return runSentence(actor, caseId, expectedVersion, type, duration, reason, spec.creditTimeServed());
+                boolean credit = spec.creditTimeServed() != null ? spec.creditTimeServed()
+                        : core.settings.judicial.timeServed().defaultCreditFor().contains(type);
+                return runSentence(actor, caseId, expectedVersion, type, duration, reason, credit);
             });
         });
     }

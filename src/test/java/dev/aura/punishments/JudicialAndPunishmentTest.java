@@ -589,4 +589,36 @@ class JudicialAndPunishmentTest {
             java.nio.file.Files.deleteIfExists(file);
         }
     }
+
+    // ------------------------------------------------------------ 1.1.0 time-served defaults
+    @Test
+    void timeServedDefaultsToJudicialDiscretionForBans() throws Exception {
+        Case c = inTrial(mkCase("harassment", true));
+        fx.now += 10 * Durations.HOUR;
+        Case g = r(fx.judicial.enterVerdict(owner, c.id(), c.version(), Verdict.GUILTY, "Clear evidence of sustained harassment.")).value().c();
+        var res = r(fx.judicial.sentence(owner, g.id(), g.version(),
+                new JudicialService.SentenceSpec(PunishType.BAN, 3 * Durations.DAY, "Three day ban for harassment.", null)));
+        assertEquals(0L, res.value().creditedMs(), "bans/mutes: no automatic credit unless the judge asks for it");
+        assertEquals(3 * Durations.DAY, res.value().punishment().expiresAt() - res.value().punishment().issuedAt());
+    }
+
+    @Test
+    void timeServedDefaultIsConfigurable() throws Exception {
+        Fx.Mutator m = new Fx.Mutator();
+        m.set.put("judicial.time-served.default-credit-for", List.of("BAN"));
+        try (Fx f2 = new Fx(null, m)) {
+            f2.judges.add(owner.uuid());
+            Case c0 = r(f2.cases.create(mod, new CaseService.CreateRequest(steve, "harassment", Severity.MODERATE,
+                    "Repeated offensive behaviour towards others.", null, List.of(Fx.ev())))).orThrow();
+            assertTrue(r(f2.custody.initiate(mod, c0.id())).isOk());
+            Case c = r(f2.cases.transition(owner, c0.id(), c0.version(), CaseStatus.AWAITING_TRIAL, null)).orThrow();
+            c = r(f2.cases.assignJudge(owner, c.id(), c.version(), new Target(owner.uuid(), "Owner", true))).orThrow();
+            c = r(f2.cases.transition(owner, c.id(), c.version(), CaseStatus.IN_TRIAL, null)).orThrow();
+            f2.now += 10 * Durations.HOUR;
+            Case g = r(f2.judicial.enterVerdict(owner, c.id(), c.version(), Verdict.GUILTY, "Clear evidence of sustained harassment.")).value().c();
+            var res = r(f2.judicial.sentence(owner, g.id(), g.version(),
+                    new JudicialService.SentenceSpec(PunishType.BAN, 3 * Durations.DAY, "Three day ban for harassment.", null)));
+            assertEquals(10 * Durations.HOUR, res.value().creditedMs(), "bans are credited automatically when configured");
+        }
+    }
 }

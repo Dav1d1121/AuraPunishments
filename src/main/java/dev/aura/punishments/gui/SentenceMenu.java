@@ -24,7 +24,12 @@ final class SentenceMenu extends Menu {
     private final Optional<Offense> offense;
     private PunishType type;
     private long duration;
-    private boolean credit = true;
+    /** null = follow the configured default for the chosen sentence type (jail: automatic; bans/mutes: the judge decides). */
+    private Boolean creditChoice = null;
+
+    private boolean credit() {
+        return creditChoice != null ? creditChoice : gui.settings().judicial.timeServed().defaultCreditFor().contains(type);
+    }
     private String reasoning = "";
 
     private SentenceMenu(Gui gui, Player viewer, Menu parent, Detail d) {
@@ -63,7 +68,7 @@ final class SentenceMenu extends Menu {
 
     private long creditEstimate() {
         Custody cu = d.custody();
-        if (!credit || !timed() || duration == Durations.PERMANENT || cu == null || cu.status() != CustodyStatus.ACTIVE || cu.startedAt() == null) return 0;
+        if (!credit() || !timed() || duration == Durations.PERMANENT || cu == null || cu.status() != CustodyStatus.ACTIVE || cu.startedAt() == null) return 0;
         var ts = gui.settings().judicial.timeServed();
         if (!ts.enabled() || !ts.appliesTo().contains(type)) return 0;
         long served = Math.max(0, gui.core().clock.now() - cu.startedAt());
@@ -116,10 +121,10 @@ final class SentenceMenu extends Menu {
                         open();
                     }, this::open));
             long cr = creditEstimate();
-            set(30, Items.item(credit ? Material.LIME_DYE : Material.GRAY_DYE, Items.t(credit ? "<green><b>Time-served credit: ON" : "<gray><b>Time-served credit: OFF"),
+            set(30, Items.item(credit() ? Material.LIME_DYE : Material.GRAY_DYE, Items.t(credit() ? "<green><b>Time-served credit: ON" : "<gray><b>Time-served credit: OFF"),
                     List.of(Items.t("<gray>Pretrial custody: <white><v>", "v", d.custody() == null ? "none" : "yes"),
-                            Items.t("<gray>Credit now: <white><v>", "v", cr > 0 ? Durations.format(cr) : "0"), Items.t("<yellow>Click to toggle"))), (p, k) -> {
-                credit = !credit;
+                            Items.t("<gray>Credit now: <white><v>", "v", cr > 0 ? Durations.format(cr) : "0"), Items.t(creditChoice == null ? "<dark_gray>Default for this sentence type" : "<dark_gray>Set by you"), Items.t("<yellow>Click to toggle"))), (p, k) -> {
+                creditChoice = !credit();
                 refresh();
             });
         }
@@ -145,7 +150,7 @@ final class SentenceMenu extends Menu {
             lines.add("Reasoning: " + reasoning);
             if (d.custody() != null) lines.add(type == PunishType.JAIL ? "The existing JailReloaded record becomes the sentence." : "Pretrial custody is released first.");
             new ConfirmMenu(gui, p, this, "Sentence " + c.ref(), lines, null, () ->
-                    gui.call(p, gui.judicial.sentence(gui.actor(p), c.id(), c.version(), new JudicialService.SentenceSpec(type, timed() ? duration : 0, reasoning, credit)), r -> {
+                    gui.call(p, gui.judicial.sentence(gui.actor(p), c.id(), c.version(), new JudicialService.SentenceSpec(type, timed() ? duration : 0, reasoning, creditChoice)), r -> {
                         gui.success(p, "Sentence imposed: " + type.display() + (timed() ? " " + Views.duration(duration) : "")
                                 + (r.creditedMs() > 0 ? " (credit " + Durations.format(r.creditedMs()) + ")" : "") + ".");
                         CaseMenu.open(gui, p, parent == null ? null : parent.parent, c.id());
