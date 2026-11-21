@@ -364,6 +364,12 @@ public final class JudicialService extends Svc {
 
     // ------------------------------------------------------------------ appeals
     public CompletableFuture<Result<Case>> fileAppeal(Actor actor, long caseId, String reason) {
+        return fileAppeal(actor, caseId, reason, null);
+    }
+
+    public CompletableFuture<Result<Case>> fileAppeal(Actor actor, long caseId, String reason, String ticketRaw) {
+        String ticketClean = ticketRaw == null || ticketRaw.isBlank() ? null : cleanTicket(ticketRaw);
+        if (ticketRaw != null && !ticketRaw.isBlank() && ticketClean == null) return done(Result.fail(Code.INVALID, "That does not look like a ticket number or a Discord ticket link."));
         Result<Void> perm = core.auth.require(actor, Perms.APPEAL_FILE, "file appeals");
         if (!perm.isOk()) return done(perm.cast());
         String problem = reasonCheck(reason, core.settings.cases.minReason());
@@ -380,14 +386,68 @@ public final class JudicialService extends Svc {
             long now = core.clock.now();
             Repo.Appeals.add(c, caseId, actor.name(), why, now);
             Repo.Cases.setStatus(c, caseId, cs.version(), cs.status(), CaseStatus.APPEALED, now);
+            if (ticketClean != null) Repo.Cases.setAppealTicket(c, caseId, ticketClean, now);
             Repo.Events.add(c, caseId, now, actor.dbUuid(), actor.name(), "APPEAL_FILED", cs.status(), CaseStatus.APPEALED, Text.truncate(why, 250));
             audit(c, actor, "appeal.file", cs.accusedUuid(), caseId, Text.truncate(why, 120), false);
             return Result.ok(Repo.Cases.get(c, caseId));
         }).thenApply(res -> {
             if (res.isOk()) {
-                core.emit(DomainEvent.of(DomainEvent.Type.APPEAL).caseId(caseId).player(res.value().accusedName()).actor(actor.name())
-                        .summary("Appeal filed").field("Grounds", Text.truncate(why, 300)).build());
+                core.emit(DomainEvent.of(DomainEvent.Type.APPEAL).key("appeal-filed:" + caseId + ":" + res.value().version()).caseId(caseId).player(res.value().accusedName()).actor(actor.name())
+                        .summary("Appeal filed").field("Grounds", Text.truncate(why, 300)).field("Ticket", ticketClean).build());
             }
+            return res;
+        });
+    }
+
+    /** Ticket Tool (Discord) ticket reference: a ticket number/label or a discord.com/channels link. Nothing is fetched from Discord. */
+    public static String cleanTicket(String raw) {
+        String t = raw == null ? "" : raw.trim();
+        if (t.matches("#?[A-Za-z0-9][A-Za-z0-9_\\-]{0,39}")) return t.startsWith("#") ? t.substring(1) : t;
+        if (t.length() <= 200 && t.matches("https://(?:[a-z]+\\.)?discord(?:app)?\\.com/channels/\\d+/\\d+(?:/\\d+)?/?")) return t;
+        return null;
+    }
+
+    /** Attach (or replace) the Discord ticket used for this case's appeal. Routed to the appeal log channel. */
+    public CompletableFuture<Result<Case>> linkAppealTicket(Actor actor, long caseId, String ticketRaw) {
+        Result<Void> perm = core.auth.requireAny(actor, "link appeal tickets", Perms.APPEAL_TICKET, Perms.JUDICIAL_OVERTURN);
+        if (!perm.isOk()) return done(perm.cast());
+        String ticket = cleanTicket(ticketRaw);
+        if (ticket == null) return done(Result.fail(Code.INVALID, "Enter the Ticket Tool ticket number (for example 0042 or appeal-0042) or the ticket channel link (https://discord.com/channels/...)."));
+        return db(c -> {
+            Result<Case> lc = loadFor(c, actor, caseId);
+            if (!lc.isOk()) return lc;
+            Case cs = lc.value();
+            long now = core.clock.now();
+            Repo.Cases.setAppealTicket(c, caseId, ticket, now);
+            Repo.Events.add(c, caseId, now, actor.dbUuid(), actor.name(), "APPEAL_TICKET", null, null, ticket);
+            audit(c, actor, "appeal.ticket", cs.accusedUuid(), caseId, "ticket=" + ticket, false);
+            return Result.ok(Repo.Cases.get(c, caseId));
+        }).thenApply(res -> {
+            if (res.isOk()) {
+                core.emit(DomainEvent.of(DomainEvent.Type.APPEAL_TICKET).key("appeal-ticket:" + caseId + ":" + ticket).caseId(caseId)
+                        .player(res.value().accusedName()).actor(actor.name()).summary("Appeal ticket linked").field("Ticket", ticket).build());
+            }
+            return res;
+        });
+    }
+
+    /** A reviewer takes the pending appeal (status "Under Review"). */
+    public CompletableFuture<Result<Case>> takeAppeal(Actor actor, long caseId) {
+        Result<Void> perm = core.auth.require(actor, Perms.JUDICIAL_OVERTURN, "review appeals");
+        if (!perm.isOk()) return done(perm.cast());
+        return db(c -> {
+            Result<Case> lc = loadFor(c, actor, caseId);
+            if (!lc.isOk()) return lc;
+            Appeal ap = Repo.Appeals.pendingForCase(c, caseId);
+            if (ap == null) return Result.<Case>fail(Code.STATE, "No open appeal was found on that case.");
+            if (ap.status() == AppealStatus.UNDER_REVIEW) return Result.<Case>fail(Code.STATE, "That appeal is already under review by " + ap.assignedName() + ".");
+            Repo.Appeals.setStatus(c, ap.id(), AppealStatus.UNDER_REVIEW, actor.name());
+            Repo.Events.add(c, caseId, core.clock.now(), actor.dbUuid(), actor.name(), "APPEAL_UNDER_REVIEW", null, null, null);
+            audit(c, actor, "appeal.take", lc.value().accusedUuid(), caseId, "appeal=" + ap.id(), false);
+            return Result.ok(Repo.Cases.get(c, caseId));
+        }).thenApply(res -> {
+            if (res.isOk()) core.emit(DomainEvent.of(DomainEvent.Type.APPEAL).key("appeal-taken:" + caseId + ":" + core.clock.now()).caseId(caseId)
+                    .player(res.value().accusedName()).actor(actor.name()).summary("Appeal is now under review").build());
             return res;
         });
     }
@@ -395,7 +455,7 @@ public final class JudicialService extends Svc {
     public CompletableFuture<Result<Case>> decideAppeal(Actor actor, long caseId, AppealStatus decision, String reasoning) {
         Result<Void> perm = core.auth.require(actor, Perms.JUDICIAL_OVERTURN, "decide appeals");
         if (!perm.isOk()) return done(perm.cast());
-        if (decision == AppealStatus.PENDING) return done(Result.fail(Code.INVALID, "Choose a decision."));
+        if (decision == AppealStatus.PENDING || decision == AppealStatus.UNDER_REVIEW) return done(Result.fail(Code.INVALID, "Choose a decision."));
         String problem = reasonCheck(reasoning, core.settings.judicial.minVerdictReason());
         if (problem != null) return done(Result.fail(Code.INVALID, problem));
         String why = Text.clean(reasoning);
@@ -407,6 +467,7 @@ public final class JudicialService extends Svc {
             if (cs.status() != CaseStatus.APPEALED) return Result.<Case>fail(Code.STATE, "That case has no appeal under consideration.");
             Appeal ap = Repo.Appeals.pendingForCase(c, caseId);
             if (ap == null) return Result.<Case>fail(Code.STATE, "No pending appeal was found.");
+            if (decision == AppealStatus.UNDER_REVIEW) return Result.<Case>fail(Code.INVALID, "Choose upheld, overturned or modified.");
             long now = core.clock.now();
             Repo.Appeals.decide(c, ap.id(), decision, actor.name(), why, now);
             CaseStatus to;
@@ -433,7 +494,7 @@ public final class JudicialService extends Svc {
             if (!res.isOk()) return done(res);
             return afterRevocations(actor, revoked, "appeal decision").thenApply(v -> {
                 core.emit(DomainEvent.of(DomainEvent.Type.APPEAL).caseId(caseId).player(res.value().accusedName()).actor(actor.name())
-                        .summary("Appeal " + decision.name().toLowerCase()).field("Decision", decision.name()).field("Reasoning", Text.truncate(why, 300)).build());
+                        .summary("Appeal " + decision.name().toLowerCase()).key("appeal-decided:" + caseId + ":" + res.value().version()).field("Decision", decision.name()).field("Reasoning", Text.truncate(why, 300)).build());
                 return res;
             });
         });

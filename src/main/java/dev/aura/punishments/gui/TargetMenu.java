@@ -119,6 +119,9 @@ final class TargetMenu extends Menu {
         action(16, can(Perms.NOTE_VIEW), Material.OAK_SIGN, "<yellow><b>Staff Notes",
                 List.of("<gray>Notes about this player: <white>" + ov.noteCount()), (p, t) -> NotesMenu.open(gui, p, this, null, target));
 
+        action(17, can(Perms.HISTORY_VIEW), Material.YELLOW_BANNER, "<gold><b>Warnings",
+                List.of("<gray>Warning history, repeat indicator and", "<gray>whether later action was taken"), (p, t) -> WarningHistoryMenu.open(gui, p, this, target));
+
         // ---- punishment row
         action(19, gui.direct != null && can(Perms.punish(PunishType.WARN)), Views.punishIcon(PunishType.WARN), "<yellow><b>Issue Warning",
                 List.of("<gray>Official warning on record"), (p, t) -> QuickPunishMenu.open(gui, p, this, target, PunishType.WARN));

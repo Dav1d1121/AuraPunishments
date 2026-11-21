@@ -36,4 +36,20 @@ public final class Menus {
     public static void openAdmin(Gui gui, Player p) {
         AdminMenu.open(gui, p, null);
     }
+
+    public static void openReviews(Gui gui, Player p, boolean mine, String[] rest) {
+        if (rest.length > 0 && rest[0].matches("(?i)(RV-)?\\d+")) {
+            ReviewMenu.open(gui, p, null, Long.parseLong(rest[0].toUpperCase(java.util.Locale.ROOT).replace("RV-", "")));
+        } else {
+            ReviewQueueMenu.open(gui, p, null, mine || !gui.can(p, dev.aura.punishments.service.Perms.REVIEW_VIEW));
+        }
+    }
+
+    public static void openWorkQueue(Gui gui, Player p) {
+        WorkQueueMenu.open(gui, p, null);
+    }
+
+    public static void openWarnings(Gui gui, Player p, Target t) {
+        WarningHistoryMenu.open(gui, p, null, t);
+    }
 }

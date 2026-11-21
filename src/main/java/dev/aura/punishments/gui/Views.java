@@ -83,7 +83,8 @@ final class Views {
         List<Component> l = new ArrayList<>();
         l.add(Items.t("<gray>Target: <white><v>", "v", p.targetName()));
         l.add(Items.t("<gray>Status: <white><v>", "v", p.status().name().toLowerCase()));
-        l.add(Items.t("<gray>Issued by: <white><v> <dark_gray>(<s>)", "v", p.issuerName(), "s", p.source().name().toLowerCase()));
+        l.add(Items.t("<gray>Issued by: <white><v>", "v", p.issuerName()));
+        l.add(Items.t("<gray>Type: <white><v>", "v", p.classification()));
         l.add(Items.t("<gray>Issued: <white><v>", "v", Gui.time(p.issuedAt())));
         if (p.type().canBeTimed()) {
             l.add(Items.t("<gray>Expires: <white><v>", "v", p.expiresAt() == null ? "never" : Gui.time(p.expiresAt())

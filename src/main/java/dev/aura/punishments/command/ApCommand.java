@@ -61,6 +61,11 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                 new Sub("ipban", "/ap ipban <player> <duration> <reason> [-e <evidence>]", "IP-ban a player", s -> has(s, Perms.punish(PunishType.IPBAN))),
                 new Sub("unmute", "/ap unmute <player> <reason>", "Revoke an active mute", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
                 new Sub("unban", "/ap unban <player> <reason>", "Revoke an active ban", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
+                new Sub("review", "/ap review [mine|<id>]", "Owner review queue / your punishments under review", s -> (has(s, Perms.REVIEW_VIEW) || has(s, Perms.PUNISH)) && s instanceof Player),
+                new Sub("queue", "/ap queue", "Open the prioritised work queue", s -> (has(s, Perms.JUDICIAL_VIEW) || has(s, Perms.REVIEW_VIEW) || has(s, Perms.EMERGENCY_REVIEW)) && s instanceof Player),
+                new Sub("export", "/ap export <case> [md|txt]", "Export a case summary to the exports folder", s -> has(s, Perms.EXPORT)),
+                new Sub("warnings", "/ap warnings <player>", "A player's warnings and repeat indicator", s -> has(s, Perms.HISTORY_VIEW)),
+                new Sub("discord", "/ap discord [status|retry]", "Discord delivery status / re-queue failed messages", s -> has(s, Perms.ADMIN)),
                 new Sub("admin", "/ap admin", "Open the administration screen", s -> (has(s, Perms.ADMIN) || has(s, Perms.AUDIT_VIEW)) && s instanceof Player),
                 new Sub("status", "/ap status", "Show system status and integrations", s -> has(s, Perms.ADMIN)),
                 new Sub("audit", "/ap audit [verify]", "Verify the audit log integrity", s -> has(s, Perms.ADMIN)),
@@ -127,6 +132,20 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                 if (bad < 0) gui.messages().send(sender, "success", "message", "Audit log is intact.");
                 else gui.messages().sendError(sender, "AUDIT LOG DAMAGED: first inconsistent entry is #" + bad + ".");
             });
+            case "review" -> {
+                Player p = player(sender);
+                if (p != null) Menus.openReviews(gui, p, rest.length > 0 && rest[0].equalsIgnoreCase("mine"), rest);
+            }
+            case "queue" -> {
+                Player p = player(sender);
+                if (p != null) Menus.openWorkQueue(gui, p);
+            }
+            case "export" -> export(sender, rest);
+            case "warnings" -> warnings(sender, rest);
+            case "discord" -> {
+                if (rest.length > 0 && rest[0].equalsIgnoreCase("retry")) gui.messages().sendInfo(sender, "Re-queued " + gui.admin.discordRetry() + " undeliverable Discord message(s).");
+                else gui.messages().sendInfo(sender, "Discord: " + gui.admin.discordStatus());
+            }
             case "warn", "kick" -> simple(sender, PunishType.valueOf(name.toUpperCase(Locale.ROOT)), rest);
             case "mute", "ban", "ipban" -> timed(sender, PunishType.valueOf(name.toUpperCase(Locale.ROOT)), rest);
             case "unmute", "unban" -> unpunish(sender, name.equals("unmute"), rest);
@@ -195,6 +214,39 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                     for (Punishment pun : list) {
                         gui.messages().send(sender, "info", "message", "#" + pun.id() + " " + pun.type() + " " + pun.status() + " - " + pun.reason());
                     }
+                });
+            }
+        });
+    }
+
+    private void export(CommandSender sender, String[] a) {
+        if (a.length < 1 || a.length > 2) {
+            gui.messages().sendInfo(sender, "Usage: /ap export <case> [md|txt]");
+            return;
+        }
+        long id;
+        try {
+            id = Long.parseLong(a[0].toUpperCase(Locale.ROOT).replace("AP-", ""));
+        } catch (NumberFormatException e) {
+            gui.messages().sendError(sender, "That is not a case id.");
+            return;
+        }
+        var fmt = dev.aura.punishments.service.ExportService.Format.parse(a.length > 1 ? a[1] : "md");
+        reply(sender, gui.exports.export(Actors.of(sender), id, fmt, true), ex -> gui.messages().send(sender, "success", "message", "Saved " + ex.fileName() + " in the exports folder."));
+    }
+
+    private void warnings(CommandSender sender, String[] a) {
+        if (a.length != 1) {
+            gui.messages().sendInfo(sender, "Usage: /ap warnings <player>");
+            return;
+        }
+        resolve(sender, a[0], t -> {
+            if (sender instanceof Player p) {
+                Menus.openWarnings(gui, p, t);
+            } else {
+                reply(sender, gui.punishments.warningHistory(Actor.console(), t.uuid(), 20), h -> {
+                    gui.messages().sendInfo(sender, t.name() + ": " + h.recentCount() + " warning(s) in the repeat window" + (h.repeatOffender() ? " - REPEAT WARNINGS" : "") + " (indicator only).");
+                    for (var e : h.entries()) gui.messages().sendInfo(sender, "#" + e.warning().id() + " " + e.warning().reason() + (e.followUps() > 0 ? " [later action taken]" : ""));
                 });
             }
         });

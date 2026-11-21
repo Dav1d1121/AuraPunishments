@@ -12,6 +12,7 @@ import dev.aura.punishments.gui.Gui;
 import dev.aura.punishments.integration.BukkitEnforcement;
 import dev.aura.punishments.integration.BukkitLevelResolver;
 import dev.aura.punishments.integration.BukkitNotifier;
+import dev.aura.punishments.integration.CoreProtectBridge;
 import dev.aura.punishments.integration.DiscordService;
 import dev.aura.punishments.integration.JailBootstrap;
 import dev.aura.punishments.integration.JailEventListener;
@@ -49,6 +50,9 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     private Database db;
     private DiscordService discord;
     private ReviewService reviews;
+    private WorkQueueService workQueue;
+    private ExportService exports;
+    private CoreProtectService coreProtect;
     private Gui gui;
     private LuckPermsBackend luckPerms;
     private PunishmentService punishments;
@@ -164,6 +168,15 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         judicial = new JudicialService(core, custody, punishments);
         direct = new DirectService(core, punishments);
         admin = new AdminService(core, punishments);
+        workQueue = new WorkQueueService(core);
+        exports = new ExportService(core, cases, getDataFolder().toPath());
+        coreProtect = new CoreProtectService(core, cases);
+        try {
+            CoreProtectPort cp = getServer().getPluginManager().getPlugin("CoreProtect") == null ? null : CoreProtectBridge.create();
+            if (cp != null) coreProtect.port(cp);
+        } catch (LinkageError | RuntimeException e) {
+            getLogger().warning("CoreProtect was found but its API could not be used (" + e + "). CoreProtect evidence lookups are unavailable.");
+        }
         PlayerResolver resolver = new PlayerResolver(core);
 
         try {
@@ -177,6 +190,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         }
 
         gui = new Gui(this, core, resolver, punishments, custody, cases, judicial, direct, admin, this);
+        gui.attach(reviews, workQueue, exports, coreProtect);
         var pm = getServer().getPluginManager();
         enforcement.promptCheck(u -> { org.bukkit.entity.Player pp = Bukkit.getPlayer(u); return pp != null && gui.prompts().has(pp); });
         pm.registerEvents(gui.prompts(), this);   // prompts first so a typed answer is never treated as chat
@@ -224,6 +238,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         }
         if (luckPerms != null) luckPerms.shutdown();
         if (discord != null) discord.shutdown();
+        if (coreProtect != null) coreProtect.shutdown();
         if (db != null) db.close();
     }
 
@@ -328,6 +343,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         l.add("JailReloaded: " + core.jail.status());
         l.add("LuckPerms: " + (luckPerms != null ? "connected" : "not connected"));
         l.add("Discord: " + discord.status());
+        l.add("CoreProtect: " + coreProtect.status());
         var pm = getServer().getPluginManager();
         l.add("Detected: " + (pm.getPlugin("AuraCommandFilter") != null ? "AuraCommandFilter " : "") + (pm.getPlugin("Essentials") != null ? "EssentialsX " : "")
                 + (pm.getPlugin("TownyChat") != null ? "TownyChat " : "") + (pm.getPlugin("CoreProtect") != null ? "CoreProtect " : "")
@@ -360,6 +376,16 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
     public PunishmentService punishments() {
         return punishments;
+    }
+
+    @Override
+    public String discordStatus() {
+        return discord.status();
+    }
+
+    @Override
+    public int discordRetry() {
+        return discord.requeueDead();
     }
 
     public ReviewService reviews() {

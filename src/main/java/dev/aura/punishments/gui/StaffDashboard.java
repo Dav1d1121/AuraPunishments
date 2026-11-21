@@ -55,6 +55,13 @@ final class StaffDashboard extends Menu {
                 CaseListMenu.open(gui, p, this, "All cases", pg -> gui.cases.list(gui.actor(p), Filter.ALL, pg, 28), null));
         action(14, gui.can(viewer, Perms.JUDICIAL_VIEW), Material.ANVIL, "<light_purple><b>Judicial dashboard",
                 List.of("<gray>Trials, verdicts, sentencing, custody"), (p, t) -> JudicialDashboard.open(gui, p, this));
+        action(16, gui.can(viewer, Perms.REVIEW_VIEW), n.overdueReviews() > 0 ? Material.RED_CONCRETE : Material.BLUE_CONCRETE, "<aqua><b>Owner review queue",
+                List.of("<gray>Awaiting a decision: <white>" + n.pendingReviews(), n.overdueReviews() > 0 ? "<red>OVERDUE: " + n.overdueReviews() : "<green>None overdue"), (p, t) ->
+                        ReviewQueueMenu.open(gui, p, this, false));
+        action(19, gui.can(viewer, Perms.PUNISH), Material.NAME_TAG, "<aqua><b>My punishments under review",
+                List.of("<gray>Quick punishments you issued and", "<gray>their review status / evidence requests"), (p, t) -> ReviewQueueMenu.open(gui, p, this, true));
+        action(20, gui.can(viewer, Perms.JUDICIAL_VIEW) || gui.can(viewer, Perms.REVIEW_VIEW) || gui.can(viewer, Perms.EMERGENCY_REVIEW), Material.HOPPER, "<light_purple><b>Work queue",
+                List.of("<gray>Everything waiting for a decision,", "<gray>most urgent first"), (p, t) -> WorkQueueMenu.open(gui, p, this));
         action(15, gui.can(viewer, Perms.ADMIN) || gui.can(viewer, Perms.AUDIT_VIEW), Material.COMMAND_BLOCK, "<gold><b>Administration",
                 List.of("<gray>Diagnostics, audit log, reload"), (p, t) -> AdminMenu.open(gui, p, this));
     }

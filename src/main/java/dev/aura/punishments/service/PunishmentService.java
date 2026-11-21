@@ -294,6 +294,25 @@ public final class PunishmentService extends Svc {
         return core.notifications.deliverPending(uuid);
     }
 
+    // ------------------------------------------------------------------ warning history
+    public record WarningEntry(Punishment warning, long followUps, boolean delivered) {}
+
+    public record WarningHistory(List<WarningEntry> entries, long recentCount, int threshold, long windowMs, boolean repeatOffender) {}
+
+    /** Warnings on a player's record, newest first, with the repeat indicator and whether any later action was taken. */
+    public CompletableFuture<Result<WarningHistory>> warningHistory(Actor actor, UUID uuid, int limit) {
+        if (!core.auth.has(actor, Perms.HISTORY_VIEW)) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to view punishment history."));
+        return db(c -> {
+            Settings.WarnRepeat rep = core.settings.warnings.repeat();
+            List<WarningEntry> out = new java.util.ArrayList<>();
+            for (Punishment w : Repo.Punishments.warningsFor(c, uuid, limit)) {
+                out.add(new WarningEntry(w, Repo.Punishments.followUpsAfter(c, uuid, w.issuedAt()), w.delivered()));
+            }
+            long recent = Repo.Punishments.countWarningsSince(c, uuid, core.clock.now() - rep.window(), null);
+            return Result.ok(new WarningHistory(out, recent, rep.threshold(), rep.window(), rep.enabled() && recent >= rep.threshold()));
+        });
+    }
+
     // ------------------------------------------------------------------ lookups
     public Optional<Punishment> banFor(UUID uuid, String ip) {
         long now = core.clock.now();

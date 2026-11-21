@@ -28,6 +28,11 @@ public final class Gui {
     public final JudicialService judicial;
     public final DirectService direct;
     private final AdminService adminService;
+    /** 1.1.0 services (attached after construction by the plugin / test fixture). */
+    public ReviewService reviews;
+    public WorkQueueService workQueue;
+    public ExportService exports;
+    public CoreProtectService coreProtect;
     public final AdminHooks admin;
     private final GuiManager manager;
     private final PromptManager prompts;
@@ -37,6 +42,16 @@ public final class Gui {
         void reload(Player by);
 
         java.util.List<String> diagnostics();
+
+        /** Discord outbox status line. */
+        default String discordStatus() {
+            return "n/a";
+        }
+
+        /** Re-queue undeliverable Discord messages; returns how many. */
+        default int discordRetry() {
+            return 0;
+        }
     }
 
     public Gui(Plugin plugin, Core core, PlayerResolver resolver, PunishmentService punishments, CustodyService custody,
@@ -53,6 +68,13 @@ public final class Gui {
         this.admin = admin;
         this.manager = new GuiManager(this);
         this.prompts = new PromptManager(this);
+    }
+
+    public void attach(ReviewService reviews, WorkQueueService workQueue, ExportService exports, CoreProtectService coreProtect) {
+        this.reviews = reviews;
+        this.workQueue = workQueue;
+        this.exports = exports;
+        this.coreProtect = coreProtect;
     }
 
     public AdminService admin2() {

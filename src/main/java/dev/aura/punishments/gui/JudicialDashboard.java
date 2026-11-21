@@ -54,5 +54,9 @@ final class JudicialDashboard extends Menu {
                 List.of("<gray>Awaiting review: <white>" + n.unreviewedEmergencies()), (p, t) -> EmergencyReviewList.open(gui, p, this));
         action(16, true, Material.ENCHANTED_BOOK, "<aqua><b>All cases", List.of("<gray>Browse everything"), (p, t) ->
                 CaseListMenu.open(gui, p, this, "All cases", pg -> gui.cases.list(gui.actor(p), Filter.ALL, pg, 28), null));
+        action(19, true, Material.HOPPER, "<light_purple><b>Work queue", List.of("<gray>Prioritised: custody, reviews,", "<gray>emergencies, trials, appeals"), (p, t) -> WorkQueueMenu.open(gui, p, this));
+        action(20, gui.can(viewer, Perms.REVIEW_VIEW), n.overdueReviews() > 0 ? Material.RED_CONCRETE : Material.BLUE_CONCRETE, "<aqua><b>Quick-punishment reviews",
+                List.of("<gray>Awaiting a decision: <white>" + n.pendingReviews(), n.overdueReviews() > 0 ? "<red>OVERDUE: " + n.overdueReviews() : "<green>None overdue"), (p, t) ->
+                        ReviewQueueMenu.open(gui, p, this, false));
     }
 }

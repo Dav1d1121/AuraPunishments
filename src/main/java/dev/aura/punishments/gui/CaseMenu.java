@@ -170,7 +170,20 @@ final class CaseMenu extends Menu {
                                             reload();
                                         }, this::open)).open()));
         if (c.kind() == CaseKind.EMERGENCY) {
-            action(34, can(Perms.EMERGENCY_REVIEW), Material.REDSTONE_TORCH, "<red><b>Review emergency action",
+            action(35, can(Perms.EXPORT) && gui.exports != null, Material.MAP, "<aqua><b>Export summary",
+                List.of("<gray>Saves a Markdown summary to the", "<gray>plugin's exports folder", "<dark_gray>No IPs or private notes"), (p, t) ->
+                        gui.call(p, gui.exports.export(gui.actor(p), c.id(), dev.aura.punishments.service.ExportService.Format.MARKDOWN, true), ex ->
+                                gui.success(p, "Saved " + ex.fileName() + " in the exports folder.")));
+        action(36, can(Perms.COREPROTECT) && can(Perms.EVIDENCE_ADD) && gui.coreProtect != null && gui.coreProtect.available(), Material.COMPASS, "<green><b>CoreProtect lookup",
+                List.of("<gray>Read-only lookup of the accused's", "<gray>blocks, chat, commands or sessions", "<gray>Optionally saved as evidence"), (p, t) -> CoreProtectFlow.start(gui, p, this, c));
+        action(37, can(Perms.APPEAL_TICKET) || can(Perms.JUDICIAL_OVERTURN), Material.NAME_TAG, "<aqua><b>Appeal ticket",
+                List.of("<gray>Ticket Tool ticket: <white>" + (c.appealTicket() == null ? "none" : c.appealTicket()), "<gray>Click to link / replace"), (p, t) ->
+                        gui.prompts().ask(p, "Type the Ticket Tool ticket number (e.g. 0042) or the ticket channel link.", 1, 200, text ->
+                                gui.call(p, gui.judicial.linkAppealTicket(gui.actor(p), c.id(), text), x -> {
+                                    gui.success(p, "Ticket linked.");
+                                    reload();
+                                }), this::open));
+        action(34, can(Perms.EMERGENCY_REVIEW), Material.REDSTONE_TORCH, "<red><b>Review emergency action",
                     List.of("<gray>Escalate to trial or revoke"), (p, t) -> emergencyReview());
         }
     }

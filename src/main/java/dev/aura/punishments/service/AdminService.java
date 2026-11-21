@@ -17,7 +17,8 @@ import java.util.concurrent.CompletableFuture;
 public final class AdminService extends Svc {
 
     public record Counts(Map<CaseStatus, Long> byStatus, long liveCustody, long overdueCustody, long pendingAppeals,
-                         long unreviewedEmergencies, long unfinishedOps, long failedOps, long auditEntries, int cachedPunishments) {}
+                         long unreviewedEmergencies, long unfinishedOps, long failedOps, long auditEntries, int cachedPunishments,
+                         long pendingReviews, long overdueReviews) {}
 
     private final PunishmentService punishments;
 
@@ -50,7 +51,9 @@ public final class AdminService extends Svc {
             long overdue = live.stream().filter(cu -> cu.overdue(now)).count();
             return Result.ok(new Counts(by, live.size(), overdue, Repo.Appeals.countPending(c),
                     Repo.Punishments.emergencyAwaitingReview(c).size(), Repo.Ops.countUnfinished(c), Repo.Ops.countFailed(c),
-                    Repo.Audits.count(c), punishments.cache().size()));
+                    Repo.Audits.count(c), punishments.cache().size(),
+                    Repo.Reviews.countByStatuses(c, List.of(dev.aura.punishments.model.Simple.ReviewStatus.PENDING_REVIEW, dev.aura.punishments.model.Simple.ReviewStatus.UNDER_REVIEW, dev.aura.punishments.model.Simple.ReviewStatus.FURTHER_INVESTIGATION), null),
+                    Repo.Reviews.openReviews(c).stream().filter(r -> !r.migrated() && r.reviewDue() != null && now > r.reviewDue()).count()));
         });
     }
 
