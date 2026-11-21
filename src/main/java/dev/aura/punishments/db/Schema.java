@@ -212,6 +212,102 @@ public final class Schema {
                       last_error TEXT
                     )""",
                     "CREATE INDEX idx_ops_state ON pending_ops(state)"
+            )),
+            new Migration(2, "1.1.0: owner reviews, player notifications, Discord outbox, appeal tickets", List.of(
+                    "ALTER TABLE cases ADD COLUMN appeal_ticket TEXT",
+                    "ALTER TABLE appeals ADD COLUMN assigned_name TEXT",
+                    "ALTER TABLE punishments ADD COLUMN modified_at INTEGER",
+                    "ALTER TABLE punishments ADD COLUMN modified_by TEXT",
+                    "ALTER TABLE punishments ADD COLUMN original_expires_at INTEGER",
+                    """
+                    CREATE TABLE reviews (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      punishment_id INTEGER,
+                      case_id INTEGER,
+                      target_uuid TEXT NOT NULL,
+                      target_name TEXT NOT NULL,
+                      issuer_uuid TEXT,
+                      issuer_name TEXT NOT NULL,
+                      ptype TEXT NOT NULL,
+                      duration_ms INTEGER,
+                      reason TEXT NOT NULL,
+                      issued_at INTEGER NOT NULL,
+                      status TEXT NOT NULL,
+                      evidence_due INTEGER,
+                      review_due INTEGER,
+                      reviewer_name TEXT,
+                      decided_at INTEGER,
+                      decision_note TEXT,
+                      migrated INTEGER NOT NULL DEFAULT 0,
+                      evidence_reminders INTEGER NOT NULL DEFAULT 0,
+                      last_evidence_reminder INTEGER,
+                      review_reminders INTEGER NOT NULL DEFAULT 0,
+                      last_review_reminder INTEGER,
+                      version INTEGER NOT NULL DEFAULT 0,
+                      updated_at INTEGER NOT NULL
+                    )""",
+                    "CREATE UNIQUE INDEX idx_reviews_punishment ON reviews(punishment_id) WHERE punishment_id IS NOT NULL",
+                    "CREATE INDEX idx_reviews_status ON reviews(status)",
+                    "CREATE INDEX idx_reviews_target ON reviews(target_uuid)",
+                    """
+                    CREATE TABLE review_events (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      review_id INTEGER NOT NULL REFERENCES reviews(id),
+                      ts INTEGER NOT NULL,
+                      actor_name TEXT NOT NULL,
+                      type TEXT NOT NULL,
+                      detail TEXT
+                    )""",
+                    "CREATE INDEX idx_review_events ON review_events(review_id)",
+                    """
+                    CREATE TABLE player_notifications (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      dedupe_key TEXT NOT NULL UNIQUE,
+                      uuid TEXT NOT NULL,
+                      kind TEXT NOT NULL,
+                      ref_type TEXT,
+                      ref_id INTEGER,
+                      payload TEXT NOT NULL,
+                      state TEXT NOT NULL,
+                      created_at INTEGER NOT NULL,
+                      delivered_at INTEGER,
+                      attempts INTEGER NOT NULL DEFAULT 0
+                    )""",
+                    "CREATE INDEX idx_notif_uuid_state ON player_notifications(uuid, state)",
+                    """
+                    CREATE TABLE discord_outbox (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      dedupe_key TEXT NOT NULL UNIQUE,
+                      category TEXT NOT NULL,
+                      event TEXT NOT NULL,
+                      dest TEXT NOT NULL,
+                      body TEXT NOT NULL,
+                      state TEXT NOT NULL,
+                      attempts INTEGER NOT NULL DEFAULT 0,
+                      next_attempt INTEGER NOT NULL,
+                      created_at INTEGER NOT NULL,
+                      sent_at INTEGER,
+                      last_error TEXT
+                    )""",
+                    "CREATE INDEX idx_outbox_state ON discord_outbox(state, next_attempt)",
+                    // Warnings that were never shown to the player become queued notifications (original timestamps kept).
+                    """
+                    INSERT INTO player_notifications(dedupe_key, uuid, kind, ref_type, ref_id, payload, state, created_at)
+                    SELECT 'warn:' || id, target_uuid, 'WARNING', 'punishment', id,
+                           json_object('reason', reason, 'issuer', issuer_name, 'id', CAST(id AS TEXT)), 'PENDING', issued_at
+                    FROM punishments WHERE type='WARN' AND delivered=0 AND status<>'REVOKED'""",
+                    // 1.0.0 Quick Punishments that would now need review are imported as LEGACY (never in the pending queue, never new).
+                    """
+                    INSERT INTO reviews(punishment_id, case_id, target_uuid, target_name, issuer_uuid, issuer_name, ptype, duration_ms,
+                                        reason, issued_at, status, migrated, updated_at)
+                    SELECT id, case_id, target_uuid, target_name, issuer_uuid, issuer_name, type,
+                           CASE WHEN expires_at IS NULL THEN NULL ELSE expires_at - issued_at END,
+                           reason, issued_at, 'LEGACY', 1, issued_at
+                    FROM punishments WHERE source='QUICK' AND type IN ('MUTE','BAN','IPBAN')""",
+                    """
+                    INSERT INTO review_events(review_id, ts, actor_name, type, detail)
+                    SELECT id, issued_at, 'Migration', 'MIGRATED', 'Imported from AuraPunishments 1.0.0; issued before reviews existed'
+                    FROM reviews WHERE migrated=1"""
             ))
     );
 

@@ -1,6 +1,7 @@
 package dev.aura.punishments.model;
 
 import dev.aura.punishments.model.Simple.*;
+import dev.aura.punishments.model.PunishType;
 
 import java.util.UUID;
 
@@ -15,7 +16,7 @@ public final class Records {
                        UUID prosecutorUuid, String prosecutorName, UUID judgeUuid, String judgeName,
                        Long trialAt, String hearingRef, Verdict verdict, String verdictReason,
                        String verdictByName, Long verdictAt, boolean overturned,
-                       long createdAt, long updatedAt, Long closedAt, long version) {
+                       long createdAt, long updatedAt, Long closedAt, long version, String appealTicket) {
         public String ref() {
             return "AP-" + String.format("%04d", id);
         }
@@ -45,7 +46,8 @@ public final class Records {
                              String ip, String reason, UUID issuerUuid, String issuerName,
                              long issuedAt, Long expiresAt, Long endedAt, String endedBy, String endReason,
                              Long caseId, Source source, String offenseKey, boolean delivered,
-                             Long reviewDeadline, boolean reviewed, Long custodyId) {
+                             Long reviewDeadline, boolean reviewed, Long custodyId,
+                             Long modifiedAt, String modifiedBy, Long originalExpiresAt) {
         public boolean permanent() {
             return expiresAt == null;
         }
@@ -56,7 +58,7 @@ public final class Records {
     }
 
     public record Appeal(long id, long caseId, String filedByName, long filedAt, String reason,
-                         AppealStatus status, String decidedByName, String decisionReason, Long decidedAt) {}
+                         AppealStatus status, String decidedByName, String decisionReason, Long decidedAt, String assignedName) {}
 
     public record Audit(long id, long ts, UUID actorUuid, String actorName, String action,
                         UUID targetUuid, Long caseId, String detail, boolean elevated,
@@ -64,4 +66,22 @@ public final class Records {
 
     public record PendingOp(long id, String kind, OpState state, Long caseId, Long custodyId, UUID uuid,
                             String payload, int attempts, long createdAt, long updatedAt, String lastError) {}
+
+    public record Review(long id, Long punishmentId, Long caseId, UUID targetUuid, String targetName, UUID issuerUuid,
+                         String issuerName, PunishType ptype, Long durationMs, String reason, long issuedAt,
+                         ReviewStatus status, Long evidenceDue, Long reviewDue, String reviewerName, Long decidedAt,
+                         String decisionNote, boolean migrated, int evidenceReminders, Long lastEvidenceReminder,
+                         int reviewReminders, Long lastReviewReminder, long version, long updatedAt) {
+        public String ref() {
+            return "RV-" + String.format("%04d", id);
+        }
+    }
+
+    public record ReviewEvent(long id, long reviewId, long ts, String actorName, String type, String detail) {}
+
+    public record Notification(long id, String dedupeKey, UUID uuid, String kind, String refType, Long refId,
+                               String payload, NotificationState state, long createdAt, Long deliveredAt, int attempts) {}
+
+    public record OutboxRow(long id, String dedupeKey, String category, String event, String dest, String body,
+                            OutboxState state, int attempts, long nextAttempt, long createdAt, Long sentAt, String lastError) {}
 }

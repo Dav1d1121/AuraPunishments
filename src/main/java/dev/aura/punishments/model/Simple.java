@@ -74,7 +74,47 @@ public final class Simple {
     }
 
     public enum AppealStatus {
-        PENDING, UPHELD, OVERTURNED, MODIFIED
+        PENDING, UNDER_REVIEW, UPHELD, OVERTURNED, MODIFIED;
+
+        /** An appeal that has not been decided yet. */
+        public boolean open() {
+            return this == PENDING || this == UNDER_REVIEW;
+        }
+    }
+
+    /** Owner/administrative review of a Quick Punishment. */
+    public enum ReviewStatus {
+        PENDING_REVIEW("Pending Review"), UNDER_REVIEW("Under Review"), UPHELD("Upheld"), MODIFIED("Modified"),
+        REVERSED("Reversed"), FURTHER_INVESTIGATION("Further Investigation Required"),
+        /** Imported from 1.0.0: issued before reviews existed; kept out of the pending queue. */
+        LEGACY("Legacy (pre-review)");
+
+        private final String display;
+
+        ReviewStatus(String display) {
+            this.display = display;
+        }
+
+        public String display() {
+            return display;
+        }
+
+        /** Still needs a decision from a reviewer. */
+        public boolean open() {
+            return this == PENDING_REVIEW || this == UNDER_REVIEW || this == FURTHER_INVESTIGATION;
+        }
+
+        public boolean decided() {
+            return this == UPHELD || this == MODIFIED || this == REVERSED;
+        }
+    }
+
+    public enum NotificationState {
+        PENDING, DELIVERED, EXPIRED
+    }
+
+    public enum OutboxState {
+        PENDING, SENT, DEAD
     }
 
     public enum OpState {

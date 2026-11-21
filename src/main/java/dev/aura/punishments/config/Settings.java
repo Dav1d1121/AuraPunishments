@@ -33,7 +33,7 @@ public final class Settings {
                           String jailName, String cellName, boolean muteWhileHeld, int reconcileSeconds,
                           boolean guardJailCommands, Set<String> guardedJailCommands) {}
 
-    public record TimeServed(boolean enabled, double rate, Set<PunishType> appliesTo) {}
+    public record TimeServed(boolean enabled, double rate, Set<PunishType> appliesTo, Set<PunishType> defaultCreditFor) {}
 
     public record Judicial(boolean prosecutorMayJudge, boolean requireAssignedJudge, int minVerdictReason,
                            TimeServed timeServed) {}
@@ -54,10 +54,36 @@ public final class Settings {
 
     public record Legacy(boolean block, Set<String> blocked) {}
 
-    public record DiscordEvent(boolean enabled, String webhook) {}
+    /** Per-event override: may switch the event off, move it to another category and/or give it its own webhooks. */
+    public record DiscordEvent(boolean enabled, String category, List<String> webhooks) {}
+
+    /** One Discord log destination (category). {@code fallback} names the category (or "default") used when no webhook is set. */
+    public record DiscordChannel(boolean enabled, List<String> webhooks, String fallback, List<String> mentionRoles, Set<String> mentionEvents) {}
 
     public record Discord(boolean enabled, String webhook, String username, String avatar,
-                          Map<String, DiscordEvent> events, int timeoutSeconds, int maxRetries) {}
+                          Map<String, DiscordChannel> channels, Map<String, DiscordEvent> events, int timeoutSeconds, int maxRetries,
+                          int retentionDays, long backoffBaseMs, boolean legacyLayout) {}
+
+    public record WarnTitle(boolean enabled, String title, String subtitle, boolean showReason, int reasonMaxChars,
+                            String subtitleWithReason, int fadeIn, int stay, int fadeOut) {}
+
+    public record WarnSound(boolean enabled, String sound, float volume, float pitch, String source) {}
+
+    public record WarnRepeat(boolean enabled, long window, int threshold, boolean sameCategoryOnly, boolean recommendCase) {}
+
+    public record Warnings(boolean chat, WarnTitle title, WarnSound sound, boolean actionBar, String actionBarText, int spacingTicks,
+                           boolean deferTitleWhilePrompting, WarnRepeat repeat) {}
+
+    public record Review(boolean enabled, Set<PunishType> requiredTypes, long minDuration, int exemptLevel, long evidenceDeadline,
+                         long reviewDeadline, long reminderBefore, long reminderRepeat, int maxEvidenceReminders, boolean notifyInGame) {}
+
+    public record Dashboard(long approachingCustody, Map<String, Integer> priority) {}
+
+    public record Defendant(boolean enabled, String hearingInstructions, boolean includeReasoning, boolean sound, Set<String> statuses) {}
+
+    public record Exports(boolean enabled, String folder, boolean includeTimeline) {}
+
+    public record CoreProtectCfg(boolean enabled, int maxRadius, long maxTime, int sampleRows) {}
 
     public final boolean debug;
     public final String dbFile;
@@ -67,6 +93,12 @@ public final class Settings {
     public final Custody custody;
     public final Judicial judicial;
     public final Escalation escalation;
+    public final Warnings warnings;
+    public final Review review;
+    public final Dashboard dashboard;
+    public final Defendant defendant;
+    public final Exports exports;
+    public final CoreProtectCfg coreProtect;
     public final Direct direct;
     public final Emergency emergency;
     public final Quick quick;
@@ -82,7 +114,7 @@ public final class Settings {
     public final boolean jailEnabled;
     public final boolean closeGuisOnPermissionChange;
 
-    private Settings(YamlConfiguration y, List<String> p) {
+    private Settings(YamlConfiguration y, YamlConfiguration secrets, java.util.function.UnaryOperator<String> env, List<String> p) {
         this.debug = y.getBoolean("general.debug", false);
         String dbType = y.getString("database.type", "sqlite");
         if (!"sqlite".equalsIgnoreCase(dbType)) p.add("database.type: only 'sqlite' is supported in 1.0.0 (got '" + dbType + "')");
@@ -133,12 +165,16 @@ public final class Settings {
                 y.getBoolean("custody.guard-jail-commands", true), lowerSet(y.getStringList("custody.guarded-jail-commands")));
 
         EnumSet<PunishType> credit = types(y.getStringList("judicial.time-served.applies-to"), "judicial.time-served.applies-to", p);
+        // a missing key keeps 1.0.0 behaviour (credit offered on every applicable type); the shipped 1.1.0 file narrows it to JAIL
         double rate = y.getDouble("judicial.time-served.rate", 1.0);
         if (rate < 0 || rate > 1) p.add("judicial.time-served.rate: must be between 0.0 and 1.0");
         this.judicial = new Judicial(y.getBoolean("judicial.prosecutor-may-judge", true),
                 y.getBoolean("judicial.require-assigned-judge-for-verdict", true),
                 range(y, "judicial.min-verdict-reason-length", 10, 0, 200, p),
-                new TimeServed(y.getBoolean("judicial.time-served.enabled", true), rate, credit));
+                new TimeServed(y.getBoolean("judicial.time-served.enabled", true), rate, credit,
+                        y.isList("judicial.time-served.default-credit-for")
+                                ? types(y.getStringList("judicial.time-served.default-credit-for"), "judicial.time-served.default-credit-for", p)
+                                : EnumSet.copyOf(credit.isEmpty() ? EnumSet.noneOf(PunishType.class) : credit)));
 
         this.escalation = new Escalation(!"all".equalsIgnoreCase(y.getString("escalation.scope", "category")),
                 y.getBoolean("escalation.count-direct-punishments", true));
@@ -218,30 +254,145 @@ public final class Settings {
         if (ns != null) for (String k : ns.getKeys(false)) notif.put(k, ns.getBoolean(k, true));
         this.notifications = Map.copyOf(notif);
 
+        // ---------------- warnings
+        WarnTitle wt = new WarnTitle(y.getBoolean("warnings.notifications.title.enabled", true),
+                y.getString("warnings.notifications.title.title", "<red><bold>\u26a0 OFFICIAL WARNING \u26a0"),
+                y.getString("warnings.notifications.title.subtitle", "<yellow>Please correct your behavior."),
+                y.getBoolean("warnings.notifications.title.show-reason", false),
+                range(y, "warnings.notifications.title.reason-max-chars", 40, 10, 100, p),
+                y.getString("warnings.notifications.title.subtitle-with-reason", "<yellow><reason>"),
+                range(y, "warnings.notifications.title.fade-in-ticks", 10, 0, 200, p),
+                range(y, "warnings.notifications.title.stay-ticks", 100, 10, 600, p),
+                range(y, "warnings.notifications.title.fade-out-ticks", 20, 0, 200, p));
+        String soundKey = y.getString("warnings.notifications.sound.sound", "block.note_block.pling");
+        double vol = y.getDouble("warnings.notifications.sound.volume", 0.8);
+        double pitch = y.getDouble("warnings.notifications.sound.pitch", 1.0);
+        if (vol < 0 || vol > 2) p.add("warnings.notifications.sound.volume: must be between 0.0 and 2.0");
+        if (pitch < 0.5 || pitch > 2) p.add("warnings.notifications.sound.pitch: must be between 0.5 and 2.0");
+        if (!soundKey.matches("[a-z0-9_.\\-/:]{1,100}")) p.add("warnings.notifications.sound.sound: '" + soundKey + "' is not a valid sound key");
+        String soundSource = y.getString("warnings.notifications.sound.source", "master").toLowerCase(Locale.ROOT);
+        if (!Set.of("master", "music", "record", "weather", "block", "hostile", "neutral", "player", "ambient", "voice", "ui").contains(soundSource)) {
+            p.add("warnings.notifications.sound.source: unknown sound source '" + soundSource + "'");
+        }
+        this.warnings = new Warnings(y.getBoolean("warnings.notifications.chat.enabled", true), wt,
+                new WarnSound(y.getBoolean("warnings.notifications.sound.enabled", true), soundKey, (float) vol, (float) pitch, soundSource),
+                y.getBoolean("warnings.notifications.actionbar.enabled", false),
+                y.getString("warnings.notifications.actionbar.text", "<red>\u26a0 You received an official warning - see chat"),
+                range(y, "warnings.notifications.spacing-ticks", 120, 20, 1200, p),
+                y.getBoolean("warnings.notifications.defer-title-while-prompting", true),
+                new WarnRepeat(y.getBoolean("warnings.repeat.enabled", true), dur(y, "warnings.repeat.window", "30d", false, p),
+                        range(y, "warnings.repeat.threshold", 3, 2, 50, p), y.getBoolean("warnings.repeat.same-category-only", false),
+                        y.getBoolean("warnings.repeat.recommend-case", true)));
+        if (wt.enabled() && wt.title().isBlank()) p.add("warnings.notifications.title.title: cannot be empty while the title is enabled");
+
+        // ---------------- owner review of quick punishments
+        EnumSet<PunishType> reviewTypes = y.isList("review.required-types") ? types(y.getStringList("review.required-types"), "review.required-types", p)
+                : EnumSet.of(PunishType.MUTE, PunishType.BAN, PunishType.IPBAN);
+        if (reviewTypes.contains(PunishType.WARN) || reviewTypes.contains(PunishType.JAIL)) {
+            p.add("review.required-types: warnings never require owner review, and jail is not a quick punishment");
+            reviewTypes.remove(PunishType.WARN);
+            reviewTypes.remove(PunishType.JAIL);
+        }
+        long evDeadline = dur(y, "review.evidence-deadline", "24h", false, p);
+        long rvDeadline = dur(y, "review.review-deadline", "72h", false, p);
+        long remBefore = dur(y, "review.reminder-before", "12h", false, p);
+        if (remBefore >= rvDeadline) p.add("review.reminder-before: must be shorter than review-deadline");
+        this.review = new Review(y.getBoolean("review.enabled", true), reviewTypes, dur(y, "review.min-duration", "0s", false, p),
+                range(y, "review.exempt-level", 0, 0, 100000, p), evDeadline, rvDeadline, remBefore,
+                dur(y, "review.reminder-repeat", "12h", false, p), range(y, "review.max-evidence-reminders", 6, 1, 50, p),
+                y.getBoolean("review.notify-in-game", true));
+
+        // ---------------- dashboard
+        Map<String, Integer> prio = new LinkedHashMap<>();
+        for (String k : List.of("custody-overdue", "custody-imminent", "emergency-overdue", "emergency-pending", "quick-review-overdue",
+                "quick-review-pending", "appeal", "awaiting-verdict", "awaiting-sentencing", "further-investigation", "awaiting-trial")) {
+            prio.put(k, range(y, "dashboard.priority." + k, defaultPriority(k), 0, 1000, p));
+        }
+        this.dashboard = new Dashboard(dur(y, "dashboard.approaching-custody", "12h", false, p), Map.copyOf(prio));
+
+        // ---------------- defendant communication
+        java.util.LinkedHashSet<String> dst = new java.util.LinkedHashSet<>();
+        for (String st : y.isList("defendant.notify-statuses") ? y.getStringList("defendant.notify-statuses") : List.of("IN_TRIAL", "DISMISSED", "CLOSED", "UNDER_INVESTIGATION")) {
+            try {
+                dst.add(dev.aura.punishments.model.CaseStatus.parse(st).name());
+            } catch (IllegalArgumentException e) {
+                p.add("defendant.notify-statuses: unknown case status '" + st + "'");
+            }
+        }
+        this.defendant = new Defendant(y.getBoolean("defendant.enabled", true),
+                y.getString("defendant.hearing-instructions", "Staff will contact you with the Discord hearing details. Please make sure you can be reached on Discord."),
+                y.getBoolean("defendant.include-reasoning", true), y.getBoolean("defendant.sound", false), Set.copyOf(dst));
+
+        String exportFolder = y.getString("exports.folder", "exports");
+        if (!exportFolder.matches("[A-Za-z0-9._-]{1,40}")) {
+            p.add("exports.folder: must be a plain folder name inside the plugin folder");
+            exportFolder = "exports";
+        }
+        this.exports = new Exports(y.getBoolean("exports.enabled", true), exportFolder, y.getBoolean("exports.include-timeline", true));
+        this.coreProtect = new CoreProtectCfg(y.getBoolean("integrations.coreprotect.enabled", true),
+                range(y, "integrations.coreprotect.max-radius", 50, 1, 500, p),
+                dur(y, "integrations.coreprotect.max-time", "7d", false, p), range(y, "integrations.coreprotect.sample-rows", 8, 0, 30, p));
+
+        // ---------------- discord (1.0.0 layout still works: webhook-url acts as the default for every category)
+        boolean dEnabled = y.getBoolean("discord.enabled", false);
+        String defaultUrl = resolveSecret(y.getString("discord.webhook-url", ""), env);
+        if (secrets != null && secrets.isString("default") && !secrets.getString("default","").isBlank()) defaultUrl = resolveSecret(secrets.getString("default", ""), env);
+        if (!defaultUrl.isBlank() && !validWebhook(defaultUrl)) p.add("discord.webhook-url: must be an https://discord.com/api/webhooks/... URL (use ${env:NAME} to keep it out of the file)");
+        Map<String, DiscordChannel> channels = new LinkedHashMap<>();
+        ConfigurationSection cs = y.getConfigurationSection("discord.channels");
+        boolean legacy = cs == null;
+        for (String cat : DISCORD_CATEGORIES) {
+            ConfigurationSection c = cs == null ? null : cs.getConfigurationSection(cat);
+            List<String> urls = new ArrayList<>(urlList(c == null ? null : c, "webhooks", env, "discord.channels." + cat + ".webhooks", p));
+            if (secrets != null) urls.addAll(secretUrls(secrets, cat, env, "webhooks.yml " + cat, p));
+            String fb = c == null ? "default" : c.getString("fallback", "default").toLowerCase(Locale.ROOT);
+            if (!fb.equals("default") && !DISCORD_CATEGORIES.contains(fb)) {
+                p.add("discord.channels." + cat + ".fallback: must be 'default' or another category (got '" + fb + "')");
+                fb = "default";
+            }
+            List<String> roles = new ArrayList<>();
+            if (c != null) for (String r : c.getStringList("mention-roles")) {
+                if (!r.matches("\\d{5,25}")) p.add("discord.channels." + cat + ".mention-roles: '" + r + "' is not a numeric Discord role id");
+                else roles.add(r);
+            }
+            channels.put(cat, new DiscordChannel(c == null || c.getBoolean("enabled", true), List.copyOf(urls), fb, List.copyOf(roles),
+                    c == null ? Set.of() : lowerSet(c.getStringList("mention-events"))));
+        }
+        // fallback chains must terminate
+        for (String cat : DISCORD_CATEGORIES) {
+            String cur = cat;
+            int hops = 0;
+            while (!cur.equals("default") && hops++ <= DISCORD_CATEGORIES.size()) cur = channels.get(cur).fallback();
+            if (!cur.equals("default")) p.add("discord.channels." + cat + ".fallback: the fallback chain loops");
+        }
         Map<String, DiscordEvent> events = new LinkedHashMap<>();
         ConfigurationSection es = y.getConfigurationSection("discord.events");
-        String defaultUrl = y.getString("discord.webhook-url", "");
-        boolean dEnabled = y.getBoolean("discord.enabled", false);
-        if (dEnabled && !validWebhook(defaultUrl)) {
-            boolean anyOverride = false;
-            if (es != null) {
-                for (String k : es.getKeys(false)) {
-                    if (validWebhook(es.getString(k + ".webhook-url", ""))) anyOverride = true;
-                }
-            }
-            if (!anyOverride) p.add("discord.webhook-url: enabled but no valid https webhook URL is configured");
-        }
-        if (!defaultUrl.isBlank() && !validWebhook(defaultUrl)) p.add("discord.webhook-url: must be an https://discord.com/api/webhooks/... URL");
+        boolean anyEventUrl = false;
         if (es != null) {
             for (String k : es.getKeys(false)) {
-                String u = es.getString(k + ".webhook-url", "");
-                if (!u.isBlank() && !validWebhook(u)) p.add("discord.events." + k + ".webhook-url: must be an https Discord webhook URL");
-                events.put(k, new DiscordEvent(es.getBoolean(k + ".enabled", true), u));
+                List<String> urls = new ArrayList<>(urlList(es.getConfigurationSection(k), "webhooks", env, "discord.events." + k + ".webhooks", p));
+                String single = resolveSecret(es.getString(k + ".webhook-url", ""), env);
+                if (!single.isBlank()) {
+                    if (!validWebhook(single)) p.add("discord.events." + k + ".webhook-url: must be an https Discord webhook URL");
+                    else urls.add(single);
+                }
+                String cat = es.getString(k + ".category", "").toLowerCase(Locale.ROOT);
+                if (!cat.isEmpty() && !DISCORD_CATEGORIES.contains(cat)) {
+                    p.add("discord.events." + k + ".category: unknown category '" + cat + "'");
+                    cat = "";
+                }
+                if (!urls.isEmpty()) anyEventUrl = true;
+                events.put(k, new DiscordEvent(es.getBoolean(k + ".enabled", true), cat, List.copyOf(urls)));
             }
         }
+        boolean anyChannelUrl = channels.values().stream().anyMatch(ch -> !ch.webhooks().isEmpty());
+        if (dEnabled && defaultUrl.isBlank() && !anyChannelUrl && !anyEventUrl) {
+            p.add("discord.enabled is true but no webhook is configured (set discord.webhook-url, a channel's webhooks, or an event webhook)");
+        }
         this.discord = new Discord(dEnabled, defaultUrl, y.getString("discord.username", "AuraPunishments"),
-                y.getString("discord.avatar-url", ""), Map.copyOf(events),
-                range(y, "discord.timeout-seconds", 10, 1, 60, p), range(y, "discord.max-retries", 3, 0, 10, p));
+                y.getString("discord.avatar-url", ""), Map.copyOf(channels), Map.copyOf(events),
+                range(y, "discord.timeout-seconds", 10, 1, 60, p), range(y, "discord.max-retries", 5, 0, 20, p),
+                range(y, "discord.outbox-retention-days", 14, 1, 365, p), 1000L * range(y, "discord.retry-backoff-seconds", 5, 1, 300, p), legacy);
 
         this.auditRetentionDays = range(y, "retention.audit-days", 0, 0, 36500, p);
         this.jailEnabled = y.getBoolean("integrations.jailreloaded.enabled", true);
@@ -249,8 +400,13 @@ public final class Settings {
     }
 
     public static Settings parse(YamlConfiguration y) throws ConfigException {
+        return parse(y, null, System::getenv);
+    }
+
+    /** @param secrets optional webhooks.yml (kept out of config.yml so it can have tighter file permissions / stay out of backups) */
+    public static Settings parse(YamlConfiguration y, YamlConfiguration secrets, java.util.function.UnaryOperator<String> env) throws ConfigException {
         List<String> problems = new ArrayList<>();
-        Settings s = new Settings(y, problems);
+        Settings s = new Settings(y, secrets, env, problems);
         if (!problems.isEmpty()) throw new ConfigException(problems);
         return s;
     }
@@ -267,6 +423,7 @@ public final class Settings {
 
     private static long dur(YamlConfiguration y, String path, String def, boolean allowPermanent, List<String> p) {
         String text = y.getString(path, def);
+        if (text != null && text.trim().matches("0[smhdw]?")) return 0L; // an explicit zero ("off") is valid for optional windows
         long v = Durations.parse(text);
         if (v == -2 || (!allowPermanent && v == Durations.PERMANENT)) {
             p.add(path + ": invalid duration '" + text + "'");
@@ -283,6 +440,59 @@ public final class Settings {
             } catch (IllegalArgumentException e) {
                 p.add(path + ": unknown punishment type '" + s + "'");
             }
+        }
+        return out;
+    }
+
+    public static final List<String> DISCORD_CATEGORIES = List.of("punishment", "judicial", "custody", "owner-review", "direct-emergency", "appeal", "administrative");
+
+    private static int defaultPriority(String k) {
+        return switch (k) {
+            case "custody-overdue" -> 100;
+            case "emergency-overdue" -> 95;
+            case "custody-imminent" -> 90;
+            case "emergency-pending" -> 80;
+            case "quick-review-overdue" -> 75;
+            case "appeal" -> 60;
+            case "awaiting-sentencing" -> 55;
+            case "awaiting-verdict" -> 50;
+            case "quick-review-pending" -> 45;
+            case "further-investigation" -> 40;
+            default -> 30; // awaiting-trial
+        };
+    }
+
+    /** Resolves ${env:NAME}; a missing variable yields "" (reported as an unconfigured webhook, never echoed). */
+    static String resolveSecret(String raw, java.util.function.UnaryOperator<String> env) {
+        if (raw == null) return "";
+        String t = raw.trim();
+        if (t.startsWith("${env:") && t.endsWith("}")) {
+            String v = env.apply(t.substring(6, t.length() - 1));
+            return v == null ? "" : v.trim();
+        }
+        return t;
+    }
+
+    private static List<String> urlList(org.bukkit.configuration.ConfigurationSection sec, String key, java.util.function.UnaryOperator<String> env, String path, List<String> p) {
+        List<String> out = new ArrayList<>();
+        if (sec == null) return out;
+        for (String raw : sec.getStringList(key)) {
+            String u = resolveSecret(raw, env);
+            if (u.isBlank()) continue;
+            if (!validWebhook(u)) p.add(path + ": entry is not a valid https Discord webhook URL (value hidden)");
+            else out.add(u);
+        }
+        return out;
+    }
+
+    private static List<String> secretUrls(YamlConfiguration secrets, String cat, java.util.function.UnaryOperator<String> env, String path, List<String> p) {
+        List<String> out = new ArrayList<>();
+        List<String> raw = secrets.isList(cat) ? secrets.getStringList(cat) : secrets.isString(cat) ? List.of(secrets.getString(cat, "")) : List.of();
+        for (String r : raw) {
+            String u = resolveSecret(r, env);
+            if (u.isBlank()) continue;
+            if (!validWebhook(u)) p.add(path + ": entry is not a valid https Discord webhook URL (value hidden)");
+            else out.add(u);
         }
         return out;
     }

@@ -70,7 +70,7 @@ public final class Repo {
                 rs.getString("verdict") == null ? null : Verdict.valueOf(rs.getString("verdict")),
                 rs.getString("verdict_reason"), rs.getString("verdict_by_name"), longOrNull(rs, "verdict_at"),
                 bool(rs, "overturned"), rs.getLong("created_at"), rs.getLong("updated_at"),
-                longOrNull(rs, "closed_at"), rs.getLong("version"));
+                longOrNull(rs, "closed_at"), rs.getLong("version"), rs.getString("appeal_ticket"));
 
         public static long insert(Connection c, CaseStatus status, CaseKind kind, UUID accused, String accusedName,
                                   String offense, Severity sev, String description, String context,
@@ -174,6 +174,10 @@ public final class Repo {
                     SELECT COUNT(*) FROM cases WHERE accused_uuid=? AND status IN
                     ('OPEN','UNDER_INVESTIGATION','AWAITING_TRIAL','IN_TRIAL','AWAITING_VERDICT','GUILTY','AWAITING_SENTENCING','UNDER_REVIEW','APPEALED')
                     """, accused);
+        }
+
+        public static boolean setAppealTicket(Connection c, long id, String ticket, long now) throws SQLException {
+            return update(c, "UPDATE cases SET appeal_ticket=?, updated_at=?, version=version+1 WHERE id=?", ticket, now, id) == 1;
         }
 
         public static boolean markOverturned(Connection c, long id, long now) throws SQLException {
@@ -348,7 +352,8 @@ public final class Repo {
                 rs.getLong("issued_at"), longOrNull(rs, "expires_at"), longOrNull(rs, "ended_at"), rs.getString("ended_by"),
                 rs.getString("end_reason"), longOrNull(rs, "case_id"), Source.valueOf(rs.getString("source")),
                 rs.getString("offense_key"), bool(rs, "delivered"), longOrNull(rs, "review_deadline"),
-                bool(rs, "reviewed"), longOrNull(rs, "custody_id"));
+                bool(rs, "reviewed"), longOrNull(rs, "custody_id"), longOrNull(rs, "modified_at"), rs.getString("modified_by"),
+                longOrNull(rs, "original_expires_at"));
 
         public static long insert(Connection c, PunishType type, PunishStatus status, UUID target, String targetName, String ip,
                                   String reason, UUID issuer, String issuerName, long now, Long expiresAt, Long caseId,
@@ -391,6 +396,34 @@ public final class Repo {
 
         public static List<Punishment> undeliveredWarnings(Connection c, UUID target) throws SQLException {
             return query(c, "SELECT * FROM punishments WHERE target_uuid=? AND type='WARN' AND delivered=0 AND status<>'REVOKED' ORDER BY id ASC", MAP, target);
+        }
+
+        /** Review modification: new expiry/reason; the first original expiry is preserved. */
+        public static boolean modify(Connection c, long id, Long newExpires, String newReason, String by, long now) throws SQLException {
+            return update(c, "UPDATE punishments SET expires_at=?, reason=COALESCE(?,reason), modified_at=?, modified_by=?, original_expires_at=COALESCE(original_expires_at, expires_at) WHERE id=? AND status='ACTIVE'",
+                    newExpires, newReason, now, by, id) == 1;
+        }
+
+        /** Warnings for a player, newest first. */
+        public static List<Punishment> warningsFor(Connection c, UUID target, int limit) throws SQLException {
+            return query(c, "SELECT * FROM punishments WHERE target_uuid=? AND type='WARN' AND status<>'REVOKED' ORDER BY issued_at DESC, id DESC LIMIT ?", MAP, target, limit);
+        }
+
+        public static long countWarningsSince(Connection c, UUID target, long since, String offenseKeyOrNull) throws SQLException {
+            if (offenseKeyOrNull == null) {
+                return count(c, "SELECT COUNT(*) FROM punishments WHERE target_uuid=? AND type='WARN' AND status<>'REVOKED' AND issued_at>=?", target, since);
+            }
+            return count(c, "SELECT COUNT(*) FROM punishments WHERE target_uuid=? AND type='WARN' AND status<>'REVOKED' AND issued_at>=? AND offense_key=?", target, since, offenseKeyOrNull);
+        }
+
+        /** Punishments (other than warnings) or cases opened after a given moment: "was further action taken?" */
+        public static long followUpsAfter(Connection c, UUID target, long after) throws SQLException {
+            return count(c, "SELECT (SELECT COUNT(*) FROM punishments WHERE target_uuid=? AND type<>'WARN' AND issued_at>?) + (SELECT COUNT(*) FROM cases WHERE accused_uuid=? AND created_at>? AND kind IN ('STANDARD','DIRECT','EMERGENCY'))",
+                    target, after, target, after);
+        }
+
+        public static List<Punishment> expiredNotAnnounced(Connection c, long now) throws SQLException {
+            return query(c, "SELECT * FROM punishments WHERE status='EXPIRED' AND ended_at>=? ORDER BY id ASC", MAP, now - 120_000);
         }
 
         public static void markDelivered(Connection c, long id) throws SQLException {
@@ -441,7 +474,7 @@ public final class Repo {
         static final RowMapper<Appeal> MAP = rs -> new Appeal(rs.getLong("id"), rs.getLong("case_id"),
                 rs.getString("filed_by_name"), rs.getLong("filed_at"), rs.getString("reason"),
                 AppealStatus.valueOf(rs.getString("status")), rs.getString("decided_by_name"),
-                rs.getString("decision_reason"), longOrNull(rs, "decided_at"));
+                rs.getString("decision_reason"), longOrNull(rs, "decided_at"), rs.getString("assigned_name"));
 
         public static long add(Connection c, long caseId, String by, String reason, long now) throws SQLException {
             return Sql.insert(c, "INSERT INTO appeals(case_id,filed_by_name,filed_at,reason,status) VALUES(?,?,?,?,'PENDING')",
@@ -453,7 +486,11 @@ public final class Repo {
         }
 
         public static Appeal pendingForCase(Connection c, long caseId) throws SQLException {
-            return one(c, "SELECT * FROM appeals WHERE case_id=? AND status='PENDING' ORDER BY id DESC LIMIT 1", MAP, caseId);
+            return one(c, "SELECT * FROM appeals WHERE case_id=? AND status IN ('PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", MAP, caseId);
+        }
+
+        public static void setStatus(Connection c, long id, AppealStatus st, String assigned) throws SQLException {
+            update(c, "UPDATE appeals SET status=?, assigned_name=COALESCE(?, assigned_name) WHERE id=?", st, assigned, id);
         }
 
         public static void decide(Connection c, long id, AppealStatus s, String by, String reason, long now) throws SQLException {
@@ -462,7 +499,7 @@ public final class Repo {
         }
 
         public static long countPending(Connection c) throws SQLException {
-            return count(c, "SELECT COUNT(*) FROM appeals WHERE status='PENDING'");
+            return count(c, "SELECT COUNT(*) FROM appeals WHERE status IN ('PENDING','UNDER_REVIEW')");
         }
     }
 
@@ -494,6 +531,191 @@ public final class Repo {
 
         public static long countFailed(Connection c) throws SQLException {
             return count(c, "SELECT COUNT(*) FROM pending_ops WHERE state='FAILED'");
+        }
+    }
+
+    // ------------------------------------------------------------------ owner reviews
+    public static final class Reviews {
+        private Reviews() {}
+
+        static final RowMapper<Review> MAP = rs -> new Review(rs.getLong("id"), longOrNull(rs, "punishment_id"), longOrNull(rs, "case_id"),
+                uuid(rs, "target_uuid"), rs.getString("target_name"), uuid(rs, "issuer_uuid"), rs.getString("issuer_name"),
+                PunishType.valueOf(rs.getString("ptype")), longOrNull(rs, "duration_ms"), rs.getString("reason"), rs.getLong("issued_at"),
+                ReviewStatus.valueOf(rs.getString("status")), longOrNull(rs, "evidence_due"), longOrNull(rs, "review_due"),
+                rs.getString("reviewer_name"), longOrNull(rs, "decided_at"), rs.getString("decision_note"), bool(rs, "migrated"),
+                rs.getInt("evidence_reminders"), longOrNull(rs, "last_evidence_reminder"), rs.getInt("review_reminders"),
+                longOrNull(rs, "last_review_reminder"), rs.getLong("version"), rs.getLong("updated_at"));
+
+        public static long insert(Connection c, Long punishmentId, Long caseId, UUID target, String targetName, UUID issuer, String issuerName,
+                                  PunishType type, Long durationMs, String reason, long issuedAt, ReviewStatus status, Long evidenceDue,
+                                  Long reviewDue, long now) throws SQLException {
+            return Sql.insert(c, """
+                    INSERT INTO reviews(punishment_id,case_id,target_uuid,target_name,issuer_uuid,issuer_name,ptype,duration_ms,reason,issued_at,
+                      status,evidence_due,review_due,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    punishmentId, caseId, target, targetName, issuer, issuerName, type, durationMs, reason, issuedAt, status, evidenceDue, reviewDue, now);
+        }
+
+        public static Review get(Connection c, long id) throws SQLException {
+            return one(c, "SELECT * FROM reviews WHERE id=?", MAP, id);
+        }
+
+        public static Review byPunishment(Connection c, long punishmentId) throws SQLException {
+            return one(c, "SELECT * FROM reviews WHERE punishment_id=?", MAP, punishmentId);
+        }
+
+        public static Review byCase(Connection c, long caseId) throws SQLException {
+            return one(c, "SELECT * FROM reviews WHERE case_id=? ORDER BY id DESC LIMIT 1", MAP, caseId);
+        }
+
+        public static List<Review> byStatuses(Connection c, List<ReviewStatus> statuses, UUID issuerOrNull, int limit, int offset) throws SQLException {
+            String in = String.join(",", java.util.Collections.nCopies(statuses.size(), "?"));
+            List<Object> args = new java.util.ArrayList<>(statuses);
+            String where = "status IN (" + in + ")";
+            if (issuerOrNull != null) {
+                where += " AND issuer_uuid=?";
+                args.add(issuerOrNull);
+            }
+            args.add(limit);
+            args.add(offset);
+            return query(c, "SELECT * FROM reviews WHERE " + where + " ORDER BY COALESCE(review_due, issued_at) ASC, id ASC LIMIT ? OFFSET ?", MAP, args.toArray());
+        }
+
+        public static long countByStatuses(Connection c, List<ReviewStatus> statuses, UUID issuerOrNull) throws SQLException {
+            String in = String.join(",", java.util.Collections.nCopies(statuses.size(), "?"));
+            List<Object> args = new java.util.ArrayList<>(statuses);
+            String where = "status IN (" + in + ")";
+            if (issuerOrNull != null) {
+                where += " AND issuer_uuid=?";
+                args.add(issuerOrNull);
+            }
+            return count(c, "SELECT COUNT(*) FROM reviews WHERE " + where, args.toArray());
+        }
+
+        public static List<Review> openReviews(Connection c) throws SQLException {
+            return query(c, "SELECT * FROM reviews WHERE status IN ('PENDING_REVIEW','UNDER_REVIEW','FURTHER_INVESTIGATION') ORDER BY id ASC", MAP);
+        }
+
+        public static List<Review> forTarget(Connection c, UUID target, int limit) throws SQLException {
+            return query(c, "SELECT * FROM reviews WHERE target_uuid=? ORDER BY id DESC LIMIT ?", MAP, target, limit);
+        }
+
+        /** Optimistic status change. */
+        public static boolean setStatus(Connection c, long id, long expectedVersion, ReviewStatus to, String reviewer, String note,
+                                        boolean decided, long now) throws SQLException {
+            return update(c, "UPDATE reviews SET status=?, reviewer_name=COALESCE(?,reviewer_name), decision_note=COALESCE(?,decision_note), decided_at=?, updated_at=?, version=version+1 WHERE id=? AND version=?",
+                    to, reviewer, note, decided ? (Object) now : null, now, id, expectedVersion) == 1;
+        }
+
+        public static void setReason(Connection c, long id, Long durationMs, String reason, long now) throws SQLException {
+            update(c, "UPDATE reviews SET duration_ms=?, reason=COALESCE(?,reason), updated_at=? WHERE id=?", durationMs, reason, now, id);
+        }
+
+        public static void setDeadlines(Connection c, long id, Long evidenceDue, Long reviewDue, long now) throws SQLException {
+            update(c, "UPDATE reviews SET evidence_due=?, review_due=?, evidence_reminders=0, review_reminders=0, last_evidence_reminder=NULL, last_review_reminder=NULL, updated_at=?, version=version+1 WHERE id=?",
+                    evidenceDue, reviewDue, now, id);
+        }
+
+        public static void noteEvidenceReminder(Connection c, long id, long now) throws SQLException {
+            update(c, "UPDATE reviews SET evidence_reminders=evidence_reminders+1, last_evidence_reminder=?, updated_at=? WHERE id=?", now, now, id);
+        }
+
+        public static void noteReviewReminder(Connection c, long id, long now) throws SQLException {
+            update(c, "UPDATE reviews SET review_reminders=review_reminders+1, last_review_reminder=?, updated_at=? WHERE id=?", now, now, id);
+        }
+
+        public static void addEvent(Connection c, long reviewId, long ts, String actor, String type, String detail) throws SQLException {
+            update(c, "INSERT INTO review_events(review_id,ts,actor_name,type,detail) VALUES(?,?,?,?,?)", reviewId, ts, actor, type, detail);
+        }
+
+        public static List<ReviewEvent> events(Connection c, long reviewId) throws SQLException {
+            return query(c, "SELECT * FROM review_events WHERE review_id=? ORDER BY id ASC", rs -> new ReviewEvent(rs.getLong("id"), rs.getLong("review_id"),
+                    rs.getLong("ts"), rs.getString("actor_name"), rs.getString("type"), rs.getString("detail")), reviewId);
+        }
+    }
+
+    // ------------------------------------------------------------------ player notifications
+    public static final class Notifications {
+        private Notifications() {}
+
+        static final RowMapper<Notification> MAP = rs -> new Notification(rs.getLong("id"), rs.getString("dedupe_key"), uuid(rs, "uuid"),
+                rs.getString("kind"), rs.getString("ref_type"), longOrNull(rs, "ref_id"), rs.getString("payload"),
+                NotificationState.valueOf(rs.getString("state")), rs.getLong("created_at"), longOrNull(rs, "delivered_at"), rs.getInt("attempts"));
+
+        /** @return true when newly queued, false when this notification was already queued (duplicate prevention). */
+        public static boolean enqueue(Connection c, String dedupeKey, UUID uuid, String kind, String refType, Long refId, String payload, long now) throws SQLException {
+            return update(c, "INSERT OR IGNORE INTO player_notifications(dedupe_key,uuid,kind,ref_type,ref_id,payload,state,created_at) VALUES(?,?,?,?,?,?,'PENDING',?)",
+                    dedupeKey, uuid, kind, refType, refId, payload, now) == 1;
+        }
+
+        public static List<Notification> pendingFor(Connection c, UUID uuid) throws SQLException {
+            return query(c, "SELECT * FROM player_notifications WHERE uuid=? AND state='PENDING' ORDER BY id ASC", MAP, uuid);
+        }
+
+        public static boolean markDelivered(Connection c, long id, long now) throws SQLException {
+            return update(c, "UPDATE player_notifications SET state='DELIVERED', delivered_at=?, attempts=attempts+1 WHERE id=? AND state='PENDING'", now, id) == 1;
+        }
+
+        public static void noteAttempt(Connection c, long id) throws SQLException {
+            update(c, "UPDATE player_notifications SET attempts=attempts+1 WHERE id=?", id);
+        }
+
+        public static long countPending(Connection c) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM player_notifications WHERE state='PENDING'");
+        }
+
+        public static Notification byKey(Connection c, String key) throws SQLException {
+            return one(c, "SELECT * FROM player_notifications WHERE dedupe_key=?", MAP, key);
+        }
+
+        /** Very old undelivered notifications are expired so a player returning after months is not flooded. */
+        public static int expireOlderThan(Connection c, long cutoff) throws SQLException {
+            return update(c, "UPDATE player_notifications SET state='EXPIRED' WHERE state='PENDING' AND created_at<? AND kind NOT IN ('WARNING')", cutoff);
+        }
+    }
+
+    // ------------------------------------------------------------------ Discord outbox
+    public static final class Outbox {
+        private Outbox() {}
+
+        static final RowMapper<OutboxRow> MAP = rs -> new OutboxRow(rs.getLong("id"), rs.getString("dedupe_key"), rs.getString("category"),
+                rs.getString("event"), rs.getString("dest"), rs.getString("body"), OutboxState.valueOf(rs.getString("state")),
+                rs.getInt("attempts"), rs.getLong("next_attempt"), rs.getLong("created_at"), longOrNull(rs, "sent_at"), rs.getString("last_error"));
+
+        public static boolean enqueue(Connection c, String dedupeKey, String category, String event, String dest, String body, long now) throws SQLException {
+            return update(c, "INSERT OR IGNORE INTO discord_outbox(dedupe_key,category,event,dest,body,state,next_attempt,created_at) VALUES(?,?,?,?,?,'PENDING',?,?)",
+                    dedupeKey, category, event, dest, body, now, now) == 1;
+        }
+
+        public static List<OutboxRow> due(Connection c, long now, int limit) throws SQLException {
+            return query(c, "SELECT * FROM discord_outbox WHERE state='PENDING' AND next_attempt<=? ORDER BY id ASC LIMIT ?", MAP, now, limit);
+        }
+
+        public static void markSent(Connection c, long id, long now) throws SQLException {
+            update(c, "UPDATE discord_outbox SET state='SENT', sent_at=?, attempts=attempts+1, last_error=NULL WHERE id=?", now, id);
+        }
+
+        public static void retryLater(Connection c, long id, long next, String error) throws SQLException {
+            update(c, "UPDATE discord_outbox SET attempts=attempts+1, next_attempt=?, last_error=? WHERE id=?", next, error, id);
+        }
+
+        public static void markDead(Connection c, long id, String error) throws SQLException {
+            update(c, "UPDATE discord_outbox SET state='DEAD', attempts=attempts+1, last_error=? WHERE id=?", error, id);
+        }
+
+        public static long count(Connection c, OutboxState st) throws SQLException {
+            return Sql.count(c, "SELECT COUNT(*) FROM discord_outbox WHERE state=?", st.name());
+        }
+
+        public static int prune(Connection c, long olderThan) throws SQLException {
+            return update(c, "DELETE FROM discord_outbox WHERE state IN ('SENT','DEAD') AND created_at<?", olderThan);
+        }
+
+        public static int requeueDead(Connection c, long now) throws SQLException {
+            return update(c, "UPDATE discord_outbox SET state='PENDING', next_attempt=?, attempts=0 WHERE state='DEAD'", now);
+        }
+
+        public static List<OutboxRow> recentDead(Connection c, int limit) throws SQLException {
+            return query(c, "SELECT * FROM discord_outbox WHERE state='DEAD' ORDER BY id DESC LIMIT ?", MAP, limit);
         }
     }
 

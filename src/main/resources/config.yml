@@ -124,6 +124,10 @@ judicial:
     rate: 1.0
     # Sentence types that receive the credit.
     applies-to: [JAIL, MUTE, BAN, IPBAN]
+    # 1.1.0: which sentence types get the credit AUTOMATICALLY when a sentence is entered. Types that are in
+    # applies-to but not here are offered to the judge as an explicit choice ("judicial discretion").
+    # Default: jail time is credited automatically; bans and mutes are at the judge's discretion.
+    default-credit-for: [JAIL]
 
 # ---------------------------------------------------------------------------
 #  Escalation / repeat offenses
@@ -285,32 +289,148 @@ notifications:
   verdicts: true
   direct-punishments: true
   emergency: true
+  warnings: true            # 1.1.0: routine warning issued
+  quick-punishments: true   # 1.1.0: quick mute/ban/IP ban issued
+  reviews: true             # 1.1.0: owner-review queue activity (see also review.* below)
+  admin: true               # 1.1.0: configuration / integration / security notices
 
 # ---------------------------------------------------------------------------
-#  Discord webhooks (notification only - hearings happen in Discord manually)
+#  1.1.0  Warnings
+# ---------------------------------------------------------------------------
+warnings:
+  notifications:
+    # Chat message (always recommended: it stays in the player's chat history).
+    chat: { enabled: true }
+    title:
+      enabled: true
+      title: "<red><bold>\u26a0 OFFICIAL WARNING \u26a0"
+      subtitle: "<yellow>Please correct your behavior."
+      # Show the (truncated) reason in the subtitle instead of the generic line.
+      show-reason: false
+      reason-max-chars: 40
+      subtitle-with-reason: "<yellow><reason>"
+      fade-in-ticks: 10
+      stay-ticks: 100
+      fade-out-ticks: 20
+    sound:
+      enabled: true
+      sound: "block.note_block.pling"   # any vanilla sound key
+      volume: 0.8
+      pitch: 1.0
+      source: master
+    actionbar:
+      enabled: false
+      text: "<red>\u26a0 You received an official warning - see chat"
+    # Several queued warnings are shown one after another with this gap (ticks) so none is overwritten.
+    spacing-ticks: 120
+    # Do not replace the title of a player who is in the middle of a chat prompt; the chat copy is still sent.
+    defer-title-while-prompting: true
+  # Repeat-warning indicator. NEVER triggers an automatic jail, mute or ban: it only informs staff.
+  repeat:
+    enabled: true
+    window: 30d
+    threshold: 3
+    same-category-only: false
+    recommend-case: true
+
+# ---------------------------------------------------------------------------
+#  1.1.0  Owner review of quick punishments
+#  Quick punishments stay immediate. Substantive ones (below) also create a reviewable record.
+#  Routine warnings and kicks never enter the review queue. Nothing is ever reversed automatically
+#  because it is still unreviewed; timed punishments still expire normally.
+# ---------------------------------------------------------------------------
+review:
+  enabled: true
+  required-types: [MUTE, BAN, IPBAN]
+  # Quick punishments shorter than this skip review (0s = review every one of the types above).
+  min-duration: 0s
+  # Issuers at or above this level (0 = nobody) are exempt from review.
+  exempt-level: 0
+  # How long the issuer has to add supporting evidence, and how long the owner team has to decide (targets, not auto-actions).
+  evidence-deadline: 24h
+  review-deadline: 72h
+  reminder-before: 12h
+  reminder-repeat: 12h
+  max-evidence-reminders: 6
+  notify-in-game: true
+
+# ---------------------------------------------------------------------------
+#  1.1.0  Dashboards, defendant communication, exports, CoreProtect
+# ---------------------------------------------------------------------------
+dashboard:
+  # Custody ending within this window counts as "approaching".
+  approaching-custody: 12h
+  # Higher number = shown first on the judicial work queue.
+  priority:
+    custody-overdue: 100
+    emergency-overdue: 95
+    custody-imminent: 90
+    emergency-pending: 80
+    quick-review-overdue: 75
+    appeal: 60
+    awaiting-sentencing: 55
+    awaiting-verdict: 50
+    quick-review-pending: 45
+    further-investigation: 40
+    awaiting-trial: 30
+
+defendant:
+  enabled: true
+  hearing-instructions: "Staff will contact you with the Discord hearing details. Please make sure you can be reached on Discord."
+  include-reasoning: true
+  sound: false
+  # Case status changes the defendant is told about (verdict, sentence, release and scheduling are always sent).
+  notify-statuses: [IN_TRIAL, DISMISSED, CLOSED, UNDER_INVESTIGATION]
+
+exports:
+  enabled: true
+  folder: exports            # inside plugins/AuraPunishments/
+  include-timeline: true
+
+# ---------------------------------------------------------------------------
+#  Discord webhooks (webhooks only: never DMs, never creates channels)
+#  Keep webhook URLs out of config.yml if you share it: use "${env:NAME}" or a plugins/AuraPunishments/webhooks.yml
+#  (optional; one key per category, or "default"). URLs are never printed to logs, GUIs or Discord.
+#  Delivery is queued in the database, so Discord being down never blocks moderation and unsent messages are retried.
 # ---------------------------------------------------------------------------
 discord:
   enabled: false
-  # Default webhook for every event. https://discord.com/api/webhooks/...
+  # Default webhook (fallback for every category that has none).
   webhook-url: ""
   username: "AuraPunishments"
   avatar-url: ""
-  # Per-event switches and optional per-event webhook overrides.
-  # Events never include IP addresses or private notes. A failure here never blocks moderation.
+  # One log destination per category. Use several URLs to post the same events to several channels.
+  # fallback: another category name, or "default". mention-roles: numeric role ids; pinged only for mention-events.
+  channels:
+    punishment:       { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [] }
+    judicial:         { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [] }
+    custody:          { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [custody-alert, custody-failed] }
+    owner-review:     { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [review-created, review-overdue] }
+    direct-emergency: { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [emergency-action] }
+    appeal:           { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [] }
+    administrative:   { enabled: true, webhooks: [], fallback: default, mention-roles: [], mention-events: [] }
+  # Per-event overrides (all optional): enabled, category (move the event), webhooks (dedicated destinations).
+  # Events: case-created case-status custody-attempt custody-started custody-failed custody-released custody-alert
+  #         trial-scheduled trial-postponed verdict sentence direct-punishment emergency-action warning quick-punishment
+  #         reversal punishment-modified review-created review-decision review-evidence review-reminder review-overdue
+  #         appeal appeal-ticket admin-action export integration-error security
   events:
-    case-created: { enabled: true, webhook-url: "" }
-    custody-started: { enabled: true, webhook-url: "" }
-    custody-released: { enabled: true, webhook-url: "" }
-    trial-scheduled: { enabled: true, webhook-url: "" }
-    verdict: { enabled: true, webhook-url: "" }
-    sentence: { enabled: true, webhook-url: "" }
-    direct-punishment: { enabled: true, webhook-url: "" }
-    emergency-action: { enabled: true, webhook-url: "" }
-    appeal: { enabled: true, webhook-url: "" }
-    reversal: { enabled: true, webhook-url: "" }
-    custody-alert: { enabled: true, webhook-url: "" }
+    case-created: { enabled: true }
+    custody-started: { enabled: true }
+    custody-released: { enabled: true }
+    trial-scheduled: { enabled: true }
+    verdict: { enabled: true }
+    sentence: { enabled: true }
+    direct-punishment: { enabled: true }
+    emergency-action: { enabled: true }
+    appeal: { enabled: true }
+    reversal: { enabled: true }
+    custody-alert: { enabled: true }
+    warning: { enabled: true }
   timeout-seconds: 10
-  max-retries: 3
+  max-retries: 5
+  retry-backoff-seconds: 5
+  outbox-retention-days: 14
 
 # ---------------------------------------------------------------------------
 #  Retention
@@ -325,6 +445,11 @@ retention:
 #  Integrations
 # ---------------------------------------------------------------------------
 integrations:
+  coreprotect:
+    enabled: true
+    max-radius: 50
+    max-time: 7d
+    sample-rows: 8
   # JailReloaded is required for pretrial custody and jail sentences. When it is missing
   # or incompatible, everything else keeps working and custody actions fail safely with a
   # clear message (nothing is faked).
@@ -333,3 +458,5 @@ integrations:
   luckperms:
     # [RESTART] Subscribe to LuckPerms permission changes so open GUIs close when access is revoked.
     close-guis-on-permission-change: true
+
+# 1.1.0 CoreProtect: READ-ONLY evidence lookups (inspect/lookup only; never rolls anything back, never decides guilt).

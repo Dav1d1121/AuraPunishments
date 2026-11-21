@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'dev.aura'
-version = '1.0.0'
+version = '1.1.0'
 
 java {
     toolchain { languageVersion = JavaLanguageVersion.of(25) }
@@ -21,10 +21,12 @@ dependencies {
     compileOnly 'net.luckperms:api:5.5'
     // Custom plugin, inspected and compiled against. Never shaded into our jar.
     compileOnly files('libs/JailReloaded-1.2.2.jar')
+    compileOnly files('libs/CoreProtect-25.1.jar')
 
     testImplementation "io.papermc.paper:paper-api:26.3.build.230-stable"
     testImplementation 'net.luckperms:api:5.5'
     testImplementation files('libs/JailReloaded-1.2.2.jar')
+    testImplementation files('libs/CoreProtect-25.1.jar')
     testImplementation 'org.xerial:sqlite-jdbc:3.49.1.0'
     testImplementation 'org.mockbukkit.mockbukkit:mockbukkit-v26.3:4.122.0'
     testImplementation platform('org.junit:junit-bom:5.12.2')

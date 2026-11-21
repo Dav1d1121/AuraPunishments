@@ -12,6 +12,7 @@ dependencies {
     compileOnly 'net.luckperms:api:5.5'
     compileOnly project(':')
     compileOnly files('../libs/JailReloaded-1.2.2.jar')
+    compileOnly files('../libs/CoreProtect-25.1.jar')
 }
 
 tasks.withType(JavaCompile).configureEach { options.release = 25 }

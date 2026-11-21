@@ -123,7 +123,12 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         JailPort port = JailBootstrap.connect(getServer(), getLogger(), settings.jailEnabled);
         core = new Core(db, Clock.SYSTEM, getLogger(), main, settings, offenses, port, null, e -> { });
         core.messages = messages;
-        discord = new DiscordService(() -> core.settings, getLogger());
+        discord = new DiscordService(() -> core.settings, getLogger(), db);
+        discord.onAdminAlert(msg -> Bukkit.getScheduler().runTask(this, () -> {
+            for (org.bukkit.entity.Player pl : Bukkit.getOnlinePlayers()) {
+                if (pl.hasPermission(Perms.ADMIN)) pl.sendMessage(core.messages.get("info", "message", msg));
+            }
+        }));
         core.events = new BukkitNotifier(this, core, discord);
         BukkitLevelResolver levels = new BukkitLevelResolver(core);
         core.levels = levels;

@@ -5,3 +5,6 @@ build/
 *.iml
 run/
 live-test/run/
+
+# Third-party / proprietary plugin jars are supplied locally and must not be committed
+libs/*.jar
