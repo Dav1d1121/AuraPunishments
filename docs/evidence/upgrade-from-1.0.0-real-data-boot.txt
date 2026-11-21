@@ -1,0 +1,8 @@
+142:[13:41:26 INFO]: [Towny] Towny flatfiles and settings successfully backed up.
+202:[13:41:27 INFO]: [AuraPunishments] Upgrade: your config.yml was NOT changed. New 1.1 options (warnings, review, dashboard, defendant, exports, discord channels...) use safe built-in defaults. See config-1.1.0-referen
+203:[13:41:27 INFO]: [AuraPunishments] Database backed up to punishments.db.pre-v2-1795268487493 before migration
+204:[13:41:27 INFO]: [AuraPunishments] Database migrated to schema v2 (1.1.0: owner reviews, player notifications, Discord outbox, appeal tickets)
+205:[13:41:27 INFO]: [AuraPunishments] AuraPunishments 1.1.0 enabled in 139ms (schema v2, 9 active punishments).
+--- database after upgrade (real 1.0.0 database from the earlier live runs) ---
+before: schema 1 punishments 10 cases 14
+after (first 1.1.0 boot): schema 2, punishments 10, cases 14, reviews 4 (all LEGACY, none pending), notifications 0, discord_outbox 0; config.yml byte-identical

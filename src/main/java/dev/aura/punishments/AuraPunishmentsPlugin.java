@@ -417,6 +417,10 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         return discord.requeueDead();
     }
 
+    public CoreProtectService coreProtectService() {
+        return coreProtect;
+    }
+
     public ReviewService reviews() {
         return reviews;
     }

@@ -1,4 +1,4 @@
-# AuraPunishments 1.0.0 - Permission Matrix
+# AuraPunishments 1.1.0 - Permission Matrix
 
 Everything is **default-deny**, including for server operators, with one deliberate exception: `aurapunishments.command` (the bare `/ap` command, which only shows help and a list of the subcommands you separately hold) defaults to **op** so the server console can run `/ap`. The console is always trusted for `/ap` subcommands; players still need each node. Nothing in this plugin trusts a rank *name*;
 authority comes only from LuckPerms nodes, so your existing Trainee -> Owner groups keep working and you can
@@ -206,6 +206,58 @@ lp user <name> permission set aurapunishments.immune true
 lp group <group> permission set aurapunishments.custody.override true
 ```
 
+
+## 3b. New in 1.1.0 - owner review, export, CoreProtect, appeal tickets
+
+New nodes (all default-deny). **Nothing is granted automatically on upgrade.** The server owner keeps full authority through
+`aurapunishments.*`, which now includes every node below; give any of them to other ranks (or to one person) with LuckPerms.
+
+| Node | Allows |
+|---|---|
+| `aurapunishments.review.view` | See the owner-review queue and review records. (Issuers can always see *their own* reviews, with no node.) |
+| `aurapunishments.review.review` | Start a review, add private notes, request an explanation, uphold, mark *Further investigation*, refer to a judicial case. |
+| `aurapunishments.review.modify` | Modify a reviewed punishment (shorten it, change the reason). Lengthening additionally needs the normal issue authority for that length. |
+| `aurapunishments.review.reverse` | Reverse a reviewed punishment. |
+| `aurapunishments.review.deadlines` | Change a review's evidence / review deadlines. |
+| `aurapunishments.review.evidence.sensitive` | See private reviewer notes. |
+| `aurapunishments.export` | Export a case summary (Markdown / text). Content still follows the exporter's own evidence / note permissions. |
+| `aurapunishments.case.evidence.coreprotect` | Run read-only CoreProtect lookups for a case (attaching a snapshot also needs `case.evidence.add`). |
+| `aurapunishments.case.appeal.ticket` | Link a Discord Ticket Tool ticket to an appeal. |
+| `aurapunishments.notify.warnings` / `.quick-punishments` / `.reviews` / `.admin` | In-game alerts for warnings, quick punishments, review activity, and configuration / integration / security notices. |
+
+Rules that hold whatever you grant: nobody can take, decide or refer a review of a punishment **they issued themselves** (console excepted);
+routine **warnings need only `aurapunishments.punish.warn`** (plus `punish` / `punish.others`) and never create a review;
+every reviewer action is re-checked when it runs.
+
+Suggested assignment (adjust to taste; add to the matching rank, inheritance carries it upward):
+
+```
+# Trainee / Helper / Jr Mod: nothing new (they can see reviews of their own punishments automatically)
+# Mod: may export summaries of cases they can already see
+lp group mod permission set aurapunishments.export true
+# Sr Mod: look at the owner-review queue read-only, use CoreProtect evidence, link appeal tickets
+lp group srmod permission set aurapunishments.review.view true
+lp group srmod permission set aurapunishments.case.evidence.coreprotect true
+lp group srmod permission set aurapunishments.case.appeal.ticket true
+lp group srmod permission set aurapunishments.notify.warnings true
+# Jr Admin: review and uphold, ask for explanations, refer
+lp group jradmin permission set aurapunishments.review.review true
+lp group jradmin permission set aurapunishments.notify.reviews true
+# Admin: modify reviewed punishments, set deadlines, see private review notes
+lp group admin permission set aurapunishments.review.modify true
+lp group admin permission set aurapunishments.review.deadlines true
+lp group admin permission set aurapunishments.review.evidence.sensitive true
+lp group admin permission set aurapunishments.notify.quick-punishments true
+# Sr Admin: reverse reviewed punishments, receive admin/security notices
+lp group sradmin permission set aurapunishments.review.reverse true
+lp group sradmin permission set aurapunishments.notify.admin true
+# Manager / Owner: everything (owner already holds aurapunishments.*)
+lp group owner permission set aurapunishments.* true
+```
+
+To delegate only the review queue to one trusted person: `lp user <name> permission set aurapunishments.review.view true` and `...review.review true`.
+No rank names are hard-coded anywhere in the plugin.
+
 ## 4. Stop staff using EssentialsX punishment commands
 
 AuraPunishments redirects `/ban /tempban /banip /unban /pardon /kick /mute /tempmute /unmute /warn` and the
@@ -243,10 +295,14 @@ EssentialsX itself until they expire.
 | `aurapunishments.notify.verdicts` | Verdicts, sentences, appeals, reversals |
 | `aurapunishments.notify.direct-punishments` | Direct punishments |
 | `aurapunishments.notify.emergency` | Emergency actions (holders of `emergency.review` also receive them) |
+| `aurapunishments.notify.warnings` | Warnings issued (1.1.0) |
+| `aurapunishments.notify.quick-punishments` | Quick mutes/bans issued (1.1.0) |
+| `aurapunishments.notify.reviews` | Owner-review activity (1.1.0) |
+| `aurapunishments.notify.admin` | Configuration, integration and security notices (1.1.0) |
 
 ## 6. Appendix: every node
 
-Generated from `plugin.yml`. Parent wildcards: `aurapunishments.*`, `aurapunishments.case.*`, `aurapunishments.custody.*`, `aurapunishments.punish.*`, `aurapunishments.direct.*`, `aurapunishments.emergency.*`, `aurapunishments.judicial.*`, `aurapunishments.sensitive.*`, `aurapunishments.notify.*`.
+Generated from `plugin.yml`. Parent wildcards: `aurapunishments.*`, `aurapunishments.case.*`, `aurapunishments.custody.*`, `aurapunishments.punish.*`, `aurapunishments.direct.*`, `aurapunishments.emergency.*`, `aurapunishments.judicial.*`, `aurapunishments.sensitive.*`, `aurapunishments.review.*` (1.1.0), `aurapunishments.notify.*`.
 
 | Node | Purpose |
 |---|---|
@@ -333,3 +389,12 @@ Generated from `plugin.yml`. Parent wildcards: `aurapunishments.*`, `aurapunishm
 
 > Notes: `aurapunishments.mute.bypass` exists only so a deliberate exception can be made for the command restrictions
 > that apply to muted players; no recommended group holds it.
+| `aurapunishments.review.view` | (1.1.0) See the owner-review queue. |
+| `aurapunishments.review.review` | (1.1.0) Start/annotate/decide reviews (uphold, further investigation, refer, request explanation). |
+| `aurapunishments.review.modify` | (1.1.0) Modify a reviewed punishment. |
+| `aurapunishments.review.reverse` | (1.1.0) Reverse a reviewed punishment. |
+| `aurapunishments.review.deadlines` | (1.1.0) Change review deadlines. |
+| `aurapunishments.review.evidence.sensitive` | (1.1.0) See private review notes. |
+| `aurapunishments.export` | (1.1.0) Export case summaries. |
+| `aurapunishments.case.evidence.coreprotect` | (1.1.0) Read-only CoreProtect lookups. |
+| `aurapunishments.case.appeal.ticket` | (1.1.0) Link a Ticket Tool ticket to an appeal. |

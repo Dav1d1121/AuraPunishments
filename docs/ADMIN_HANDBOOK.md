@@ -1,4 +1,31 @@
-# AuraPunishments 1.0.0 - Administrator Handbook
+# AuraPunishments 1.1.0 - Administrator Handbook
+
+## What's new in 1.1.0 (administration)
+
+### Configuration (all optional; defaults shown in `config.yml` / `config-1.1.0-reference.yml`)
+
+| Section | Controls |
+|---|---|
+| `warnings.notifications.*` | chat on/off; title (text, subtitle, optional reason with `reason-max-chars`, fade-in 10 / stay 100 / fade-out 20 ticks); sound (key, volume 0-2, pitch 0.5-2, source); action bar; `spacing-ticks` between queued warnings |
+| `warnings.repeat.*` | indicator window (30d) and threshold (3); **never** triggers punishment |
+| `review.*` | enable; `required-types` (MUTE, BAN, IPBAN; never WARN/KICK/JAIL); `min-duration`; `exempt-level`; `evidence-deadline` 24h; `review-deadline` 72h; reminder timing; in-game notices |
+| `dashboard.*` | `approaching-custody` window; `priority.*` sort weights |
+| `defendant.*` | enable; hearing instructions text; include reasoning; which status changes are announced |
+| `exports.*` | enable; folder name inside the plugin folder; timeline |
+| `integrations.coreprotect.*` | enable; max radius / time window; sample size |
+| `judicial.time-served.default-credit-for` | types credited automatically (default `[JAIL]`) |
+| `discord.*` | see [DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md) |
+
+`/ap reload` validates every value and lists *all* problems; an invalid file leaves the running configuration untouched. Upgrades never overwrite your values.
+
+### Operations
+
+* `/ap status` - database, JailReloaded, LuckPerms, Discord outbox (sent / undeliverable / pending) and CoreProtect state.
+* `/ap discord [retry]` - outbox status; re-queue undeliverable messages.
+* Owner review is **information, never automation**: overdue reviews only produce reminders. To make the plugin stop requiring reviews, set `review.enabled: false` (quick punishments are unaffected).
+* The review/notification/outbox data lives in the same SQLite file; it is covered by your normal backups of `plugins/AuraPunishments/`.
+* Refused attempts at elevated actions (direct/emergency/judicial/review modify-reverse, admin, export...) are logged to the administrative Discord channel, at most once per person and permission per minute.
+* Troubleshooting: `Discord ... undeliverable` in `/ap status` after a webhook was deleted -> fix the URL, `/ap reload`, `/ap discord retry`. `CoreProtect: not installed` -> the CoreProtect button is hidden; install CoreProtect 25.x and restart.
 
 Audience: server administrators and the person responsible for the Aurehaven plugin stack.
 Companion documents: [Installation & rollback](INSTALLATION.md), [Permission matrix](PERMISSIONS.md),

@@ -169,4 +169,20 @@ class DefendantAndEventsTest {
             assertTrue(f2.delivered.isEmpty());
         }
     }
+
+    @Test
+    void releaseMessageHonoursIncludeReasoningOff() throws Exception {
+        Fx.Mutator m = new Fx.Mutator();
+        m.set.put("defendant.include-reasoning", false);
+        try (Fx f2 = new Fx(null, m)) {
+            f2.online.add(steve.uuid());
+            f2.judges.add(owner.uuid());
+            Case c0 = r(f2.cases.create(mod, new CaseService.CreateRequest(steve, "harassment", Severity.MODERATE, "Repeated offensive behaviour towards others.", null, List.of(Fx.ev())))).orThrow();
+            assertTrue(r(f2.custody.initiate(mod, c0.id())).isOk());
+            assertTrue(r(f2.custody.release(owner, c0.id(), "SECRET internal reasoning about the suspect")).isOk());
+            await(() -> f2.delivered.stream().anyMatch(n -> NotificationService.payload(n).getOrDefault("event", "").equals("release")));
+            var rel = f2.delivered.stream().map(NotificationService::payload).filter(p -> p.getOrDefault("event", "").equals("release")).findFirst().orElseThrow();
+            assertFalse(rel.get("detail").contains("SECRET"), "reasoning is not revealed when include-reasoning is off");
+        }
+    }
 }

@@ -1,4 +1,15 @@
-# AuraPunishments 1.0.0 - Judicial Handbook
+# AuraPunishments 1.1.0 - Judicial Handbook
+
+## What's new in 1.1.0 (judicial)
+
+* **Work queue** (dashboard -> *Work queue* or `/ap queue`): everything waiting for a decision, most urgent first (overdue custody, emergency reviews, overdue then pending quick-punishment reviews, appeals, awaiting sentencing / verdict / trial, further investigation). Order is configurable (`dashboard.priority.*`). Click an item to open the case or review.
+* **Custody timing is unchanged:** a 48 h review deadline, then (if `ALERT_THEN_RELEASE`) a 12 h grace period - **about 60 hours** before automatic release. Both are configurable; the upgrade does not change your values.
+* **Time served:** pretrial *custody time is credited automatically to jail sentences*; for **bans and mutes it is your decision** (toggle on the sentencing screen). An admin can change which types default to automatic credit (`judicial.time-served.default-credit-for`). A permanent sentence never gets credit.
+* **Defendant messages** are sent automatically at detention, scheduling/postponement, status changes you configure, verdict, sentence, release and acquittal. Only the verdict/sentence messages state a finding.
+* **Appeals:** *Take appeal* marks it *Under review*; link the Discord Ticket Tool ticket with *Appeal ticket* (number or channel link); decisions are logged to the appeal channel.
+* **Owner review of quick punishments** is separate from trials: a reviewer can *Refer to judicial case*, which opens a standard case against the player (the quick punishment stays in force) for a full hearing.
+* **Evidence:** CoreProtect lookups can be attached as evidence (read-only snapshot). They are evidence like any other: they never decide a case and nothing is rolled back.
+* **Case summary export** (`/ap export <case>`) produces a Markdown/text file for a hearing or an appeal ticket.
 
 For the judge (the owner at launch) and anyone later granted judicial powers. Hearings take place in a private Discord
 voice call; AuraPunishments records the **outcomes**. It does not run the call, manage voice channels, or count jury votes.

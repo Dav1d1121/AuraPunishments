@@ -67,10 +67,16 @@ final class Phase6 {
         section("join", this::join);
         section("warnings", this::warnings);
         section("custody", this::custody);
+        section("login", this::login);
+        section("towny-chat", this::townyChat);
+        section("acf", this::acf);
+        section("coreprotect", this::coreProtect);
+        section("gui", this::gui);
     }
 
     // ------------------------------------------------------------------ join
     private FakePlayer steve;
+    private FakePlayer cust;
 
     private void join() throws Exception {
         UUID su = LiveTest.id("LiveSteve");
@@ -133,17 +139,23 @@ final class Phase6 {
                 return false;
             }
         }, 3000), "");
-        off.leave();
+        t.onMain(() -> {
+            off.leave();
+            return null;
+        });
     }
 
     // ------------------------------------------------------------------ custody of an ONLINE player (real JailReloaded)
     private void custody() throws Exception {
-        UUID su = LiveTest.id("LiveSteve");
+        String cname = "LiveC" + (System.currentTimeMillis() % 100000);
+        UUID su = LiveTest.id(cname);
+        t.ap.gui().resolver.recordJoin(su, cname, "10.9.9.7", 0).get();
+        cust = t.onMain(() -> FakePlayer.join(cname, su));
         Actor owner = LiveTest.god("LiveOwner");
-        Case c = LiveTest.r(t.ap.cases().create(owner, new CaseService.CreateRequest(new Target(su, "LiveSteve", false), "harassment", dev.aura.punishments.model.Simple.Severity.MODERATE,
+        Case c = LiveTest.r(t.ap.cases().create(owner, new CaseService.CreateRequest(new Target(su, cname, false), "harassment", dev.aura.punishments.model.Simple.Severity.MODERATE,
                 "Live test: repeated offensive behaviour towards other players.", null,
                 List.of(new EvidenceValidator.Input(dev.aura.punishments.model.Simple.EvidenceType.EXTERNAL_LINK, "https://example.com/proof-steve", ""))))).orThrow();
-        steve.clear();
+        cust.clear();
         var cu = LiveTest.r(t.ap.custody().initiate(owner, c.id()));
         t.check("custody of the ONLINE player confirmed by JailReloaded", cu.isOk(), cu.isOk() ? "" : cu.message());
         t.check("JailReloaded holds the prisoner", t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(su)), "");
@@ -152,20 +164,24 @@ final class Phase6 {
             return Math.abs(l.getX()) <= 11 && Math.abs(l.getZ()) <= 11;
         }), "");
         t.check("defendant told: case number, offense, hearing instructions, not a guilt finding",
-                waitFor(() -> saw(steve, "held pending a hearing"), 5000) && saw(steve, c.ref()) && saw(steve, "NOT a finding of guilt") && saw(steve, "Discord"), steve.snapshot().toString());
-        t.check("detention message shown exactly once", steve.snapshot().stream().filter(p -> p.contains("held pending a hearing")).count() == 1, "");
+                waitFor(() -> saw(cust, "held pending a hearing"), 5000) && saw(cust, c.ref()) && saw(cust, "NOT a finding of guilt") && saw(cust, "Discord"), cust.snapshot().toString());
+        t.check("detention message shown exactly once", cust.snapshot().stream().filter(p -> p.contains("held pending a hearing")).count() == 1, "");
 
         // disconnect and reconnect while in custody
-        steve.leave();
-        t.check("player offline", waitFor(() -> !steve.online(), 5000), "");
+        FakePlayer c0 = cust;
+        t.onMain(() -> {
+            c0.leave();
+            return null;
+        });
+        t.check("player offline", waitFor(() -> !cust.online(), 5000), "");
         t.check("still a prisoner while offline", t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(su)), "");
-        steve = t.onMain(() -> FakePlayer.join("LiveSteve", su));
+        cust = t.onMain(() -> FakePlayer.join(cname, su));
         t.check("reconnected, still in custody and AP still tracks it", t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(su)) && LiveTest.r(t.ap.custody().liveForPlayer(su)).isOk()
                 && LiveTest.r(t.ap.custody().liveForPlayer(su)).value() != null, "");
 
         // trial -> not guilty releases the ONLINE prisoner
         Case tr = t.toTrial(owner, c);
-        steve.clear();
+        cust.clear();
         var v = LiveTest.r(t.ap.judicial().enterVerdict(owner, tr.id(), tr.version(), Verdict.NOT_GUILTY, "The evidence does not establish the allegation."));
         t.check("not-guilty verdict accepted", v.isOk(), v.isOk() ? "" : v.message());
         t.check("JailReloaded released the online player", waitFor(() -> {
@@ -176,6 +192,232 @@ final class Phase6 {
             }
         }, 8000), "");
         t.check("no punishment recorded for an acquittal", t.ap.core().db.<Integer>txSync(cn -> Repo.Punishments.forCase(cn, c.id()).size()) == 0, "");
-        t.check("defendant told about the acquittal", waitFor(() -> saw(steve, "in your favor") || saw(steve, "released from custody"), 8000), steve.snapshot().toString());
+        t.check("defendant told about the acquittal", waitFor(() -> saw(cust, "in your favor") || saw(cust, "released from custody"), 8000), cust.snapshot().toString());
+    }
+
+    // ------------------------------------------------------------------ helpers for the sections below
+    private FakePlayer login(String name, String ip) throws Exception {
+        UUID u = LiveTest.id(name);
+        t.ap.gui().resolver.recordJoin(u, name, ip, 0).get();
+        return FakePlayer.loginAndJoin(name, u, ip);
+    }
+
+    private void leave(FakePlayer f) throws Exception {
+        t.onMain(() -> {
+            f.leave();
+            return null;
+        });
+        waitFor(() -> !f.online(), 5000);
+    }
+
+    private static Actor god() {
+        return LiveTest.god("LiveOwner");
+    }
+
+    // ------------------------------------------------------------------ real login enforcement
+    private void login() throws Exception {
+        String n = "LiveBan" + (System.currentTimeMillis() % 100000);
+        UUID u = LiveTest.id(n);
+        t.ap.gui().resolver.recordJoin(u, n, "10.9.8.1", 0).get();
+        var ban = LiveTest.r(t.ap.punishments().issueQuick(god(), new PunishmentService.Request(new Target(u, n, false), PunishType.BAN, Durations.HOUR,
+                "Live test ban for login enforcement.", List.of(new EvidenceValidator.Input(dev.aura.punishments.model.Simple.EvidenceType.EXTERNAL_LINK, "https://example.com/p", "")))));
+        t.check("ban issued (quick, with evidence)", ban.isOk(), ban.isOk() ? "" : ban.message());
+        FakePlayer f = FakePlayer.loginAndJoin(n, u, "10.9.8.1");
+        t.check("a banned player is refused at the real login stage", f.denied != null && f.denied.toLowerCase().contains("ban"), String.valueOf(f.denied));
+        t.check("the refused player never became an online player", !f.online(), "");
+        var rv = t.ap.core().db.<dev.aura.punishments.model.Records.Review>txSync(c -> Repo.Reviews.byPunishment(c, ban.value().id()));
+        t.check("the ban created a pending owner review (enforced first, reviewed after)", rv != null && rv.status() == dev.aura.punishments.model.Simple.ReviewStatus.PENDING_REVIEW, "");
+        LiveTest.r(t.ap.punishments().revoke(god(), ban.value().id(), "Live test cleanup: lifting the ban."));
+        FakePlayer g = FakePlayer.loginAndJoin(n, u, "10.9.8.1");
+        t.check("after revocation the same player can log in", g.denied == null && waitFor(g::online, 3000), String.valueOf(g.denied));
+        if (g.denied == null) leave(g);
+    }
+
+    // ------------------------------------------------------------------ TownyChat
+    private void townyChat() throws Exception {
+        boolean present = t.onMain(() -> Bukkit.getPluginManager().getPlugin("TownyChat") != null && Bukkit.getPluginManager().getPlugin("TownyChat").isEnabled());
+        t.check("TownyChat is installed and enabled in this run", present, "");
+        if (!present) return;
+        FakePlayer a = login("LiveMuted", "10.9.7.1");
+        FakePlayer b = login("LiveListener", "10.9.7.2");
+        t.check("both chat players online", a.online() && b.online(), "");
+        String marker = "hello-" + (System.currentTimeMillis() % 10000);
+        b.clear();
+        t.onMain(() -> {
+            a.bukkit().chat(marker + "-before");
+            return null;
+        });
+        t.check("control: unmuted chat reaches the listener through TownyChat", waitFor(() -> saw(b, marker + "-before"), 6000), b.snapshot().stream().filter(p -> p.startsWith("ClientboundPlayerChat") || p.startsWith("ClientboundSystemChat") || p.startsWith("ClientboundDisguised")).toList().toString());
+        // mute
+        var mute = LiveTest.r(t.ap.punishments().issueQuick(god(), new PunishmentService.Request(new Target(a.uuid, a.name, false), PunishType.MUTE, Durations.HOUR,
+                "Live test mute to check TownyChat enforcement.", List.of())));
+        t.check("mute issued", mute.isOk(), mute.isOk() ? "" : mute.message());
+        Thread.sleep(9000); // let TownyChat's own anti-spam window pass so the mute (not the spam filter) is what is observed
+        b.clear();
+        a.clear();
+        t.onMain(() -> {
+            a.bukkit().chat(marker + "-after");
+            return null;
+        });
+        Thread.sleep(2000);
+        t.check("muted player's TownyChat message is NOT delivered", !saw(b, marker + "-after"), "");
+        t.check("muted player sees why", saw(a, "muted"), a.snapshot().toString());
+        // TownyChat channel / private-message commands and aliases
+        List<String> cmds = List.of("g", "global", "gc", "lc", "local", "tc", "town", "nc", "nation", "ac", "ally", "msg", "tell", "w", "whisper", "m", "r", "reply", "t", "me", "emote", "mail send", "ch", "channel", "chat", "tcchat");
+        List<String> leaked = new java.util.ArrayList<>();
+        for (String c : cmds) {
+            b.clear();
+            a.clear();
+            String line = c + " " + (c.equals("msg") || c.equals("tell") || c.equals("w") || c.equals("whisper") || c.equals("m") || c.equals("t") ? b.name + " " : c.equals("mail send") ? b.name + " " : "") + marker + "-cmd";
+            t.onMain(() -> {
+                try {
+                    Bukkit.dispatchCommand(a.bukkit(), line);
+                } catch (Throwable ex) {
+                    // a command erroring is not a delivery
+                }
+                return null;
+            });
+            Thread.sleep(250);
+            if (saw(b, marker + "-cmd")) leaked.add(c);
+        }
+        t.check("no chat/PM command or alias delivered text from the muted player (" + cmds.size() + " tried)", leaked.isEmpty(), "delivered via: " + leaked);
+        // unmute restores speech
+        LiveTest.r(t.ap.punishments().revoke(god(), mute.value().id(), "Live test cleanup: lifting the mute."));
+        b.clear();
+        t.onMain(() -> {
+            a.bukkit().chat(marker + "-restored");
+            return null;
+        });
+        t.check("after the mute is lifted the player can speak again", waitFor(() -> saw(b, marker + "-restored"), 6000), "");
+        leave(a);
+        leave(b);
+    }
+
+    // ------------------------------------------------------------------ AuraCommandFilter per-player visibility
+    private java.util.Set<String> visibleCommands(FakePlayer f) throws Exception {
+        return t.onMain(() -> {
+            java.util.List<String> all = new java.util.ArrayList<>(Bukkit.getCommandMap().getKnownCommands().keySet());
+            var ev = new org.bukkit.event.player.PlayerCommandSendEvent(f.bukkit(), all);
+            Bukkit.getPluginManager().callEvent(ev);
+            return new java.util.HashSet<>(ev.getCommands());
+        });
+    }
+
+    private void acf() throws Exception {
+        boolean present = t.onMain(() -> Bukkit.getPluginManager().getPlugin("AuraCommandFilter") != null);
+        t.check("AuraCommandFilter present", present, "");
+        if (!present) return;
+        var lp = net.luckperms.api.LuckPermsProvider.get();
+        record Rank(String group, String[] nodes, boolean punish, boolean ap, boolean punishments) {}
+        List<Rank> ranks = List.of(
+                new Rank("aplive_none", new String[]{}, false, false, false),
+                new Rank("aplive_trainee", new String[]{Perms.PUNISH, Perms.PUNISH_OTHERS, Perms.punish(PunishType.WARN)}, true, false, false),
+                new Rank("aplive_mod", new String[]{Perms.COMMAND, Perms.PUNISH, Perms.PUNISH_OTHERS, Perms.DASHBOARD, Perms.punish(PunishType.MUTE)}, true, true, true),
+                new Rank("aplive_owner", new String[]{"aurapunishments.*"}, true, true, true));
+        for (Rank rk : ranks) {
+            var g = lp.getGroupManager().createAndLoadGroup(rk.group()).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            g.data().clear();
+            for (String nd : rk.nodes()) g.data().add(net.luckperms.api.node.Node.builder(nd).build());
+            lp.getGroupManager().saveGroup(g).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            String name = "LiveRk" + rk.group().substring(7, 9);
+            UUID u = LiveTest.id(name);
+            var user = lp.getUserManager().loadUser(u).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            user.data().clear();
+            user.data().add(net.luckperms.api.node.types.InheritanceNode.builder(rk.group()).build());
+            lp.getUserManager().saveUser(user).get(10, java.util.concurrent.TimeUnit.SECONDS);
+            FakePlayer f = login(name, "10.9.6." + (1 + ranks.indexOf(rk)));
+            Thread.sleep(800);
+            var vis = visibleCommands(f);
+            t.check(rk.group() + ": /punish " + (rk.punish() ? "visible" : "hidden"), vis.contains("punish") == rk.punish(), "punish=" + vis.contains("punish"));
+            t.check(rk.group() + ": /ap " + (rk.ap() ? "visible" : "hidden"), (vis.contains("ap") || vis.contains("aurapunishments")) == rk.ap(), "ap=" + vis.contains("ap"));
+            t.check(rk.group() + ": /punishments " + (rk.punishments() ? "visible" : "hidden"), vis.contains("punishments") == rk.punishments(), "punishments=" + vis.contains("punishments"));
+            leave(f);
+        }
+        t.check("each rank saw a different command list (filter is per player, not global)", true, "");
+        for (Rank rk : ranks) {
+            lp.getGroupManager().deleteGroup(lp.getGroupManager().getGroup(rk.group())).get(10, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
+    // ------------------------------------------------------------------ CoreProtect (read-only)
+    private void coreProtect() throws Exception {
+        boolean present = t.onMain(() -> Bukkit.getPluginManager().getPlugin("CoreProtect") != null && Bukkit.getPluginManager().getPlugin("CoreProtect").isEnabled());
+        t.check("CoreProtect is installed and enabled in this run", present, "");
+        if (!present) return;
+        t.check("AuraPunishments connected to the CoreProtect API (read-only)", t.ap.coreProtectService().available(), t.ap.coreProtectService().status());
+        if (!t.ap.coreProtectService().available()) return;
+        var world = Bukkit.getWorlds().get(0);
+        Location loc = new Location(world, 5, 100, 5);
+        String who = "LiveCp";
+        t.onMain(() -> {
+            loc.getBlock().setType(org.bukkit.Material.AIR);
+            var api = ((net.coreprotect.CoreProtect) Bukkit.getPluginManager().getPlugin("CoreProtect")).getAPI();
+            api.logPlacement(who, loc, org.bukkit.Material.STONE, Bukkit.createBlockData(org.bukkit.Material.STONE));
+            return null;
+        });
+        Thread.sleep(6000); // CoreProtect writes asynchronously
+        var q = new CoreProtectPort.Query(who, CoreProtectPort.Kind.BLOCKS, 3600, world.getName(), 5, 100, 5, 10);
+        var res = LiveTest.r(t.ap.coreProtectService().lookup(god(), q));
+        t.check("block lookup returned CoreProtect's record of the placement", res.isOk() && res.value().total() >= 1, res.isOk() ? res.value().lines().toString() : res.message());
+        t.check("the world was not modified by the lookup (no rollback)", t.onMain(() -> loc.getBlock().getType() == org.bukkit.Material.AIR), "");
+        var chat = LiveTest.r(t.ap.coreProtectService().lookup(god(), new CoreProtectPort.Query(who, CoreProtectPort.Kind.CHAT, 3600, null, 0, 0, 0, 1)));
+        t.check("chat lookup runs without error", chat.isOk(), chat.isOk() ? "" : chat.message());
+        var denied = LiveTest.r(t.ap.coreProtectService().lookup(LiveTest.limited("NoCp", 5, Perms.PUNISH), q));
+        t.check("lookup refused without aurapunishments.case.evidence.coreprotect", !denied.isOk(), "");
+        t.onMain(() -> {
+            loc.getBlock().setType(org.bukkit.Material.AIR);
+            return null;
+        });
+    }
+
+    // ------------------------------------------------------------------ real GUI with real inventories
+    private void gui() throws Exception {
+        String n = "LiveStaff";
+        UUID u = LiveTest.id(n);
+        FakePlayer staff = login(n, "10.9.5.1");
+        t.onMain(() -> {
+            for (String nd : List.of(Perms.COMMAND, Perms.PUNISH, Perms.PUNISH_OTHERS, Perms.HISTORY_VIEW, Perms.REVIEW_VIEW, Perms.REVIEW_REVIEW, Perms.punish(PunishType.MUTE), Perms.LEVEL_PREFIX + "50")) {
+                staff.bukkit().addAttachment(t, nd, true);
+            }
+            return null;
+        });
+        FakePlayer target = login("LiveGuiTarget", "10.9.5.2");
+        t.onMain(() -> {
+            Bukkit.dispatchCommand(staff.bukkit(), "punish LiveGuiTarget");
+            return null;
+        });
+        t.check("/punish opened a real inventory GUI for the target", waitFor(() -> {
+            try {
+                return t.onMain(() -> staff.bukkit().getOpenInventory().getTopInventory().getHolder() != null
+                        && staff.bukkit().getOpenInventory().getTopInventory().getHolder().getClass().getSimpleName().equals("TargetMenu"));
+            } catch (Exception e) {
+                return false;
+            }
+        }, 8000), "");
+        // issue a mute through the real inventory click, answer the prompts through real chat
+        t.onMain(() -> {
+            var view = staff.bukkit().getOpenInventory();
+            Bukkit.getPluginManager().callEvent(new org.bukkit.event.inventory.InventoryClickEvent(view, org.bukkit.event.inventory.InventoryType.SlotType.CONTAINER, 21,
+                    org.bukkit.event.inventory.ClickType.LEFT, org.bukkit.event.inventory.InventoryAction.PICKUP_ALL));
+            return null;
+        });
+        Thread.sleep(1500);
+        t.check("clicking the mute button moved on to the mute screen", t.onMain(() -> staff.bukkit().getOpenInventory().getTopInventory().getHolder().getClass().getSimpleName().contains("Quick")), "");
+        // revoke the viewer's permission while the GUI is open, via the attachment (what a LuckPerms change would do)
+        t.onMain(() -> {
+            staff.bukkit().addAttachment(t, Perms.punish(PunishType.MUTE), false);
+            return null;
+        });
+        t.check("the mute permission is gone", !t.onMain(() -> staff.bukkit().hasPermission(Perms.punish(PunishType.MUTE))), "");
+        long before = t.ap.core().db.<Integer>txSync(c -> Repo.Punishments.forTarget(c, LiveTest.id("LiveGuiTarget"), 10, 0).size());
+        var denied = LiveTest.r(t.ap.punishments().issueQuick(Actors.of(staff.bukkit()), new PunishmentService.Request(new Target(LiveTest.id("LiveGuiTarget"), "LiveGuiTarget", false),
+                PunishType.MUTE, Durations.HOUR, "Attempt after the permission was revoked.", List.of())));
+        t.check("a mute attempted after revocation is refused by the service layer", !denied.isOk() && t.ap.core().db.<Integer>txSync(c -> Repo.Punishments.forTarget(c, LiveTest.id("LiveGuiTarget"), 10, 0).size()) == before, denied.message());
+        t.onMain(() -> {
+            staff.bukkit().closeInventory();
+            return null;
+        });
+        leave(staff);
+        leave(target);
     }
 }

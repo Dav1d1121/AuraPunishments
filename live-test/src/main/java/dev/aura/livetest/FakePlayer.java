@@ -48,17 +48,58 @@ public final class FakePlayer {
         GameProfile profile = new GameProfile(uuid, name);
         f.handle = new ServerPlayer(server, level, profile, ClientInformation.createDefault());
         Connection connection = new Connection(PacketFlow.SERVERBOUND);
-        f.channel = new EmbeddedChannel();
-        f.channel.pipeline().addLast("recorder", new ChannelOutboundHandlerAdapter() {
+        ChannelOutboundHandlerAdapter recorder = new ChannelOutboundHandlerAdapter() {
             @Override
             public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
                 f.packets.add(describe(msg));
                 super.write(ctx, msg, promise);
             }
-        });
-        f.channel.pipeline().addLast("packet_handler", connection);
+        };
+        f.channel = new EmbeddedChannel(recorder, connection); // handlers given here are activated, so Connection learns its channel
         server.getPlayerList().placeNewPlayer(connection, f.handle, CommonListenerCookie.createInitial(profile, false));
         return f;
+    }
+
+    /** Why the login was refused (null = joined). */
+    public String denied;
+
+    /**
+     * Join through the real login events (AsyncPlayerPreLogin on the CALLING thread, which must NOT be the main thread, then
+     * PlayerLogin on the main thread), so LuckPerms loads/injects the user and AuraPunishments' ban checks run.
+     */
+    public static FakePlayer loginAndJoin(String name, UUID uuid, String ip) throws Exception {
+        java.net.InetAddress addr = java.net.InetAddress.getByName(ip);
+        var pre = new org.bukkit.event.player.AsyncPlayerPreLoginEvent(name, addr, uuid);
+        Bukkit.getPluginManager().callEvent(pre);
+        if (pre.getLoginResult() != org.bukkit.event.player.AsyncPlayerPreLoginEvent.Result.ALLOWED) {
+            FakePlayer f = new FakePlayer(name, uuid);
+            f.denied = "pre-login: " + PlainTextComponentSerializer.plainText().serialize(pre.kickMessage());
+            return f;
+        }
+        return Bukkit.getScheduler().callSyncMethod(Bukkit.getPluginManager().getPlugin("APLiveTest"), () -> {
+            FakePlayer f = new FakePlayer(name, uuid);
+            MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();
+            ServerLevel level = ((CraftWorld) Bukkit.getWorlds().get(0)).getHandle();
+            GameProfile profile = new GameProfile(uuid, name);
+            f.handle = new ServerPlayer(server, level, profile, ClientInformation.createDefault());
+            var login = new org.bukkit.event.player.PlayerLoginEvent(f.handle.getBukkitEntity(), "localhost", addr);
+            Bukkit.getPluginManager().callEvent(login);
+            if (login.getResult() != org.bukkit.event.player.PlayerLoginEvent.Result.ALLOWED) {
+                f.denied = "login: " + PlainTextComponentSerializer.plainText().serialize(login.kickMessage());
+                return f;
+            }
+            Connection connection = new Connection(PacketFlow.SERVERBOUND);
+            ChannelOutboundHandlerAdapter recorder = new ChannelOutboundHandlerAdapter() {
+                @Override
+                public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+                    f.packets.add(describe(msg));
+                    super.write(ctx, msg, promise);
+                }
+            };
+            f.channel = new EmbeddedChannel(recorder, connection);
+            server.getPlayerList().placeNewPlayer(connection, f.handle, CommonListenerCookie.createInitial(profile, false));
+            return f;
+        }).get(30, java.util.concurrent.TimeUnit.SECONDS);
     }
 
     public Player bukkit() {
@@ -90,6 +131,9 @@ public final class FakePlayer {
             if (msg instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket p) {
                 return n + "|" + PlainTextComponentSerializer.plainText().serialize(io.papermc.paper.adventure.PaperAdventure.asAdventure(p.content()));
             }
+            if (msg instanceof net.minecraft.network.protocol.game.ClientboundDisguisedChatPacket p) {
+                return n + "|" + PlainTextComponentSerializer.plainText().serialize(io.papermc.paper.adventure.PaperAdventure.asAdventure(p.message()));
+            }
             if (msg instanceof net.minecraft.network.protocol.game.ClientboundSetTitleTextPacket p) {
                 return n + "|" + PlainTextComponentSerializer.plainText().serialize(io.papermc.paper.adventure.PaperAdventure.asAdventure(p.text()));
             }
@@ -108,6 +152,7 @@ public final class FakePlayer {
         } catch (Throwable t) {
             return n + "|(undecodable: " + t.getClass().getSimpleName() + ")";
         }
+        if (n.startsWith("ClientboundPlayerChat") || n.startsWith("ClientboundDisguisedChat")) return n + "|" + msg;
         return n;
     }
 }

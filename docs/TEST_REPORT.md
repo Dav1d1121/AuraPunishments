@@ -1,3 +1,59 @@
+# AuraPunishments 1.1.0 - Test report
+
+**Automated suite:** 196 tests, 0 failures (`./gradlew test`): CaseAndCustodyTest 31, ConfigAndModelTest 12, DefendantAndEventsTest 8, DiscordServiceTest 15, JudicialAndPunishmentTest 44, MigrationV2Test 3, QueueExportAppealTest 11, ReviewAndWarningTest 17, ReviewFixesRegressionTest 7, SmokeMockTest 1, UpgradeAndConfigTest 6, BukkitLayerTest 30, GuiFlowTest 5, ReviewGuiTest 6.
+
+**Live server runs** (Paper 26.3, Java 25, real JailReloaded 1.2.2, LuckPerms 5.5.71, EssentialsX 2.22, Towny 0.103.2, **TownyChat 0.122, CoreProtect 25.1**, AuraCommandFilter 1.0.0). Evidence in `docs/evidence/`:
+
+| Run | Result | File |
+|---|---|---|
+| Upgrade: first boot of 1.1.0 on a **real 1.0.0 database** (10 punishments, 14 cases) | migrated to v2, backup taken, all rows kept, 4 legacy reviews (none pending), `config.yml` byte-identical | `upgrade-from-1.0.0-real-data-boot.txt` |
+| 1.0.0 regression, phase 1 (full functional run, fresh data) | 54 / 54 | `live-results-1.1.0-regression-phase-1.txt` |
+| 1.0.0 regression, phase 2 (after restart) | 9 / 9 | `live-results-1.1.0-regression-phase-2.txt` |
+| 1.0.0 regression, phase 3 (JailReloaded missing) | 8 / 8 | `live-results-1.1.0-regression-phase-3-jailreloaded-missing.txt` |
+| **Phase 6 - online players, TownyChat, AuraCommandFilter, CoreProtect, real GUI** | **65 / 65** | `live-results-phase-6-online-players.txt` |
+
+Online players in phase 6 are real server-side players: the driver runs the genuine login events (AsyncPlayerPreLogin, PlayerLogin) and the vanilla join sequence over an in-memory network channel that records every packet the server sends them. This is not a Minecraft client (no rendering), so *what a human sees* is inferred from the exact packets (title text, animation 10/100/20, sound name/volume/pitch, chat lines).
+
+## Requested live checks (spec section 10)
+
+| Item | Status |
+|---|---|
+| Online JailReloaded custody of a connected player (jailed, teleported, detention message) | **PASS (live)** |
+| Disconnect/reconnect while in custody | **PASS (live)** |
+| Not-guilty verdict releases the connected prisoner, no punishment recorded, defendant told | **PASS (live)** |
+| Guilty verdict / same-record jail conversion / unrelated JailReloaded record untouched | **PASS (live, phase 1 regression; offline players)** - not repeated with a connected player |
+| TownyChat: unmuted control reaches listener; muted player's message not delivered; muted player told; 26 channel/PM/emote/mail commands and aliases (`g gc lc tc nc ac msg tell w m r t me ch ...`) deliver nothing; speech restored after unmute | **PASS (live)**. Note: only the global/general channel was exercised as a *chat event*; town/nation channels need a founded town and were checked through their *commands* (blocked) |
+| AuraCommandFilter per-player visibility with four real LuckPerms ranks (none / trainee / mod / owner): `/punish`, `/ap`, `/punishments` shown only to holders of the right nodes | **PASS (live)** (ranks are LuckPerms groups on logged-in test players) |
+| Real login enforcement: banned player refused with the ban screen at the real login stage, pending owner review created, accepted after revocation | **PASS (live)** |
+| Warning title / sound / chat, offline queue, ordering, no duplicates, delivered-after-shown | **PASS (live, packet level)** |
+| CoreProtect read-only lookup (blocks, chat), permission required, world unchanged | **PASS (live)** |
+| `/punish` opens a real inventory GUI, click navigates, permission revoked mid-GUI is refused by the service | **PASS (live)** + MockBukkit tests |
+| GUI evidence void/correct | **PASS (automated GUI tests only)**; not exercised on the live server |
+| Duplicate clicks | **PASS (automated)** `doubleClickingADecisionOnlyDecidesOnce`, `rapidRepeatedClicksAreDebounced` |
+| Review workflows (take, note, explain, evidence, uphold, modify, reverse, refer, deadlines, reminders, overdue) | **PASS (automated, service + GUI)**; reverse/uphold also through real clicks and chat prompts (MockBukkit) |
+| **Discord delivery to real Discord** | **NOT TESTED against Discord** (sandbox cannot reach discord.com). Routing, categories, fallbacks, multiple destinations, role mentions, retries, 429 handling, permanent failure, outage non-blocking, de-duplication, restart recovery: **PASS against a local HTTP stand-in** (`DiscordServiceTest`) |
+| Invalid webhook / outage / rate limit behaviour | **PASS (local stand-in)** |
+| Live phases 4 and 5 (incompatible JailReloaded; version drift) | **NOT re-run for 1.1.0** (1.0.0 results stand; the code paths were not changed) |
+
+## Spec section 11 test categories - coverage map
+
+| Area | Where |
+|---|---|
+| Warning system (title/sound/chat/actionbar config, truncation, offline queue, order, duplicates, hierarchy, permission, no review, repeat indicator, history, Discord) | `ReviewAndWarningTest`, `ReviewFixesRegressionTest`, `UpgradeAndConfigTest`, live phase 6, `BukkitEnforcement.shorten` (title truncation is by code point; exercised through packets only for the default non-reason title - **the show-reason title variant has no automated test**) |
+| Quick punishments and review (creation, statuses, reviewer actions, deadlines, reminders, no auto reversal, expiry, evidence follow-up, classification) | `ReviewAndWarningTest`, `ReviewGuiTest`, `ReviewFixesRegressionTest` |
+| Discord (categories, overrides, fallbacks, multiple, secrets, async, rate limit, retry, dedupe, restart, mass mentions, no IPs, outage) | `DiscordServiceTest`, `UpgradeAndConfigTest` |
+| Dashboards, work queue, priorities, permissions filter | `QueueExportAppealTest`, `ReviewGuiTest` |
+| Defendant communication | `DefendantAndEventsTest`, live phase 6 |
+| Export, appeal ticket, CoreProtect | `QueueExportAppealTest`, live phase 6 |
+| Migration, upgrade, config validation, permissions matrix | `MigrationV2Test`, `UpgradeAndConfigTest`, live upgrade run |
+| Existing functionality | all 1.0.0 tests (still passing) + live regression phases 1-3 |
+
+Not covered by any test: the show-reason title variant on a live server; deadlines changed through the GUI prompt flow (service tested); `warnings.repeat.recommend-case` (not implemented beyond the indicator).
+
+---
+
+# 1.0.0 test report (history)
+
 # AuraPunishments 1.0.0 - Test Report and Readiness Assessment
 
 **Source commit tested and released:** `4bd660cb7aa2893d07fafc6748d938f964060279`  (see `release/BUILD-INFO.txt`; jar SHA-256 in `release/AuraPunishments-1.0.0.jar.sha256`)

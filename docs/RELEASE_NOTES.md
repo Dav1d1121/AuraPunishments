@@ -1,3 +1,37 @@
+# AuraPunishments 1.1.0 - Release notes
+
+1.1.0 is an enhancement of 1.0.0: everything that worked before still works (all 1.0.0 tests and the live regression runs pass).
+
+## New
+
+* **Better warnings** - chat message (kept) plus a configurable title (`OFFICIAL WARNING`, subtitle, fade 10 / stay 100 / fade 20 ticks), optional sound (sound, volume, pitch, source) and optional action bar. Reasons shown in a title are truncated safely. Warnings to offline players are queued and shown at next login, in order, once each, and only marked delivered after the player actually sees them. Routine warnings need only `aurapunishments.punish.warn`, respect hierarchy/immunity, never need owner review, and a **repeat-warning indicator** (default 3 in 30 days) is shown to staff - it never causes an automatic jail, mute or ban.
+* **Warning history** in the player profile (Warnings screen): each warning, whether it was shown, and whether any later action was taken.
+* **Owner review of quick punishments** - quick mutes/bans/IP bans stay immediate, and also create a review record (Pending Review / Under Review / Upheld / Modified / Reversed / Further Investigation Required). Reviewers can inspect, add private notes, ask the issuer to explain, uphold, modify, reverse or refer to a judicial case. Evidence deadline (24 h) and review deadline (72 h) are targets with reminders - **nothing is ever reversed automatically**, and timed punishments still expire. Punishment types are labelled everywhere: Routine Warning / Emergency Quick Punishment / Direct Punishment / Emergency Protective Action / Judicial Sentence.
+* **Discord channel routing** - seven categories (punishment, judicial, custody, owner-review, direct-emergency, appeal, administrative), per-event overrides, fallbacks, several destinations, role mentions (opt-in), webhook secrets kept out of `config.yml`, a persisted outbox with retries/rate-limit handling/de-duplication. See [DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md).
+* **Work queue** - one prioritised list (priorities configurable) of overdue/approaching custody, emergency reviews, quick-punishment reviews, appeals, awaiting sentencing / verdict / trial, further investigation, with dashboard counts.
+* **Defendant communication** - detention (case number, offense, reason, hearing instructions; explicitly *not* a finding of guilt), trial scheduled/postponed, status changes, verdict, sentence, release, acquittal. Persistent: offline defendants get them at login, once, across restarts.
+* **CoreProtect evidence (read-only)** - lookup a player's blocks, chat, commands or sessions and optionally attach the snapshot as evidence. No rollback/restore/purge capability exists in the code.
+* **Case summary export** (Markdown / text; `/ap export <case>`), limited by the exporter's own permissions; no IPs or private notes.
+* **Appeal tickets** - link a Discord Ticket Tool ticket (number or link) to an appeal; routed to the appeal log. Appeals can be taken ("Under Review") before being decided.
+* **Custody / sentencing** - unchanged 48 h review + 12 h grace (**about 60 h effective automatic release**, both configurable). Time-served credit default is now explicit: **jail is credited automatically; bans and mutes are at the judge's discretion** (`judicial.time-served.default-credit-for`). Custody events distinguish *requested* from *confirmed* and *failed*.
+* **Security/administrative events** to the admin Discord log: configuration reloads, exports, refused elevated actions.
+* New commands: `/ap review`, `/ap queue`, `/ap export`, `/ap warnings`, `/ap discord`.
+
+## Upgrade notes
+
+Schema v1 -> v2 (automatic, with a backup). Legacy quick punishments are imported as *Legacy* and are not shown as new work. `config.yml` and `messages.yml` are never rewritten; new options default safely and a reference file is written once. 1.0.0 Discord settings keep working and new event types are not posted until you opt in. See [INSTALLATION.md](INSTALLATION.md) and [ROLLBACK.md](ROLLBACK.md).
+
+## Known limitations (also in TEST_REPORT.md)
+
+* Real Discord delivery could not be tested from the build environment (no access to discord.com); verified against a local stand-in only.
+* Live JailReloaded phases 4 and 5 (incompatible jar, version drift) were not re-run for 1.1.0; phases 1, 2, 3 and 6 were.
+* Evidence void/correct was verified by automated GUI tests, not by hand on the live server.
+* Online players in live tests are server-side test players (full login/join sequence over an in-memory channel), not a Minecraft client.
+
+---
+
+# 1.0.0 release notes (history)
+
 # AuraPunishments 1.0.0 - Release Notes
 
 First release. Target: Paper 26.3, Java 25, JailReloaded 1.2.x, LuckPerms.

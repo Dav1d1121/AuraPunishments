@@ -1,3 +1,20 @@
+# AuraPunishments 1.1.0 - Integration report
+
+| Integration | Status | Evidence |
+|---|---|---|
+| **JailReloaded 1.2.2** (custody, same-record conversion, release, reconnect) | Re-validated live with connected players (custody, reconnect, acquittal release); phase 1-3 regression pass. No duplicate jail records; JailReloaded was not modified. | TEST_REPORT |
+| **LuckPerms 5.5.71** | Offline level resolution, per-node tiers, four real groups driving AuraCommandFilter visibility. No rank names are hard-coded. | live phase 6 |
+| **AuraCommandFilter 1.0.0** | Commands declare permissions; per-player visibility verified for four ranks. | live phase 6 |
+| **TownyChat 0.122** (new) | Mute enforced on its chat events; channel/PM commands and aliases blocked; speech restored on unmute. Town/nation channels exercised through commands only. | live phase 6 |
+| **CoreProtect 25.1** (new) | Read-only lookups (blocks, chat; commands/sessions implemented and unit-tested through a port). The integration surface has no rollback/restore/purge (asserted by a test). Lookups run off the main thread; time/radius clamped; secrets/IPs redacted from stored snapshots. | live phase 6, `QueueExportAppealTest` |
+| **Discord Ticket Tool** (new) | Reference only: a ticket number or discord.com channel link stored on the case and posted to the appeal log. Nothing is fetched from, or sent to, Ticket Tool. | `QueueExportAppealTest` |
+| **Discord webhooks** | Local stand-in only (see TEST_REPORT). Real Discord not reachable from the build environment. | `DiscordServiceTest` |
+| EssentialsX 2.22 / Towny 0.103 | Unchanged behaviour (legacy command redirection; alias resolution). | live regression |
+
+---
+
+# 1.0.0 integration report (history)
+
 # AuraPunishments 1.0.0 - Custom Plugin Integration Report
 
 Method: every supplied jar was unpacked and inspected (`plugin.yml`, manifest, class list, `javap` of the public API and the

@@ -1,4 +1,22 @@
-# AuraPunishments 1.0.0 - Staff Handbook
+# AuraPunishments 1.1.0 - Staff Handbook
+
+## What's new in 1.1.0 (staff)
+
+**Warnings.** Issue a warning from `/punish <player>` -> *Issue Warning* or `/ap warn <player> <reason>`. The player gets a chat message, a title (`OFFICIAL WARNING`), a sound and (if enabled) an action-bar line. If they are offline they get it, in order, at their next login. A warning never needs owner review and never jails, mutes or bans anyone by itself. The **Warnings** button on a profile (or `/ap warnings <player>`) lists each warning, whether the player saw it, and whether any later action was taken; a red *REPEAT WARNINGS* flag means the player reached the repeat threshold (default 3 in 30 days) - it is a prompt for *you* to consider a case, nothing more.
+
+**Quick mutes / bans.** They still take effect immediately. A mute, ban or IP ban also goes to the owner team for review:
+
+* You can follow it under *My punishments under review* (dashboard) or `/ap review mine`.
+* Add supporting evidence from the review screen (*Add evidence*). You get reminders until you do; the punishment stays in force either way.
+* A reviewer may ask you to explain - you will get an in-game message.
+* A reviewer may uphold, shorten, reverse or refer it. You cannot review your own punishment.
+* Reviews are about quality control, not about waiting for approval: do not wait for a review before acting on a real emergency.
+
+**Emergency vs direct vs judicial.** Every punishment is labelled *Routine Warning*, *Emergency Quick Punishment*, *Direct Punishment*, *Emergency Protective Action* or *Judicial Sentence* in the GUI and logs. Use the hearing process (cases + custody) for normal disciplinary work; quick bans and direct punishments are for serious, proven situations.
+
+**Defendants are told.** When you detain someone, they receive the case number, the alleged offense, your case description and the hearing instructions, plus a clear statement that this is not a finding of guilt. Keep case descriptions factual and free of private information - the defendant sees them.
+
+**Other.** `/ap export <case>` saves a summary (if you hold `aurapunishments.export`); the case screen has *CoreProtect lookup* and *Appeal ticket* buttons if you hold those nodes.
 
 For every Aurehaven staff member. What you can do depends on your rank's permissions ([PERMISSIONS.md](PERMISSIONS.md));
 buttons you may not use are shown **locked** (grey, "Locked - not available to you") or hidden, depending on server config.
