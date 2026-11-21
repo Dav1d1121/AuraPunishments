@@ -44,6 +44,13 @@ public final class Text {
         }
     }
 
+    private static final java.time.format.DateTimeFormatter WHEN = java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm z").withZone(java.time.ZoneId.systemDefault());
+
+    /** Server-local date and time for player-facing messages. */
+    public static String dateTime(long millis) {
+        return WHEN.format(java.time.Instant.ofEpochMilli(millis));
+    }
+
     public static String lower(String s) {
         return s == null ? "" : s.toLowerCase(Locale.ROOT);
     }

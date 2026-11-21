@@ -404,6 +404,15 @@ public final class CaseService extends Svc {
                     to == CaseStatus.CLOSED || to == CaseStatus.UNDER_REVIEW);
             return Result.ok(Repo.Cases.get(c, caseId));
         }).thenCompose(res -> {
+            if (res.isOk()) {
+                Case after = res.value();
+                core.emit(DomainEvent.of(DomainEvent.Type.CASE_STATUS).key("case-status:" + after.id() + ":" + after.version()).caseId(after.id())
+                        .player(after.accusedName()).actor(actor.name()).summary("Status: " + after.status().display())
+                        .field("Reason", why.isEmpty() ? null : Text.truncate(why, 200)).build());
+                if (core.settings.defendant.statuses().contains(after.status().name())) {
+                    core.notifications.defendant(after, "status", "Status: " + after.status().display(), String.valueOf(after.version()));
+                }
+            }
             if (res.isOk() && !res.value().status().custodyAllowed()) {
                 return custody.releaseForCaseResolution(Actor.system(), caseId, "Case " + res.value().status().display().toLowerCase() + ": " + Text.truncate(why, 100))
                         .thenApply(r -> res);
@@ -511,6 +520,7 @@ public final class CaseService extends Svc {
     public CompletableFuture<Result<Case>> scheduleTrial(Actor actor, long caseId, long expectedVersion, long trialAtMillis) {
         Result<Void> perm = core.auth.requireAny(actor, "schedule a trial", Perms.JUDICIAL_MANAGE, Perms.CASE_MANAGE);
         if (!perm.isOk()) return done(perm.cast());
+        final Long[] previousTrial = new Long[1];
         long now0 = core.clock.now();
         if (trialAtMillis < now0 - Durations.MINUTE || trialAtMillis > now0 + Durations.YEAR) {
             return done(Result.fail(Code.INVALID, "The trial time must be in the future (within a year)."));
@@ -523,6 +533,7 @@ public final class CaseService extends Svc {
                 return Result.<Case>fail(Code.STATE, "A trial can only be scheduled while the case is open or awaiting trial.");
             }
             long now = core.clock.now();
+            previousTrial[0] = cs.trialAt();
             CaseStatus next = cs.status() == CaseStatus.AWAITING_TRIAL ? CaseStatus.AWAITING_TRIAL : CaseStatus.AWAITING_TRIAL;
             if (!Repo.Cases.updateFields(c, caseId, expectedVersion, "trial_at=?, status=?", now, trialAtMillis, next.name())) {
                 return Result.<Case>fail(Code.CONFLICT, "This case was changed by someone else. Reopen it to see the latest version.");
@@ -533,7 +544,11 @@ public final class CaseService extends Svc {
         }).thenApply(res -> {
             if (res.isOk()) {
                 Case cs = res.value();
-                core.emit(DomainEvent.of(DomainEvent.Type.TRIAL_SCHEDULED).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
+                boolean moved = previousTrial[0] != null && !previousTrial[0].equals(trialAtMillis);
+                core.notifications.defendant(cs, moved ? "trial-postponed" : "trial-scheduled", Text.dateTime(trialAtMillis)
+                        + (cs.hearingRef() == null ? "" : " - " + cs.hearingRef()), String.valueOf(cs.version()));
+                core.emit(DomainEvent.of(moved ? DomainEvent.Type.TRIAL_POSTPONED : DomainEvent.Type.TRIAL_SCHEDULED).key("trial:" + cs.id() + ":" + cs.version())
+                        .caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
                         .summary("<t:" + (trialAtMillis / 1000) + ":F>").field("Judge", cs.judgeName()).field("Prosecutor", cs.prosecutorName())
                         .field("Hearing", cs.hearingRef()).build());
             }

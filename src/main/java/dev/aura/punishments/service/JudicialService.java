@@ -128,7 +128,9 @@ public final class JudicialService extends Svc {
         }).thenCompose(res -> {
             if (!res.isOk()) return done(res);
             Case cs = res.value().c();
-            core.emit(DomainEvent.of(DomainEvent.Type.VERDICT).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
+            core.notifications.defendant(cs, verdict == Verdict.NOT_GUILTY || verdict == Verdict.DISMISSED ? "acquittal" : "verdict", verdict.display()
+                    + (core.settings.defendant.includeReasoning() ? " - " + Text.truncate(reason, 300) : ""), String.valueOf(cs.version()));
+            core.emit(DomainEvent.of(DomainEvent.Type.VERDICT).key("verdict:" + cs.id() + ":" + cs.version()).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
                     .summary(verdict.display()).field("Verdict", verdict.display()).field("Reasoning", Text.truncate(reason, 300)).build());
             if (verdict == Verdict.NOT_GUILTY || verdict == Verdict.DISMISSED) {
                 return custody.releaseForCaseResolution(Actor.system(), caseId, verdict.display() + ": " + Text.truncate(reason, 100)).thenApply(r -> {
@@ -345,7 +347,9 @@ public final class JudicialService extends Svc {
             Punishment p = res.value().punishment();
             return punishments.afterIssue(p, false).thenApply(v -> {
                 Case cs = res.value().c();
-                core.emit(DomainEvent.of(DomainEvent.Type.SENTENCE).caseId(cs.id()).player(cs.accusedName()).actor(pl.actorName())
+                core.notifications.defendant(cs, "sentence", type.display() + (type.canBeTimed() ? " (" + Durations.format(pl.durationMs()) + ")" : "")
+                        + (core.settings.defendant.includeReasoning() ? " - " + Text.truncate(pl.reason(), 300) : ""), String.valueOf(p.id()));
+                core.emit(DomainEvent.of(DomainEvent.Type.SENTENCE).key("sentence:" + p.id()).caseId(cs.id()).player(cs.accusedName()).actor(pl.actorName())
                         .summary(type.display() + (type.canBeTimed() ? " (" + Durations.format(pl.durationMs()) + ")" : ""))
                         .field("Sentence", type.display()).field("Duration", type.canBeTimed() ? Durations.format(pl.durationMs()) : null)
                         .field("Time served credit", pl.creditMs() > 0 ? Durations.format(pl.creditMs()) : null)

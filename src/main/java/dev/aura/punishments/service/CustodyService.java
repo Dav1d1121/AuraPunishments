@@ -117,6 +117,8 @@ public final class CustodyService extends Svc {
             Case cs = caseBox[0];
             long custodyId = custodyIdBox[0];
             Settings s = core.settings;
+            core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_ATTEMPT).key("custody-attempt:" + custodyId).caseId(cs.id()).player(cs.accusedName())
+                    .actor(actor.name()).summary("Custody requested; awaiting JailReloaded confirmation (not yet confirmed)").build());
             JailRequest req = new JailRequest(cs.accusedUuid(), cs.accusedName(), cs.id(), tag(cs.id()),
                     Text.truncate(cs.description(), 100), actor.name(), -1L, s.custody.jailName(), s.custody.cellName(),
                     s.custody.muteWhileHeld());
@@ -169,11 +171,14 @@ public final class CustodyService extends Svc {
             }
             Custody cu = res.value();
             if (cu.status() == CustodyStatus.FAILED) {
+                core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_FAILED).key("custody-failed:" + cu.id()).caseId(cs.id()).player(cs.accusedName())
+                        .actor(actor.name()).summary("JailReloaded did not confirm the detention: " + Text.truncate(String.valueOf(cu.lastError()), 200)).build());
                 return Result.<Custody>fail(Code.EXTERNAL, "Detention failed: " + cu.lastError());
             }
             refreshIndex();
-            core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_STARTED).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
-                    .summary("Detained in " + cu.jailName()).field("Jail", cu.jailName())
+            core.notifications.defendant(cs, "detention", "", String.valueOf(cu.id()));
+            core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_STARTED).key("custody-started:" + cu.id()).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
+                    .summary("Confirmed by JailReloaded: detained in " + cu.jailName()).field("Jail", cu.jailName())
                     .field("Review deadline", "<t:" + (cu.deadline() / 1000) + ":R>").build());
             return Result.ok(cu);
         });
@@ -290,7 +295,10 @@ public final class CustodyService extends Svc {
         }).thenApply(res -> {
             if (res.isOk()) {
                 refreshIndex();
-                core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_RELEASED).caseId(cu.caseId()).player(cu.name()).actor(actor.name())
+                core.db.tx(c -> Repo.Cases.get(c, cu.caseId())).thenAccept(cs0 -> {
+                    if (cs0 != null) core.notifications.defendant(cs0, "release", pending ? "Your release has been accepted and completes when you next log in." : Text.truncate(reason, 200), "cu" + cu.id());
+                });
+                core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_RELEASED).key("custody-released:" + cu.id() + ":" + pending).caseId(cu.caseId()).player(cu.name()).actor(actor.name())
                         .summary(pending ? "Release accepted (completes at next login)" : "Released").field("Reason", Text.truncate(reason, 200)).build());
             }
             return res;

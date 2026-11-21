@@ -2,6 +2,7 @@ package dev.aura.punishments.service;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import dev.aura.punishments.config.Settings;
 import dev.aura.punishments.db.Repo;
 import dev.aura.punishments.model.Records.Notification;
 
@@ -58,6 +59,29 @@ public final class NotificationService {
     /** Very old queued notices (other than warnings, which must always reach the player) are expired. */
     public void expireStale() {
         core.db.tx(c -> Repo.Notifications.expireOlderThan(c, core.clock.now() - 30L * 86_400_000L));
+    }
+
+    /**
+     * Tell the accused about their case. Queued persistently (so an offline defendant sees it at the next login and a
+     * restart loses nothing); {@code key} identifies the fact so it can never be queued - or shown - twice. These messages
+     * report procedure; only a VERDICT/SENTENCE message states a finding.
+     */
+    public void defendant(dev.aura.punishments.model.Records.Case cs, String event, String detail, String key) {
+        Settings.Defendant cfg = core.settings.defendant;
+        if (!cfg.enabled() || cs.accusedUuid() == null) return;
+        Map<String, String> pl = new LinkedHashMap<>();
+        pl.put("event", event);
+        pl.put("ref", cs.ref());
+        pl.put("offense", core.offenses.get(cs.offenseKey()).map(o -> o.display()).orElse(cs.offenseKey()));
+        pl.put("reason", dev.aura.punishments.util.Text.truncate(cs.description(), 300));
+        pl.put("detail", detail == null ? "" : detail);
+        pl.put("instructions", cfg.hearingInstructions());
+        core.db.tx(c -> enqueue(c, "def:" + cs.id() + ":" + event + ":" + key, cs.accusedUuid(), DEFENDANT, "case", cs.id(), pl))
+                .thenCompose(queued -> deliverPending(cs.accusedUuid()))
+                .exceptionally(t -> {
+                    core.log.warning("Could not queue a defendant notification for " + cs.ref() + ": " + t.getMessage());
+                    return null;
+                });
     }
 
     /** Deliver everything queued for this player if they are online. Safe to call at any time and from any thread. */
