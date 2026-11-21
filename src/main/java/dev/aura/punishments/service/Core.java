@@ -38,6 +38,8 @@ public final class Core {
         this.events = events;
         this.auth = new Authority(() -> this.settings);
         this.notifications = new NotificationService(this);
+        this.auth.denialSink((a, node, what) -> emit(DomainEvent.of(DomainEvent.Type.SECURITY).key("security:" + a.name() + ":" + node + ":" + System.currentTimeMillis() / 60_000)
+                .actor(a.name()).summary("Refused: tried to " + what + " without " + node).build()));
     }
 
     public void emit(DomainEvent e) {

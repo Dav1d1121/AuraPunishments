@@ -74,11 +74,12 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             if (!new File(getDataFolder(), f).exists()) saveResource(f, false);
         }
 
+        writeUpgradeReference();
         Settings settings;
         OffenseCatalog offenses;
         Messages messages;
         try {
-            settings = Settings.parse(load("config.yml"));
+            settings = Settings.parse(load("config.yml"), secrets(), System::getenv);
             offenses = OffenseCatalog.parse(load("offenses.yml"));
             messages = Messages.parse(load("messages.yml"), defaults("messages.yml"));
         } catch (ConfigException e) {
@@ -294,6 +295,33 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     }
 
     // ------------------------------------------------------------------ configuration
+    /** Optional webhooks.yml: keeps Discord webhook URLs out of config.yml (null when absent). */
+    private YamlConfiguration secrets() {
+        File f = new File(getDataFolder(), "webhooks.yml");
+        return f.isFile() ? YamlConfiguration.loadConfiguration(f) : null;
+    }
+
+    /**
+     * An upgraded install keeps its config.yml untouched (new options simply use their built-in defaults). So that
+     * administrators can see and adopt the new options, the shipped file is copied next to it once per version.
+     */
+    private void writeUpgradeReference() {
+        try {
+            YamlConfiguration current = load("config.yml");
+            if (current.isConfigurationSection("warnings") && current.isConfigurationSection("review")) return;
+            String name = "config-" + getPluginMeta().getVersion() + "-reference.yml";
+            File ref = new File(getDataFolder(), name);
+            if (ref.exists()) return;
+            try (var in = getResource("config.yml")) {
+                if (in != null) java.nio.file.Files.copy(in, ref.toPath());
+            }
+            getLogger().info("Upgrade: your config.yml was NOT changed. New 1.1 options (warnings, review, dashboard, defendant, exports, "
+                    + "discord channels...) use safe built-in defaults. See " + name + " for every new option and copy what you want.");
+        } catch (Exception e) {
+            getLogger().warning("Could not write the upgrade reference config: " + e.getMessage());
+        }
+    }
+
     private YamlConfiguration load(String name) {
         return YamlConfiguration.loadConfiguration(new File(getDataFolder(), name));
     }
@@ -312,7 +340,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     public void reloadFor(CommandSender sender) {
         CommandSender to = sender == null ? Bukkit.getConsoleSender() : sender;
         try {
-            Settings s = Settings.parse(load("config.yml"));
+            Settings s = Settings.parse(load("config.yml"), secrets(), System::getenv);
             OffenseCatalog o = OffenseCatalog.parse(load("offenses.yml"));
             Messages m = Messages.parse(load("messages.yml"), defaults("messages.yml"));
             core.settings = s;
@@ -325,6 +353,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
                 dev.aura.punishments.db.Repo.Audits.append(c, core.clock.now(), who.dbUuid(), who.name(), "admin.reload", null, null, "configuration reloaded", true);
                 return null;
             });
+            core.emit(DomainEvent.of(DomainEvent.Type.ADMIN_ACTION).key("reload:" + core.clock.now()).actor(who.name()).summary("Configuration reloaded").build());
             to.sendMessage(core.messages.get("command.reload-ok"));
             getLogger().info("Configuration reloaded by " + to.getName() + ". Settings marked [RESTART] in config.yml (database) were not changed.");
         } catch (ConfigException e) {

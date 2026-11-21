@@ -18,8 +18,39 @@ import java.util.function.Supplier;
 public final class Authority {
     private final Supplier<Settings> settings;
 
+    /** Called (rate-limited) when an actor is refused an elevated action. Security-relevant, so it reaches the admin Discord log. */
+    @FunctionalInterface
+    public interface DenialSink {
+        void denied(Actor actor, String node, String doWhat);
+    }
+
+    private static final java.util.Set<String> ELEVATED = java.util.Set.of(Perms.DIRECT, Perms.EMERGENCY_USE, Perms.EMERGENCY_REVIEW,
+            Perms.JUDICIAL_OVERTURN, Perms.JUDICIAL_SENTENCE, Perms.JUDICIAL_VERDICT_ANY, Perms.ADMIN, Perms.ADMIN_RELOAD, Perms.AUDIT_VIEW,
+            Perms.REVIEW_REVERSE, Perms.REVIEW_MODIFY, Perms.REVIEW_DEADLINES, Perms.REVIEW_SENSITIVE, Perms.CUSTODY_OVERRIDE, Perms.SENSITIVE_IP,
+            Perms.SENSITIVE_NOTES, Perms.REVOKE_ANY, Perms.EXPORT);
+    private final java.util.concurrent.ConcurrentHashMap<String, Long> lastDenial = new java.util.concurrent.ConcurrentHashMap<>();
+    private volatile DenialSink denialSink = (a, n, w) -> { };
+
     public Authority(Supplier<Settings> settings) {
         this.settings = settings;
+    }
+
+    public void denialSink(DenialSink sink) {
+        this.denialSink = sink == null ? (a, n, w) -> { } : sink;
+    }
+
+    private void denied(Actor a, String node, String doWhat) {
+        if (a == null || !ELEVATED.contains(node) || a.kind() == Actor.Kind.SYSTEM) return;
+        long now = System.currentTimeMillis();
+        String key = a.name() + "|" + node;
+        Long prev = lastDenial.put(key, now);
+        if (prev != null && now - prev < 60_000) return; // one notice per actor/permission per minute
+        if (lastDenial.size() > 500) lastDenial.entrySet().removeIf(e -> now - e.getValue() > 60_000);
+        try {
+            denialSink.denied(a, node, doWhat);
+        } catch (RuntimeException ignored) {
+            // reporting must never change the outcome of the check
+        }
     }
 
     public boolean has(Actor a, String node) {
@@ -28,11 +59,13 @@ public final class Authority {
 
     public Result<Void> require(Actor a, String node, String doWhat) {
         if (has(a, node)) return Result.ok();
+        denied(a, node, doWhat);
         return Result.fail(Code.NO_PERMISSION, "You do not have permission to " + doWhat + ".");
     }
 
     public Result<Void> requireAny(Actor a, String doWhat, String... nodes) {
         for (String n : nodes) if (has(a, n)) return Result.ok();
+        if (nodes.length > 0) denied(a, nodes[0], doWhat);
         return Result.fail(Code.NO_PERMISSION, "You do not have permission to " + doWhat + ".");
     }
 
