@@ -426,6 +426,10 @@ public final class Repo {
             return query(c, "SELECT * FROM punishments WHERE status='EXPIRED' AND ended_at>=? ORDER BY id ASC", MAP, now - 120_000);
         }
 
+        public static void setCase(Connection c, long id, long caseId) throws SQLException {
+            update(c, "UPDATE punishments SET case_id=? WHERE id=? AND case_id IS NULL", caseId, id);
+        }
+
         public static void markDelivered(Connection c, long id) throws SQLException {
             update(c, "UPDATE punishments SET delivered=1 WHERE id=?", id);
         }
@@ -604,6 +608,10 @@ public final class Repo {
                                         boolean decided, long now) throws SQLException {
             return update(c, "UPDATE reviews SET status=?, reviewer_name=COALESCE(?,reviewer_name), decision_note=COALESCE(?,decision_note), decided_at=?, updated_at=?, version=version+1 WHERE id=? AND version=?",
                     to, reviewer, note, decided ? (Object) now : null, now, id, expectedVersion) == 1;
+        }
+
+        public static void setCase(Connection c, long id, long caseId, long now) throws SQLException {
+            update(c, "UPDATE reviews SET case_id=?, updated_at=? WHERE id=?", caseId, now, id);
         }
 
         public static void setReason(Connection c, long id, Long durationMs, String reason, long now) throws SQLException {

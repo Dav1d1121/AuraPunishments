@@ -27,6 +27,7 @@ public final class Fx implements AutoCloseable {
     public final Core core;
     public final FakeJail jail = new FakeJail();
     public final PunishmentService punishments;
+    public final ReviewService reviews;
     public final CustodyService custody;
     public final CaseService cases;
     public final JudicialService judicial;
@@ -42,6 +43,8 @@ public final class Fx implements AutoCloseable {
 
     public static final class Mutator {
         public String config = null;
+        /** Config overrides applied on top of the shipped config.yml (path -> value). */
+        public final Map<String, Object> set = new HashMap<>();
     }
 
     public Fx(Path file, Mutator m) throws Exception {
@@ -49,6 +52,7 @@ public final class Fx implements AutoCloseable {
         db.open();
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
         YamlConfiguration off = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/offenses.yml"), StandardCharsets.UTF_8));
+        m.set.forEach(cfg::set);
         Settings s = Settings.parse(cfg);
         OffenseCatalog oc = OffenseCatalog.parse(off);
         LevelResolver lr = new LevelResolver() {
@@ -68,6 +72,7 @@ public final class Fx implements AutoCloseable {
             @Override public boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late) { if (!online.contains(uuid)) return false; delivered.add(n); return true; }
         };
         punishments = new PunishmentService(core);
+        reviews = new ReviewService(core, punishments);
         custody = new CustodyService(core, punishments);
         cases = new CaseService(core, custody);
         judicial = new JudicialService(core, custody, punishments);

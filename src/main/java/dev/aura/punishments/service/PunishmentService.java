@@ -122,11 +122,29 @@ public final class PunishmentService extends Svc {
                         Repo.Evidences.add(c, caseId, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
                     }
                 }
-                return insert(c, actor, type, r.target(), dur2, cleanReason, Source.QUICK, caseId, null, null, null, true);
+                Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, Source.QUICK, caseId, null, null, null, true);
+                if (ins.isOk()) ReviewService.createIfRequired(core, c, actor, ins.value(), caseId);
+                return ins;
             });
         }).thenCompose(res -> {
             if (!res.isOk()) return done(res);
-            return afterIssue(res.value(), false).thenApply(v -> res);
+            return afterIssue(res.value(), false).thenApply(v -> {
+                emitIssued(res.value());
+                return res;
+            });
+        });
+    }
+
+    /** Discord/staff events for a quick punishment, plus the review request when one was created. */
+    private void emitIssued(Punishment p) {
+        boolean warn = p.type() == PunishType.WARN;
+        DomainEvent.Builder b = DomainEvent.of(warn ? DomainEvent.Type.WARNING : DomainEvent.Type.QUICK_PUNISHMENT)
+                .key((warn ? "warning:" : "quick:") + p.id()).caseId(p.caseId()).player(p.targetName()).actor(p.issuerName())
+                .summary(p.classification() + ": " + p.type().display() + (p.type().canBeTimed() ? " (" + (p.expiresAt() == null ? "permanent" : Durations.format(p.expiresAt() - p.issuedAt())) + ")" : ""))
+                .field("Classification", p.classification()).field("Reason", clip(p.reason(), 300));
+        core.emit(b.build());
+        core.db.tx(c -> Repo.Reviews.byPunishment(c, p.id())).thenAccept(rv -> {
+            if (rv != null && rv.status() == dev.aura.punishments.model.Simple.ReviewStatus.PENDING_REVIEW) ReviewService.emitCreated(core, rv, p);
         });
     }
 
@@ -199,6 +217,11 @@ public final class PunishmentService extends Svc {
 
     // ------------------------------------------------------------------ revoke
     public CompletableFuture<Result<Punishment>> revoke(Actor actor, long id, String reason) {
+        return revoke(actor, id, reason, false);
+    }
+
+    /** @param authorised true when the caller already verified a permission that allows reversing this punishment (owner review). */
+    CompletableFuture<Result<Punishment>> revoke(Actor actor, long id, String reason, boolean authorised) {
         String why = Text.clean(reason);
         if (why.length() < core.settings.cases.minReason()) {
             return done(Result.fail(Code.INVALID, "A reason of at least " + core.settings.cases.minReason() + " characters is required."));
@@ -210,7 +233,7 @@ public final class PunishmentService extends Svc {
                 return Result.<Punishment>fail(Code.STATE, "Punishment #" + id + " is already " + p.status().name().toLowerCase() + ".");
             }
             boolean own = actor.dbUuid() != null && actor.dbUuid().equals(p.issuerUuid()) && p.source() == Source.QUICK;
-            if (!(core.auth.has(actor, Perms.REVOKE_ANY) || (own && core.auth.has(actor, Perms.REVOKE)))) {
+            if (!(authorised || core.auth.has(actor, Perms.REVOKE_ANY) || (own && core.auth.has(actor, Perms.REVOKE)))) {
                 return Result.<Punishment>fail(Code.NO_PERMISSION, "You do not have permission to revoke that punishment.");
             }
             if (!Repo.Punishments.end(c, id, PunishStatus.REVOKED, actor.name(), why, core.clock.now())) {

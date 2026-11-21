@@ -18,6 +18,7 @@ import dev.aura.punishments.config.Messages;
 import dev.aura.punishments.config.Settings;
 import dev.aura.punishments.model.Records.Notification;
 import dev.aura.punishments.service.NotificationService;
+import dev.aura.punishments.service.ReviewService;
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.sound.Sound;
 import net.kyori.adventure.text.minimessage.MiniMessage;
@@ -94,6 +95,10 @@ public final class BukkitEnforcement implements Enforcement {
         Map<String, String> data = NotificationService.payload(n);
         if (NotificationService.WARNING.equals(n.kind())) {
             presentWarning(pl, data, late);
+        } else if (ReviewService.STAFF.equals(n.kind())) {
+            String key = "staffnote." + data.getOrDefault("event", "generic");
+            pl.sendMessage(core.messages.get(core.messages.has(key) ? key : "staffnote.generic", "ref", data.getOrDefault("ref", ""),
+                    "player", data.getOrDefault("player", ""), "detail", data.getOrDefault("detail", ""), "by", data.getOrDefault("by", "")));
         } else {
             presentDefendant(pl, data, late);
         }

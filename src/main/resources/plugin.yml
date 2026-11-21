@@ -47,6 +47,10 @@ permissions:
       aurapunishments.direct.*: true
       aurapunishments.emergency.*: true
       aurapunishments.judicial.*: true
+      aurapunishments.review.*: true
+      aurapunishments.export: true
+      aurapunishments.case.evidence.coreprotect: true
+      aurapunishments.case.appeal.ticket: true
       aurapunishments.sensitive.*: true
       aurapunishments.audit.view: true
       aurapunishments.admin: true
@@ -123,6 +127,24 @@ permissions:
   aurapunishments.case.appeal.file:
     description: Record an appeal against a sentence or direct punishment.
     default: false
+  aurapunishments.review.*:
+    default: false
+    children:
+      aurapunishments.review.view: true
+      aurapunishments.review.review: true
+      aurapunishments.review.modify: true
+      aurapunishments.review.reverse: true
+      aurapunishments.review.deadlines: true
+      aurapunishments.review.evidence.sensitive: true
+  aurapunishments.review.view: { description: "See the owner-review queue and review records (issuers can always see their own).", default: false }
+  aurapunishments.review.review: { description: "Inspect, take, annotate and decide reviews: request explanation, uphold, mark further investigation, refer to a case.", default: false }
+  aurapunishments.review.modify: { description: "Modify a reviewed punishment (shorter/longer duration, corrected reason).", default: false }
+  aurapunishments.review.reverse: { description: "Reverse a reviewed punishment.", default: false }
+  aurapunishments.review.deadlines: { description: "Change evidence/review deadlines on a review.", default: false }
+  aurapunishments.review.evidence.sensitive: { description: "See sensitive evidence references and private review notes.", default: false }
+  aurapunishments.export: { description: "Export a case summary (Markdown/text) from the GUI or /ap export.", default: false }
+  aurapunishments.case.evidence.coreprotect: { description: "Run read-only CoreProtect lookups as case evidence.", default: false }
+  aurapunishments.case.appeal.ticket: { description: "Link a Discord Ticket Tool ticket to an appeal.", default: false }
   aurapunishments.custody.*:
     default: false
     children:

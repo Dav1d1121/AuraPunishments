@@ -65,6 +65,10 @@ public final class Messages {
         return v == null ? "<red>[missing message: " + key + "]</red>" : v;
     }
 
+    public boolean has(String key) {
+        return user.getString(key) != null || defaults.getString(key) != null;
+    }
+
     public List<String> rawList(String key) {
         List<String> l = user.isList(key) ? user.getStringList(key) : defaults.getStringList(key);
         if (l.isEmpty()) {

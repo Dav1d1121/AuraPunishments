@@ -52,6 +52,16 @@ public final class Records {
             return expiresAt == null;
         }
 
+        /** How this punishment came about; shown identically in the GUI, audit detail and Discord. */
+        public String classification() {
+            return switch (source) {
+                case JUDICIAL -> "Judicial Sentence";
+                case DIRECT -> "Direct Punishment";
+                case EMERGENCY -> "Emergency Protective Action";
+                case QUICK -> type == PunishType.WARN ? "Routine Warning" : type == PunishType.KICK ? "Quick Kick" : "Emergency Quick Punishment";
+            };
+        }
+
         public boolean activeAt(long now) {
             return status == PunishStatus.ACTIVE && (expiresAt == null || expiresAt > now);
         }

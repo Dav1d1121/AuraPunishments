@@ -88,6 +88,16 @@ alert:
   security: "<prefix><red>Security: <white><detail>"
 
 # ---------------------------------------------------------------------------
+#  Notes to staff about reviews (queued, so they arrive even if the staff member was offline)
+# ---------------------------------------------------------------------------
+staffnote:
+  generic: "<prefix><aqua>Review <ref> (<player>): <white><detail>"
+  explanation-requested: "<prefix><yellow>Review <ref> (<player>) - <by> asks you to explain: <white><detail>"
+  decision: "<prefix><aqua>Review <ref> (<player>) decided - <white><detail> <gray>(by <by>)"
+  evidence-due: "<prefix><yellow>Review <ref> (<player>): <white><detail>"
+  evidence-overdue: "<prefix><red>Review <ref> (<player>): <white><detail>"
+
+# ---------------------------------------------------------------------------
 #  Defendant communication (sent to the accused; informational, never a finding of guilt unless it is a verdict)
 # ---------------------------------------------------------------------------
 defendant:

@@ -55,6 +55,11 @@ public final class NotificationService {
         return out;
     }
 
+    /** Very old queued notices (other than warnings, which must always reach the player) are expired. */
+    public void expireStale() {
+        core.db.tx(c -> Repo.Notifications.expireOlderThan(c, core.clock.now() - 30L * 86_400_000L));
+    }
+
     /** Deliver everything queued for this player if they are online. Safe to call at any time and from any thread. */
     public CompletableFuture<Void> deliverPending(UUID uuid) {
         if (!inFlight.add(uuid)) { // a loop is already running; it will pick up anything queued meanwhile

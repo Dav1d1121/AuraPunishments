@@ -48,6 +48,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     private Core core;
     private Database db;
     private DiscordService discord;
+    private ReviewService reviews;
     private Gui gui;
     private LuckPermsBackend luckPerms;
     private PunishmentService punishments;
@@ -158,6 +159,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         punishments = new PunishmentService(core);
         custody = new CustodyService(core, punishments);
+        reviews = new ReviewService(core, punishments);
         cases = new CaseService(core, custody);
         judicial = new JudicialService(core, custody, punishments);
         direct = new DirectService(core, punishments);
@@ -262,6 +264,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             custody.sweepDeadlines();
             direct.sweepReviews();
             custody.retryStuckReleases();
+            reviews.remind();
+            core.notifications.expireStale();
             admin.counts(Actor.system()).thenAccept(r -> {
                 if (r.isOk()) lastCounts = r.value();
             });
@@ -356,6 +360,10 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
     public PunishmentService punishments() {
         return punishments;
+    }
+
+    public ReviewService reviews() {
+        return reviews;
     }
 
     public DirectService direct() {

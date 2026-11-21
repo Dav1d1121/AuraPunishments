@@ -54,6 +54,17 @@ public final class Perms {
     public static final String JUDICIAL_RELEASE = ROOT + "judicial.release";
     public static final String JUDICIAL_OVERTURN = ROOT + "judicial.overturn";
 
+    // owner review of quick punishments (1.1.0)
+    public static final String REVIEW_VIEW = ROOT + "review.view";
+    public static final String REVIEW_REVIEW = ROOT + "review.review";
+    public static final String REVIEW_MODIFY = ROOT + "review.modify";
+    public static final String REVIEW_REVERSE = ROOT + "review.reverse";
+    public static final String REVIEW_DEADLINES = ROOT + "review.deadlines";
+    public static final String REVIEW_SENSITIVE = ROOT + "review.evidence.sensitive";
+    public static final String EXPORT = ROOT + "export";
+    public static final String COREPROTECT = ROOT + "case.evidence.coreprotect";
+    public static final String APPEAL_TICKET = ROOT + "case.appeal.ticket";
+
     // sensitive / admin
     public static final String SENSITIVE_IP = ROOT + "sensitive.ip";
     public static final String SENSITIVE_NOTES = ROOT + "sensitive.notes";
