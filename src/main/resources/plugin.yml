@@ -6,7 +6,10 @@ description: GUI-based moderation, judicial case management and punishment syste
 authors: [Aurehaven]
 load: POSTWORLD
 # JailReloaded must be enabled first when present. Everything else is optional.
-softdepend: [JailReloaded, LuckPerms, AuraCommandFilter, Essentials, Towny, TownyChat, CoreProtect, DiscordSRV, TAB, GrimAC, PlaceholderAPI]
+softdepend: [JailReloaded, LuckPerms, AuraCommandFilter, Towny, CoreProtect, TAB, GrimAC, PlaceholderAPI]
+# Chat plugins are deliberately NOT soft dependencies: AuraPunishments must register its chat listeners BEFORE them so that, at the
+# same event priority, a staff member's prompt answer and a muted player's line are captured before any chat plugin sees them.
+loadbefore: [Essentials, EssentialsChat, EssentialsXChat, TownyChat, DiscordSRV, ChatControlRed, CarbonChat, Chatty, VentureChat, HeroChat, LPC, UltimateChat]
 
 # Every command declares a permission so AuraCommandFilter (which derives command visibility and tab
 # completion from declared permissions) hides it from players who cannot use it.

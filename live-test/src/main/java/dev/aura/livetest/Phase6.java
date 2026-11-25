@@ -241,6 +241,7 @@ final class Phase6 {
         FakePlayer a = login("LiveMuted", "10.9.7.1");
         FakePlayer b = login("LiveListener", "10.9.7.2");
         t.check("both chat players online", a.online() && b.online(), "");
+        Thread.sleep(3000); // TownyChat places a joining player into its default channel a moment after the join event
         String marker = "hello-" + (System.currentTimeMillis() % 10000);
         b.clear();
         t.onMain(() -> {

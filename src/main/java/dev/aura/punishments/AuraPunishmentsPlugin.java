@@ -268,6 +268,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         if (pm.getPlugin("Essentials") != null) log.info("EssentialsX detected: legacy punishment commands are redirected (config legacy-commands). Remove its punishment permissions in LuckPerms; see docs/PERMISSIONS.md.");
         if (pm.getPlugin("TownyChat") != null) log.info("TownyChat detected: mutes cancel chat at LOWEST priority and block channel/private-message commands.");
         if (!core.settings.discord.enabled()) log.info("Discord webhooks are disabled (config discord.enabled).");
+        String privacyWarning = chatPrivacyWarning();
+        if (!privacyWarning.isEmpty()) log.warning(privacyWarning);
     }
 
     // ------------------------------------------------------------------ timers
@@ -362,6 +364,19 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         }
     }
 
+    /**
+     * Prompt answers (reasons, notes, evidence) are captured before any chat plugin can broadcast or relay them, but CoreProtect
+     * logs CANCELLED chat lines too unless told not to. Returns a warning when its configuration would record them (empty = fine).
+     */
+    String chatPrivacyWarning() {
+        var cp = getServer().getPluginManager().getPlugin("CoreProtect");
+        if (cp == null) return "";
+        File f = new File(cp.getDataFolder(), "config.yml");
+        boolean logs = !f.isFile() || YamlConfiguration.loadConfiguration(f).getBoolean("log-cancelled-chat", true);
+        return logs ? "CoreProtect is configured with log-cancelled-chat: true, so text typed into AuraPunishments prompts is written to CoreProtect's chat log. "
+                + "Set 'log-cancelled-chat: false' in plugins/CoreProtect/config.yml and run /co reload if prompt answers must stay private." : "";
+    }
+
     // ------------------------------------------------------------------ diagnostics
     @Override
     public List<String> diagnostics() {
@@ -373,6 +388,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         l.add("LuckPerms: " + (luckPerms != null ? "connected" : "not connected"));
         l.add("Discord: " + discord.status());
         l.add("CoreProtect: " + coreProtect.status());
+        String privacy = chatPrivacyWarning();
+        if (!privacy.isEmpty()) l.add("WARNING: " + privacy);
         var pm = getServer().getPluginManager();
         l.add("Detected: " + (pm.getPlugin("AuraCommandFilter") != null ? "AuraCommandFilter " : "") + (pm.getPlugin("Essentials") != null ? "EssentialsX " : "")
                 + (pm.getPlugin("TownyChat") != null ? "TownyChat " : "") + (pm.getPlugin("CoreProtect") != null ? "CoreProtect " : "")

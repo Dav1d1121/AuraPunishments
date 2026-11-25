@@ -1,0 +1,1 @@
+187:[18:43:39 WARN]: [AuraPunishments] CoreProtect is configured with log-cancelled-chat: true, so text typed into AuraPunishments prompts is written to CoreProtect's chat log. Set 'log-cancelled-chat: false' in plugins/CoreProtect/config.yml and run /co reload if prompt answers must stay private.

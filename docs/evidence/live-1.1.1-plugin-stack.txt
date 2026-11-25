@@ -1,0 +1,2 @@
+[17:43:45 INFO]: [PluginInitializerManager] Bukkit plugins (11):
+ - APLiveTest (1.0), AuraCommandFilter (1.0.0), AuraPunishments (1.1.1), CoreProtect (25.1), DiscordSRV (1.30.4), Essentials (2.22.0), EssentialsChat (2.22.0), JailReloaded (1.2.2), LuckPerms (5.5.71), Towny (0.103.2.0), TownyChat (0.122)

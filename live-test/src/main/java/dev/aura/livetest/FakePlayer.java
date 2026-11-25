@@ -125,7 +125,7 @@ public final class FakePlayer {
         }
     }
 
-    private static String describe(Object msg) {
+    static String describe(Object msg) {
         String n = msg.getClass().getSimpleName();
         try {
             if (msg instanceof net.minecraft.network.protocol.game.ClientboundSystemChatPacket p) {

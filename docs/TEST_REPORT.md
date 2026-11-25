@@ -1,4 +1,34 @@
-# AuraPunishments 1.1.0 - Test report
+# AuraPunishments 1.1.1 - Test report (chat-input hotfix)
+
+## 1.1.1 summary
+* **Automated:** 238 tests, 0 failures, run twice from a clean build. New: `ChatInputTest` (11 tests + a 30x repeated race test). 7 of its 11 tests **fail against the 1.1.0 implementation** (verified by swapping the old classes back), so they are genuine regression tests.
+* **Live, real protocol clients (the required proof):** Paper 26.3 with **Towny 0.103.2, TownyChat 0.122, EssentialsX 2.22.0 and EssentialsXChat 2.22.0, LuckPerms 5.5.71, JailReloaded 1.2.2, AuraCommandFilter 1.0.0, CoreProtect 25.1, DiscordSRV 1.30.4** (DiscordSRV loaded but not connected: no bot token / no network). The test clients are real Minecraft protocol clients: they open a TCP connection, do the real handshake, login and configuration phases, then send genuine serverbound chat, command and container-click packets that the server decodes from the wire. They use the server's own protocol classes, so nothing is rendered; every packet they receive is recorded. Permissions come from LuckPerms (real login events), staff are in a real Towny town with TownyChat's TOWN channel active.
+* **Phase 7 on 1.1.1: 82 / 82** (`docs/evidence/live-results-1.1.1-chat-input-phase-7-after-fix.txt`). The identical run on the 1.1.0 jar: 81 / 82, the failure being that **every one of the 16 prompt answers reached a legacy-event relay/logger at `MONITOR`** (`...-BEFORE-fix-on-1.1.0.txt`); on the first reproduction (CoreProtect at its default) the answer was also written to CoreProtect's chat log.
+* **Regression on 1.1.1:** phase 1 (54/54), phase 2 after restart (9/9), phase 3 JailReloaded missing (8/8), phase 6 online players / TownyChat mute / AuraCommandFilter / CoreProtect / real login enforcement (65/65), each on fresh data. (Phases 4 and 5 were not re-run.)
+
+### What phase 7 drives (every prompt call site in the plugin that matters, through the real GUI with real clicks and real chat packets)
+| Workflow | Prompt(s) exercised | Result |
+|---|---|---|
+| Warning | reason; too-short answer refused and prompt kept; delivery to the target's own client (title + reason) | PASS |
+| Cancel word / timeout (10 s live setting) / running a command | all three end the prompt, tell the player, return to the screen; ordinary chat afterwards is public chat | PASS |
+| Mute | custom duration (invalid then valid), reason; 2 h duration stored; owner review created | PASS |
+| Ban | custom duration, reason, evidence type + evidence reference, typed-name confirmation; ban stored with evidence; target disconnected | PASS |
+| Case wizard | incident description, contextual notes (shown back in the wizard) | PASS |
+| Judicial | staff note, assign judge by name, schedule trial, hearing reference, verdict reasoning, sentence duration + reasoning, sentence recorded | PASS |
+| Owner review | private note, request explanation (issuer's own client receives it), decision note | PASS |
+| Dashboard | "find a player" name prompt | PASS |
+| Concurrency & lifecycle | two staff in prompts at once answered in opposite order (no cross-over); a configuration reload mid-prompt; permission revoked after typing (GUI closed by the permission-change hook; service also refuses); disconnect mid-prompt cleans the session and the reconnected player chats normally | PASS |
+| Privacy audit over all answers | none seen by the bystander client, none by a `MONITOR` legacy/modern relay probe, none in CoreProtect's chat log (with `log-cancelled-chat: false`), only the legitimate ban-screen line appears in the console | PASS |
+
+### Limits of this evidence
+* DiscordSRV was not connected, so real Discord forwarding was *not* observed; the `MONITOR` probe stands in for relays/loggers.
+* The clients are protocol clients, not the official Minecraft client (no signed-chat/secure-profile path: the live server ran `enforce-secure-profile=false`, `online-mode=false`).
+* The prompt call sites for emergency action, direct punishment, revoke, evidence void and case edit use the same `PromptManager.ask()` and were covered by the automated suite, not individually by real clients.
+* In the first full phase-6 runs on 1.1.1 one check failed twice (a control chat line did not reach a second test player). With the previous plugin load order the same driver passed without any delay; with a 3 s settle after the two logins it passes with the new load order too (65/65, repeated). The explanation that fits the evidence is a timing race in the test driver (TownyChat puts a joining player into its channel shortly after the join event, and the load-order change shifted that timing). I did not prove that mechanism inside TownyChat. A real player who chats within the first moments after joining could in principle be affected by the same timing; the effect was not seen with real protocol clients in phase 7, where the control lines always arrived.
+
+---
+
+# 1.1.0 test report (history)
 
 **Automated suite:** 196 tests, 0 failures (`./gradlew test`): CaseAndCustodyTest 31, ConfigAndModelTest 12, DefendantAndEventsTest 8, DiscordServiceTest 15, JudicialAndPunishmentTest 44, MigrationV2Test 3, QueueExportAppealTest 11, ReviewAndWarningTest 17, ReviewFixesRegressionTest 7, SmokeMockTest 1, UpgradeAndConfigTest 6, BukkitLayerTest 30, GuiFlowTest 5, ReviewGuiTest 6.
 

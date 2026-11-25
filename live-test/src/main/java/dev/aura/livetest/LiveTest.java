@@ -102,6 +102,7 @@ public final class LiveTest extends JavaPlugin {
                 case "4" -> phase4();
                 case "5" -> phase5();
                 case "6" -> new Phase6(this).run();
+                case "7" -> new Phase7(this).run();
                 default -> check("known phase", false, phase);
             }
         } catch (Throwable t) {

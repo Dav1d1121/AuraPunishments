@@ -2,6 +2,7 @@ package dev.aura.punishments.gui;
 
 import dev.aura.punishments.util.Text;
 import io.papermc.paper.event.player.AsyncChatEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.title.Title;
@@ -73,14 +74,112 @@ public final class PromptManager implements Listener, PromptManagerAccess {
         s.cancelled().run();
     }
 
+    // ------------------------------------------------------------------ chat capture
+    //
+    // Paper fires TWO events for one chat line whenever any plugin listens to the legacy event (TownyChat, EssentialsX Chat,
+    // DiscordSRV and most chat managers do): first the legacy AsyncPlayerChatEvent at every priority, THEN the modern
+    // AsyncChatEvent. Capturing only the modern event (1.0.0 - 1.1.0) meant every legacy listener had already seen, formatted,
+    // relayed or broadcast the answer before it was cancelled. The legacy event is therefore captured first, and the modern
+    // event of the same line is recognised as its twin and only silenced. If no legacy listener ever fires, the modern
+    // event captures on its own.
+
+    /** One captured chat line whose twin event (the other event type for the same line) has not been seen yet. */
+    private record Pending(boolean legacyFirst, String text, long at) {}
+
+    private final Map<UUID, java.util.ArrayDeque<Pending>> pending = new ConcurrentHashMap<>();
+    /** The modern twin was silenced at LOWEST; it is force-silenced again at MONITOR in case a plugin un-cancelled it. */
+    private final Map<UUID, Long> silenceModern = new ConcurrentHashMap<>();
+    /** The legacy event was captured; force-silenced again at MONITOR. */
+    private final Map<UUID, Long> silenceLegacy = new ConcurrentHashMap<>();
+    private static final long TWIN_WINDOW_MS = 5_000;
+
+    private static boolean fresh(Long at) {
+        return at != null && System.currentTimeMillis() - at < TWIN_WINDOW_MS;
+    }
+
+    private void remember(UUID id, boolean legacyFirst, String text) {
+        var q = pending.computeIfAbsent(id, k -> new java.util.ArrayDeque<>());
+        synchronized (q) {
+            q.removeIf(x -> System.currentTimeMillis() - x.at() > TWIN_WINDOW_MS);
+            while (q.size() >= 8) q.pollFirst();
+            q.addLast(new Pending(legacyFirst, text, System.currentTimeMillis()));
+        }
+    }
+
+    /**
+     * Is this event the twin of a line captured a moment ago through the OTHER event type? Matched by opposite type and text; if
+     * a chat plugin rewrote the text in between, a single outstanding line of the other type is accepted as the twin.
+     */
+    private boolean takeTwin(UUID id, boolean legacyNow, String text) {
+        var q = pending.get(id);
+        if (q == null) return false;
+        synchronized (q) {
+            q.removeIf(x -> System.currentTimeMillis() - x.at() > TWIN_WINDOW_MS);
+            Pending hit = null;
+            for (Pending x : q) if (x.legacyFirst() == !legacyNow && x.text().equals(text)) {
+                hit = x;
+                break;
+            }
+            if (hit == null && q.size() == 1 && q.peekFirst().legacyFirst() == !legacyNow) hit = q.peekFirst();
+            if (hit == null) return false;
+            q.remove(hit);
+            return true;
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onLegacyChat(AsyncPlayerChatEvent e) {
+        Player p = e.getPlayer();
+        String raw = e.getMessage();
+        if (takeTwin(p.getUniqueId(), true, raw)) { // the legacy twin of a line the modern event already captured
+            silence(e);
+            silenceLegacy.put(p.getUniqueId(), System.currentTimeMillis());
+            return;
+        }
+        Session s = sessions.get(p.getUniqueId());
+        if (s == null) return;
+        silence(e);
+        remember(p.getUniqueId(), true, raw);
+        silenceLegacy.put(p.getUniqueId(), System.currentTimeMillis());
+        gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> handle(p, s, raw));
+    }
+
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncChatEvent e) {
         Player p = e.getPlayer();
+        String raw = PlainTextComponentSerializer.plainText().serialize(e.message());
+        if (takeTwin(p.getUniqueId(), false, raw)) { // the modern twin of a line the legacy event already captured
+            silence(e);
+            silenceModern.put(p.getUniqueId(), System.currentTimeMillis());
+            return;
+        }
         Session s = sessions.get(p.getUniqueId());
         if (s == null) return;
-        e.setCancelled(true);
-        String raw = PlainTextComponentSerializer.plainText().serialize(e.message());
+        silence(e);
+        remember(p.getUniqueId(), false, raw);
+        silenceModern.put(p.getUniqueId(), System.currentTimeMillis());
         gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> handle(p, s, raw));
+    }
+
+    /** Last word: whatever a plugin did in between, a captured line is cancelled and has no audience. */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void guardLegacy(AsyncPlayerChatEvent e) {
+        if (fresh(silenceLegacy.remove(e.getPlayer().getUniqueId()))) silence(e);
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void guardModern(AsyncChatEvent e) {
+        if (fresh(silenceModern.remove(e.getPlayer().getUniqueId()))) silence(e);
+    }
+
+    private static void silence(AsyncPlayerChatEvent e) {
+        e.setCancelled(true);
+        e.getRecipients().clear();
+    }
+
+    private static void silence(AsyncChatEvent e) {
+        e.setCancelled(true);
+        e.viewers().clear();
     }
 
     private void handle(Player p, Session s, String raw) {
@@ -111,14 +210,28 @@ public final class PromptManager implements Listener, PromptManagerAccess {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
-        Session s = sessions.remove(e.getPlayer().getUniqueId());
+        UUID id = e.getPlayer().getUniqueId();
+        Session s = sessions.remove(id);
         if (s != null) s.timeout().cancel();
+        pending.remove(id);
+        silenceLegacy.remove(id);
+        silenceModern.remove(id);
     }
 
+    /** Plugin disable / reload of the GUI layer: end every session and tell the player nothing was changed. */
     public void cancelAll() {
         for (UUID id : sessions.keySet()) {
             Session s = sessions.remove(id);
-            if (s != null) s.timeout().cancel();
+            if (s == null) continue;
+            s.timeout().cancel();
+            Player p = gui.plugin().getServer().getPlayer(id);
+            if (p != null) {
+                p.clearTitle();
+                p.sendMessage(gui.messages().get("prompt.cancelled"));
+            }
         }
+        pending.clear();
+        silenceLegacy.clear();
+        silenceModern.clear();
     }
 }

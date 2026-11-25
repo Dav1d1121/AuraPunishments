@@ -1,3 +1,11 @@
+# AuraPunishments 1.1.1 - Release notes (hotfix)
+
+**1.1.1 fixes the chat-input defect**: text typed into GUI prompts could be seen by other plugins as ordinary chat. Full analysis: [ROOT_CAUSE_ANALYSIS_1.1.1.md](ROOT_CAUSE_ANALYSIS_1.1.1.md); changes: [CHANGELOG.md](CHANGELOG.md).
+
+**Upgrade from 1.1.0 / 1.0.0:** replace the jar and restart. No database migration (schema stays v2), no config changes, no permission changes. **Recommended:** in `plugins/CoreProtect/config.yml` set `log-cancelled-chat: false` and run `/co reload`, otherwise CoreProtect stores prompt answers in its chat log (AuraPunishments prints a warning at startup when this applies). Rollback: put the 1.1.0 jar back (the database is compatible).
+
+---
+
 # AuraPunishments 1.1.0 - Release notes
 
 1.1.0 is an enhancement of 1.0.0: everything that worked before still works (all 1.0.0 tests and the live regression runs pass).

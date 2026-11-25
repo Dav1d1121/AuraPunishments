@@ -20,6 +20,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 | [docs/STAFF_HANDBOOK.md](docs/STAFF_HANDBOOK.md) | `/punish`, cases, evidence, detention, direct punishment, history |
 | [docs/JUDICIAL_HANDBOOK.md](docs/JUDICIAL_HANDBOOK.md) | Hearings, verdicts, sentencing, acquittal/release, appeals, reversals |
 | [docs/DISCORD_WEBHOOKS.md](docs/DISCORD_WEBHOOKS.md) | Discord channel/webhook setup and operation (1.1.0) |
+| [docs/CHANGELOG.md](docs/CHANGELOG.md) / [docs/ROOT_CAUSE_ANALYSIS_1.1.1.md](docs/ROOT_CAUSE_ANALYSIS_1.1.1.md) | 1.1.1 chat-input hotfix: what changed and why |
 | [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) / [docs/BUG_FIX_SUMMARY.md](docs/BUG_FIX_SUMMARY.md) / [docs/ROLLBACK.md](docs/ROLLBACK.md) | What changed, defects fixed, how to roll back |
 | [docs/PERMISSIONS.md](docs/PERMISSIONS.md) | Every permission node, per-rank recommendations, **LuckPerms commands** |
 | [docs/INTEGRATION_REPORT.md](docs/INTEGRATION_REPORT.md) | What was inspected in each plugin, how it is integrated, what was verified |
