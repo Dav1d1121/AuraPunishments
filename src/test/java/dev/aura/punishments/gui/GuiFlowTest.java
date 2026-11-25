@@ -55,7 +55,7 @@ class GuiFlowTest {
 
     private void answer(PlayerMock p, String text) {
         assertTrue(fx.await(() -> fx.gui.prompts().has(p)), "a chat prompt should be waiting");
-        p.chat(text);
+        fx.answer(p, text);
     }
 
     private long countCases() throws Exception {

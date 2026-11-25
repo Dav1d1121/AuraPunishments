@@ -1,3 +1,5 @@
+> **Update (1.2.0):** the chat-capture fix described below (1.1.1) did not satisfy the server owner in live use, so chat input was removed altogether: all text entry is now a dialog window and the plugin never reads chat for input. This document is kept as the analysis of why chat capture is fragile.
+
 # AuraPunishments 1.1.1 - Root-cause analysis: chat input (prompt answers) not private
 
 ## Symptom

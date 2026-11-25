@@ -65,6 +65,12 @@ public final class Messages {
         return v == null ? "<red>[missing message: " + key + "]</red>" : v;
     }
 
+    /** A message rendered to plain text (no prefix): used where a component cannot be shown, e.g. inside a dialog. */
+    public String plain(String key, String... kv) {
+        String raw = raw(key).replace("<prefix>", "");
+        return net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(MM.deserialize(raw, resolver(kv))).trim();
+    }
+
     public boolean has(String key) {
         return user.getString(key) != null || defaults.getString(key) != null;
     }

@@ -245,7 +245,7 @@ class BukkitLayerTest {
         PlayerMock other = fx.server.addPlayer("Other");
         String[] got = {null};
         fx.gui.prompts().ask(mod, "Type something", 3, 50, text -> got[0] = text, () -> { });
-        mod.chat("the secret reason");
+        fx.answer(mod, "the secret reason");
         assertTrue(fx.await(() -> got[0] != null));
         assertEquals("the secret reason", got[0]);
         assertTrue(fx.messages(other).stream().noneMatch(m -> m.contains("secret")), "answer must not reach other players");
@@ -257,11 +257,11 @@ class BukkitLayerTest {
         boolean[] cancelled = {false};
         String[] got = {null};
         fx.gui.prompts().ask(mod, "Type something", 3, 50, t -> got[0] = t, () -> cancelled[0] = true);
-        mod.chat("cancel");
+        fx.pressCancel(mod);
         assertTrue(fx.await(() -> cancelled[0]));
         assertNull(got[0]);
         fx.gui.prompts().ask(mod, "Again", 3, 50, t -> got[0] = t, () -> cancelled[0] = false);
-        mod.chat("ab"); // too short: stays pending
+        fx.answer(mod, "ab"); // too short: the dialog is shown again, the session stays
         fx.server.getScheduler().performTicks(5);
         assertNull(got[0]);
         assertTrue(fx.gui.prompts().has(mod));

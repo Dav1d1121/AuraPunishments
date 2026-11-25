@@ -135,14 +135,12 @@ defendant:
 #  Chat prompts (reason / evidence / note entry)
 # ---------------------------------------------------------------------------
 prompt:
-  header: "<prefix><yellow>Type your answer in chat. Type <white><cancel></white> to abort. <gray>(<seconds>s)"
+  header: "<prefix><yellow>Fill in the window that opened, then press Submit. <gray>(<seconds>s)"
   cancelled: "<prefix><gray>Cancelled."
   timeout: "<prefix><gray>Timed out - nothing was changed."
   too-short: "<prefix><red>Too short - at least <min> characters are needed."
   too-long: "<prefix><red>Too long - at most <max> characters."
   invalid: "<prefix><red><message>"
-  title: "<yellow>Type in chat"
-  subtitle: "<gray>or type <cancel> to abort"
 
 # ---------------------------------------------------------------------------
 #  Commands

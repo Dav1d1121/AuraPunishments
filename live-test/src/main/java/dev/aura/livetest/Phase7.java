@@ -169,7 +169,7 @@ final class Phase7 {
     /** Leave any prompt/screen so the next section starts clean. */
     private void reset(McClient c) throws Exception {
         if (prompting(c)) {
-            c.chat("cancel");
+            if (c.dialogOpen()) c.cancelDialog();
             Thread.sleep(1000);
         }
         t.onMain(() -> {
@@ -193,7 +193,7 @@ final class Phase7 {
         if (!ok) return "";
         String text = "S" + (++n) + "-" + run + " " + body;
         secrets.add("S" + n + "-" + run);
-        c.chat(text);
+        c.submitDialog(text);
         Thread.sleep(1200);
         return text;
     }
@@ -210,7 +210,7 @@ final class Phase7 {
         t.check("prompt is waiting for " + label, ok, "screen: " + title(c));
         if (!ok) return "";
         if (exact.length() > 12 && exact.contains("-") && exact.contains(run)) secrets.add(exact);
-        c.chat(exact);
+        c.submitDialog(exact);
         Thread.sleep(1200);
         return exact;
     }
@@ -305,6 +305,9 @@ final class Phase7 {
         press(staff, "Reason");
         watcher.clear();
         staff.clear();
+        String notAnswer = "this-is-ordinary-chat-" + run;
+        staff.chat(notAnswer);
+        t.check("a line typed in CHAT while the dialog is open is ordinary chat (chat is not an input channel) and the dialog stays", waitFor(() -> watcher.saw(notAnswer), 6000) && prompting(staff), "");
         String shortAns = "x";
         waitFor(() -> {
             try {
@@ -313,7 +316,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat(shortAns);
+        staff.submitDialog(shortAns);
         Thread.sleep(1200);
         t.check("an invalid (too short) answer is refused, explained, and the prompt stays active", staff.saw("Too short") && prompting(staff), staff.snapshot().stream().filter(p -> p.contains("SystemChat")).toList().toString());
         String ans = say(staff, "the warning reason", "spamming the chat repeatedly warning");
@@ -345,9 +348,9 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat("cancel");
+        staff.cancelDialog();
         Thread.sleep(1200);
-        t.check("typing the cancel word aborts the prompt, tells the player and returns to the screen", !prompting(staff) && staff.saw("Cancelled") && waitTitle(staff, "warn", 4000), title(staff));
+        t.check("pressing Cancel in the dialog aborts the prompt, tells the player and returns to the screen", !prompting(staff) && staff.saw("Cancelled") && waitTitle(staff, "warn", 4000), title(staff));
         t.check("the word 'cancel' was not broadcast", !watcher.saw("cancel"), "");
         // timeout (the live config uses a 10 second timeout)
         press(staff, "Reason");
@@ -400,7 +403,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat("banana");
+        staff.submitDialog("banana");
         Thread.sleep(1200);
         t.check("an invalid duration is rejected with an explanation and the GUI returns", staff.saw("not a valid duration") && !prompting(staff), "");
         press(staff, "Custom duration");
@@ -411,7 +414,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat("2h");
+        staff.submitDialog("2h");
         Thread.sleep(1200);
         t.check("a duration answer ('2h') is captured, never broadcast", !watcher.saw("2h") && !prompting(staff), "");
         press(staff, "Reason");
@@ -439,7 +442,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat("1d");
+        staff.submitDialog("1d");
         Thread.sleep(1200);
         press(staff, "Reason");
         String reason = say(staff, "the ban reason", "cheating with a hacked client evidence attached");
@@ -457,7 +460,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000), title(staff));
-        staff.chat(tname);
+        staff.submitDialog(tname);
         Thread.sleep(2500);
         t.check("the typed confirmation was captured, not broadcast", !watcher.saw(tname + "\u0000"), "");
         t.check("ban recorded with the typed reason", dbHas("SELECT COUNT(*) FROM punishments WHERE type='BAN' AND target_name='" + tname + "' AND reason='" + q(reason) + "'"), "last message to staff: " + sys(staff) + " | screen: " + title(staff));
@@ -594,7 +597,7 @@ final class Phase7 {
                 return false;
             }
         }, 5000);
-        staff.chat(name);
+        staff.submitDialog(name);
         Thread.sleep(2000);
         t.check("the typed player name opened that player's screen", waitTitle(staff, name, 6000), title(staff));
         t.check("the typed name was not broadcast", !watcher.saw(name + "\u0000") && watcher.snapshot().stream().noneMatch(p -> p.startsWith("ClientboundPlayerChat") && p.contains(name)), "");
@@ -621,10 +624,10 @@ final class Phase7 {
         press(staffB, "Reason");
         t.check("both staff members have independent active prompts", prompting(staffA) && prompting(staffB), "");
         // answer in the opposite order of opening
-        staffB.chat("S-B-" + run + " reason typed by staff B for target Y");
+        staffB.submitDialog("S-B-" + run + " reason typed by staff B for target Y");
         Thread.sleep(1500);
         t.check("B's answer completed only B's session", !prompting(staffB) && prompting(staffA), "");
-        staffA.chat("S-A-" + run + " reason typed by staff A for target X");
+        staffA.submitDialog("S-A-" + run + " reason typed by staff A for target X");
         Thread.sleep(1500);
         secrets.add("S-B-" + run);
         secrets.add("S-A-" + run);

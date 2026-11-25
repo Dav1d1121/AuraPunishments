@@ -38,7 +38,7 @@ gui:
   click-cooldown-ms: 250
   # How long a chat prompt (reason, evidence, notes) waits for the staff member to type.
   prompt-timeout-seconds: 90
-  # Word that cancels a chat prompt.
+  # (No longer used: text entry is a dialog window with Cancel and Submit buttons; kept so old config files still load.)
   prompt-cancel-word: cancel
   # Rows per list page are fixed by the GUI layout (28 entries per page).
   # Sounds used for feedback. Use a valid Minecraft sound key or "none".

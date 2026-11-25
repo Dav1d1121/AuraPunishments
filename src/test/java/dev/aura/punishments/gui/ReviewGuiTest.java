@@ -70,7 +70,7 @@ class ReviewGuiTest {
         assertTrue(fx.awaitMenu(owner, ReviewMenu.class), "clicking an entry opens the review");
         click(owner, 28); // Uphold
         assertTrue(fx.await(() -> fx.gui.prompts().has(owner)));
-        owner.chat("The evidence supports the mute.");
+        fx.answer(owner, "The evidence supports the mute.");
         assertTrue(fx.await(() -> { try { return reload(r).status() == ReviewStatus.UPHELD; } catch (Exception e) { return false; } }));
         assertEquals("The evidence supports the mute.", reload(r).decisionNote());
         assertTrue(fx.plugin.punishments().cache().mute(steve.uuid(), System.currentTimeMillis()).isPresent(), "upheld = still in force");
@@ -83,7 +83,7 @@ class ReviewGuiTest {
         assertTrue(fx.awaitMenu(owner, ReviewMenu.class));
         click(owner, 30); // Reverse
         assertTrue(fx.await(() -> fx.gui.prompts().has(owner)));
-        owner.chat("Applied to the wrong player by mistake.");
+        fx.answer(owner, "Applied to the wrong player by mistake.");
         assertTrue(fx.awaitMenu(owner, ConfirmMenu.class), "reversal asks for explicit confirmation");
         assertEquals(ReviewStatus.PENDING_REVIEW, reload(r).status(), "nothing changed before confirming");
         click(owner, 11); // CONFIRM
@@ -102,7 +102,7 @@ class ReviewGuiTest {
         assertFalse(reviewer.hasPermission(Perms.REVIEW_REVIEW), "the revocation took effect");
         click(reviewer, 28);
         assertTrue(fx.await(() -> fx.gui.prompts().has(reviewer)), "the stale button still asks for the note");
-        reviewer.chat("Trying to uphold without permission.");
+        fx.answer(reviewer, "Trying to uphold without permission.");
         assertTrue(fx.await(() -> fx.messages(reviewer).stream().anyMatch(m -> m.contains("do not have permission"))), "the service refuses and says why");
         assertEquals(ReviewStatus.PENDING_REVIEW, reload(r).status(), "nothing changed");
     }
@@ -114,7 +114,7 @@ class ReviewGuiTest {
         assertTrue(fx.awaitMenu(owner, ReviewMenu.class));
         click(owner, 28);
         assertTrue(fx.await(() -> fx.gui.prompts().has(owner)));
-        owner.chat("The evidence supports the mute.");
+        fx.answer(owner, "The evidence supports the mute.");
         assertTrue(fx.await(() -> { try { return reload(r).status() == ReviewStatus.UPHELD; } catch (Exception e) { return false; } }));
         long events = fx.plugin.core().db.<Integer>txSync(c -> (int) Repo.Reviews.events(c, r.id()).stream().filter(e -> e.type().equals("DECISION")).count());
         assertEquals(1, events);

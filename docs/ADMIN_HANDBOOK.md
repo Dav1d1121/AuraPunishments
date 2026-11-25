@@ -216,13 +216,17 @@ still recorded, staff are alerted, and the release is retried every minute.
 | `AUDIT LOG DAMAGED` | An audit row was edited or removed outside the plugin. Preserve the database file and investigate. |
 | Plugin disabled itself at startup | Invalid configuration, database cannot be opened, or active punishments could not be loaded - the console says which. The plugin refuses to run rather than silently skip bans. |
 
-### Why chat prompts instead of anvil/dialog text entry
+### Text entry (1.2.0): a native dialog window, never chat
 
-Staff type reasons, evidence and notes in **chat**: the GUI closes, the next line is captured and **cancelled** (never
-broadcast, never reaches other chat plugins' viewers), validated, and the GUI returns. Typing `cancel`, running a command,
-disconnecting or waiting 90 s aborts safely. This was chosen over an anvil GUI (needs packet tricks, length-limited) and
-over the Paper Dialog API (still experimental on 26.3) for reliability. A dialog implementation can replace the prompt
-manager later without touching the services.
+Whenever the GUI needs text (a reason, evidence reference, note, description, duration, player name, a typed-name confirmation), the
+GUI closes and Minecraft opens a **dialog window** with a text box and **Submit** / **Cancel** buttons (Paper's Dialog API). The
+text travels in the dialog's own packet: no chat event exists, so no chat plugin, Discord relay or chat logger can see it, and
+nothing is written to CoreProtect's chat log. A too-short/too-long answer re-opens the dialog with the problem shown and the typed text
+kept. The dialog cannot be closed with Esc (use Cancel); an unanswered dialog closes after `gui.prompt-timeout-seconds` (default 90 s),
+and disconnecting, running a command or a plugin disable ends the session without changing anything. Each staff member has their own
+session. Chat itself is never read for input. `gui.prompt-cancel-word` is no longer used (old config files still load).
+
+Requirements: a client version that supports dialogs (any client that can join a Paper 26.3 server).
 
 ## 8. Security model (summary)
 

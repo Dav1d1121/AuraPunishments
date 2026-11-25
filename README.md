@@ -7,6 +7,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 * Main command: **`/punish <player>`** - the player's complete disciplinary GUI. Also `/punishments`, `/ap help|case|cases|history|judge|reload|...`.
 * Standard path: **case -> pretrial detention (JailReloaded) -> Discord hearing -> verdict -> sentence** (owner is the judge).
 * Exception path: **direct punishment** for proven major offenses (evidence + justification) and **emergency actions**.
+* **No chat input (1.2.0):** all text entry is a native dialog window with Submit / Cancel; nothing is ever typed into chat.
 * Routine **warnings** (title + sound + chat, queued for offline players) and immediate **quick punishments** that also go to an **owner review** queue (never automatic, never reversed by a timer).
 * Work queue, defendant notifications, case export, read-only CoreProtect evidence, Discord channel routing (**1.1.0**).
 * AuraPunishments never implements a jail: JailReloaded imprisons; this plugin records, verifies and reconciles.
@@ -47,7 +48,7 @@ src/main/java/dev/aura/punishments/
   integration/  JailReloaded adapter + bootstrap, LuckPerms, Discord, notifier, enforcement
   listener/     login bans, chat mutes, command guards (mute / legacy / custody)
   command/      /punish, /punishments, /ap
-  gui/          menus, GUI manager (click safety), chat prompts
+  gui/          menus, GUI manager (click safety), dialog-window text entry
 src/test/       126 tests (services, MockBukkit GUI/listener flows, Discord failure handling)
 live-test/      driver plugin run inside a real Paper 26.3 server with the real JailReloaded/LuckPerms/EssentialsX/Towny
 libs/           supplied custom jars (compile-only / test-only; not bundled)

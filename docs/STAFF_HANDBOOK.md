@@ -1,4 +1,10 @@
-# AuraPunishments 1.1.0 - Staff Handbook
+# AuraPunishments 1.2.0 - Staff Handbook
+
+## Entering text (1.2.0)
+
+You never type into chat for the plugin any more. When a button needs text (a reason, a note, evidence, a name, a duration) a **window**
+opens with a text box: write your answer, press **Submit**, or **Cancel** to change nothing. If it is too short or too long the window
+re-opens with the problem shown and your text kept. Nobody else can see what you write.
 
 ## What's new in 1.1.0 (staff)
 

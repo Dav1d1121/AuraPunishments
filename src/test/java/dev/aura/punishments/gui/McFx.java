@@ -30,6 +30,22 @@ public final class McFx implements AutoCloseable {
     public final AuraPunishmentsPlugin plugin;
     public final Gui gui;
     public final FakeJail jail = new FakeJail();
+    /** The text-entry dialog each player currently has open (what the native Minecraft dialog would show). */
+    public final java.util.Map<java.util.UUID, PromptManager.Request> dialogs = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** The player types into the dialog's text box and presses Submit. */
+    public void answer(org.bukkit.entity.Player p, String text) {
+        PromptManager.Request r = dialogs.get(p.getUniqueId());
+        if (r == null) throw new AssertionError("no dialog is open for " + p.getName());
+        r.onSubmit().accept(text);
+    }
+
+    /** The player presses Cancel in the dialog. */
+    public void pressCancel(org.bukkit.entity.Player p) {
+        PromptManager.Request r = dialogs.get(p.getUniqueId());
+        if (r == null) throw new AssertionError("no dialog is open for " + p.getName());
+        r.onCancel().run();
+    }
 
     public McFx() {
         server = MockBukkit.mock();
@@ -38,6 +54,10 @@ public final class McFx implements AutoCloseable {
         plugin = MockBukkit.load(AuraPunishmentsPlugin.class);
         gui = plugin.gui();
         plugin.core().jail = jail;
+        gui.prompts().presenter(new PromptManager.Presenter() {
+            @Override public void show(org.bukkit.entity.Player p, PromptManager.Request r) { dialogs.put(p.getUniqueId(), r); }
+            @Override public void close(org.bukkit.entity.Player p) { dialogs.remove(p.getUniqueId()); }
+        });
     }
 
     private static void deleteRecursively(File f) {

@@ -1,3 +1,11 @@
+# AuraPunishments 1.2.0 - Release notes
+
+**No more typing in chat.** Every text entry in the GUI is now a Minecraft dialog window with a text box and Submit / Cancel. Nothing is read from chat, so nothing can leak to chat plugins, Discord relays or logs. See [CHANGELOG.md](CHANGELOG.md).
+
+**Upgrade (from 1.1.1, 1.1.0 or 1.0.0):** replace the jar and restart. No database migration, no required config changes, no permission changes. `gui.prompt-cancel-word` is ignored (leave it or delete it). Rollback: put the previous jar back (schema unchanged).
+
+---
+
 # AuraPunishments 1.1.1 - Release notes (hotfix)
 
 **1.1.1 fixes the chat-input defect**: text typed into GUI prompts could be seen by other plugins as ordinary chat. Full analysis: [ROOT_CAUSE_ANALYSIS_1.1.1.md](ROOT_CAUSE_ANALYSIS_1.1.1.md); changes: [CHANGELOG.md](CHANGELOG.md).

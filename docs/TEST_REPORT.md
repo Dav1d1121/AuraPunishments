@@ -1,3 +1,16 @@
+# AuraPunishments 1.2.0 - Test report (dialog-window text entry; no chat input)
+
+## 1.2.0 summary
+* **Design change:** text entry no longer uses chat at all (see CHANGELOG). The earlier 1.1.1 approach (capture chat first) is gone.
+* **Automated:** 209 tests, 0 failures, run twice from a clean build. `DialogInputTest` (8) covers submit-once, validation re-open with the typed text, cancel, timeout (closes the dialog), replaced/stale dialogs ignored, independent sessions, disconnect and shutdown cleanup, and asserts the prompt manager has no chat handler; `MuteChatTest` (5) keeps mute enforcement on both chat events. Existing GUI/judicial/review tests were converted to answer through the dialog.
+* **Live, real protocol clients over TCP** (real handshake/login/configuration; the client decodes the server's real `show_dialog` packet and answers with a genuine `custom_click_action` packet carrying the text-box value; slot clicks and commands are real packets too). Server: Paper 26.3 with Towny, TownyChat, EssentialsX + EssentialsX Chat, LuckPerms, JailReloaded, AuraCommandFilter, CoreProtect, DiscordSRV (not connected). **Phase 7: 83 / 83** on the final jar: warning (reason + too-short validation), cancel button, timeout (10 s live setting), running a command mid-dialog, mute (invalid then valid duration, reason), ban (duration, reason, evidence type + reference, typed-name confirmation), case wizard (description, notes), judicial (note, assign judge by name, trial time, hearing reference, verdict reasoning, sentence duration + reasoning), owner review (private note, explanation to the issuer's client, decision note), dashboard player search, two staff at once in opposite order, reload mid-dialog, permission revoked mid-dialog, disconnect mid-dialog. A line typed in chat while a dialog is open is ordinary public chat and the dialog stays. Privacy audit: no answer appeared on any other client, in any chat relay probe, or in CoreProtect's chat log, and the console shows only the legitimate ban-screen text.
+* **Regression on the final jar (fresh data):** phase 1 54/54, phase 2 9/9, phase 3 8/8, phase 6 65/65 (see the results listed in `docs/evidence/`). Phases 4 and 5 were not re-run.
+* **Limits:** clients are protocol clients, not the official game client (the dialog is not rendered; what is verified is the exact packets the server sends and accepts); `online-mode=false`; DiscordSRV not connected to Discord. Dialogs are a vanilla client feature; any client able to join a Paper 26.3 server has it.
+
+---
+
+# 1.1.1 test report (history; superseded by the 1.2.0 design)
+
 # AuraPunishments 1.1.1 - Test report (chat-input hotfix)
 
 ## 1.1.1 summary

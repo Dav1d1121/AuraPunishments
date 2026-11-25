@@ -47,7 +47,7 @@ final class ConfirmMenu extends Menu {
             if (typeToConfirm == null) {
                 onConfirm.run();
             } else {
-                gui.prompts().ask(p, "Type the player's name exactly (" + typeToConfirm + ") to confirm, or cancel.", 1, 40, text -> {
+                gui.prompts().ask(p, "Type the player's name exactly (" + typeToConfirm + ") to confirm.", 1, 40, text -> {
                     if (text.equalsIgnoreCase(typeToConfirm)) onConfirm.run();
                     else {
                         gui.messages().sendError(p, "The name did not match. Nothing was changed.");

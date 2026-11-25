@@ -63,7 +63,12 @@ public final class McClient {
     public volatile int stateId;
     public volatile boolean playing;
     public volatile String disconnected;
+    /** The text dialog the server last opened (null when none is open). */
+    private volatile Dialog dialog;
     private Connection conn;
+
+    private record Dialog(net.minecraft.resources.Identifier yesId, net.minecraft.nbt.CompoundTag yesAdd, net.minecraft.resources.Identifier noId, net.minecraft.nbt.CompoundTag noAdd, String text) {}
+
     private final CountDownLatch inGame = new CountDownLatch(1);
 
     private McClient(String name, UUID uuid) {
@@ -174,6 +179,19 @@ public final class McClient {
         if (pk instanceof ClientboundPlayerPositionPacket p) {
             conn.send(new ServerboundAcceptTeleportationPacket(p.id(), p.change().position().x, p.change().position().y, p.change().position().z, 0f, 0f));
         }
+        if (pk instanceof net.minecraft.network.protocol.common.ClientboundShowDialogPacket sd) {
+            var d = (net.minecraft.server.dialog.ConfirmationDialog) sd.dialog().value();
+            var yes = (net.minecraft.server.dialog.action.CustomAll) d.yesButton().action().orElseThrow();
+            var no = (net.minecraft.server.dialog.action.CustomAll) d.noButton().action().orElseThrow();
+            dialog = new Dialog(yes.id(), yes.additions().orElse(new net.minecraft.nbt.CompoundTag()), no.id(), no.additions().orElse(new net.minecraft.nbt.CompoundTag()), d.common().toString());
+            packets.add("ClientboundShowDialogPacket|" + d.common());
+            return;
+        }
+        if (pk instanceof net.minecraft.network.protocol.common.ClientboundClearDialogPacket) {
+            dialog = null;
+            packets.add("ClientboundClearDialogPacket");
+            return;
+        }
         if (pk instanceof ClientboundOpenScreenPacket o) containerId = o.getContainerId();
         if (pk instanceof ClientboundContainerSetContentPacket c) {
             containerId = c.containerId();
@@ -188,6 +206,35 @@ public final class McClient {
     /** A real chat line, exactly as a client sends it. */
     public void chat(String text) {
         conn.send(new ServerboundChatPacket(text, Instant.now(), 0L, Optional.empty(), new LastSeenMessages.Update(0, new BitSet(), (byte) 0)));
+    }
+
+    /** Is a text dialog open on this client's screen? */
+    public boolean dialogOpen() {
+        return dialog != null;
+    }
+
+    /** Wait (up to 6 s) for a dialog to be on screen. */
+    public boolean awaitDialog() throws InterruptedException {
+        for (int i = 0; i < 120 && dialog == null; i++) Thread.sleep(50);
+        return dialog != null;
+    }
+
+    /** Type into the dialog's text box and press Submit: a genuine custom-click-action packet carrying the field value. */
+    public void submitDialog(String text) throws InterruptedException {
+        if (!awaitDialog()) throw new IllegalStateException("no dialog is open on the client");
+        Dialog d = dialog;
+        dialog = null;
+        var tag = d.yesAdd().copy();
+        tag.put("answer", net.minecraft.nbt.StringTag.valueOf(text));
+        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket(d.yesId(), Optional.of(tag)));
+    }
+
+    /** Press the dialog's Cancel button. */
+    public void cancelDialog() throws InterruptedException {
+        if (!awaitDialog()) throw new IllegalStateException("no dialog is open on the client");
+        Dialog d = dialog;
+        dialog = null;
+        conn.send(new net.minecraft.network.protocol.common.ServerboundCustomClickActionPacket(d.noId(), Optional.of(d.noAdd().copy())));
     }
 
     /** A real slash command (without the slash). */

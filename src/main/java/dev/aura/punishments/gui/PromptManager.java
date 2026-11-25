@@ -1,39 +1,51 @@
 package dev.aura.punishments.gui;
 
 import dev.aura.punishments.util.Text;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import org.bukkit.event.player.AsyncPlayerChatEvent;
-import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
-import net.kyori.adventure.title.Title;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
- * Secure free-text entry (reasons, notes, evidence, durations) without an anvil GUI or packets: the GUI
- * closes, the next chat line from that player is captured and CANCELLED (so it is never broadcast, logged to
- * chat plugins or seen by other players), validated and handed to the caller. Typing the cancel word, running
- * a command, disconnecting or timing out aborts safely with nothing changed.
+ * Free-text entry (reasons, notes, evidence references, durations, player names) WITHOUT chat.
+ *
+ * <p>Since 1.2.0 nothing is ever typed into chat: the player gets a native Minecraft dialog window with a text box and
+ * Submit / Cancel buttons. The text travels in the dialog response packet, so no chat event exists for any plugin to see,
+ * relay or log. One session per staff member; answers are validated (length), invalid answers re-open the dialog with the
+ * error and the typed text; timing out, cancelling, disconnecting or a plugin disable ends the session and changes nothing.
  */
 public final class PromptManager implements Listener, PromptManagerAccess {
-    private record Session(long token, int min, int max, Consumer<String> ok, Runnable cancelled, BukkitTask timeout) {}
+    /** What the dialog must show. */
+    public record Request(String question, int min, int max, String initial, String error, int seconds,
+                          Consumer<String> onSubmit, Runnable onCancel) {}
+
+    /** Shows / closes the dialog. Production: {@link DialogPresenter}; tests substitute a recording fake. */
+    public interface Presenter {
+        void show(Player p, Request r);
+
+        void close(Player p);
+    }
+
+    private record Session(long token, int min, int max, Consumer<String> ok, Runnable cancelled, BukkitTask timeout, String question) {}
 
     private final Gui gui;
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
+    private volatile Presenter presenter;
     private long tokens;
 
     public PromptManager(Gui gui) {
         this.gui = gui;
+        this.presenter = new DialogPresenter(gui);
+    }
+
+    public void presenter(Presenter p) {
+        this.presenter = p;
     }
 
     @Override
@@ -51,155 +63,38 @@ public final class PromptManager implements Listener, PromptManagerAccess {
             Session s = sessions.get(p.getUniqueId());
             if (s != null && s.token() == token) {
                 sessions.remove(p.getUniqueId());
+                presenter.close(p);
                 gui.messages().send(p, "prompt.timeout");
                 s.cancelled().run();
             }
         }, seconds * 20L);
-        sessions.put(p.getUniqueId(), new Session(token, min, max, ok, cancelled, timeout));
-        p.sendMessage(gui.messages().get("info", "message", question));
-        gui.messages().send(p, "prompt.header", "cancel", gui.settings().gui.cancelWord(), "seconds", String.valueOf(seconds));
-        p.showTitle(Title.title(gui.messages().get("prompt.title"),
-                gui.messages().get("prompt.subtitle", "cancel", gui.settings().gui.cancelWord()),
-                Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(Math.min(seconds, 30)), Duration.ofMillis(500))));
+        sessions.put(p.getUniqueId(), new Session(token, min, max, ok, cancelled, timeout, question));
+        show(p, token, question, min, max, "", null, seconds);
     }
 
-    /** Abort a running prompt. @param notify tell the player. */
-    @Override
-    public void cancel(Player p, boolean notify) {
-        Session s = sessions.remove(p.getUniqueId());
-        if (s == null) return;
-        s.timeout().cancel();
-        p.clearTitle();
-        if (notify) gui.messages().send(p, "prompt.cancelled");
-        s.cancelled().run();
+    private void show(Player p, long token, String question, int min, int max, String initial, String error, int seconds) {
+        presenter.show(p, new Request(question, min, max, initial, error, seconds,
+                text -> gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> submit(p, token, text)),
+                () -> gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> {
+                    Session s = sessions.get(p.getUniqueId());
+                    if (s != null && s.token() == token) cancel(p, true);
+                })));
     }
 
-    // ------------------------------------------------------------------ chat capture
-    //
-    // Paper fires TWO events for one chat line whenever any plugin listens to the legacy event (TownyChat, EssentialsX Chat,
-    // DiscordSRV and most chat managers do): first the legacy AsyncPlayerChatEvent at every priority, THEN the modern
-    // AsyncChatEvent. Capturing only the modern event (1.0.0 - 1.1.0) meant every legacy listener had already seen, formatted,
-    // relayed or broadcast the answer before it was cancelled. The legacy event is therefore captured first, and the modern
-    // event of the same line is recognised as its twin and only silenced. If no legacy listener ever fires, the modern
-    // event captures on its own.
-
-    /** One captured chat line whose twin event (the other event type for the same line) has not been seen yet. */
-    private record Pending(boolean legacyFirst, String text, long at) {}
-
-    private final Map<UUID, java.util.ArrayDeque<Pending>> pending = new ConcurrentHashMap<>();
-    /** The modern twin was silenced at LOWEST; it is force-silenced again at MONITOR in case a plugin un-cancelled it. */
-    private final Map<UUID, Long> silenceModern = new ConcurrentHashMap<>();
-    /** The legacy event was captured; force-silenced again at MONITOR. */
-    private final Map<UUID, Long> silenceLegacy = new ConcurrentHashMap<>();
-    private static final long TWIN_WINDOW_MS = 5_000;
-
-    private static boolean fresh(Long at) {
-        return at != null && System.currentTimeMillis() - at < TWIN_WINDOW_MS;
-    }
-
-    private void remember(UUID id, boolean legacyFirst, String text) {
-        var q = pending.computeIfAbsent(id, k -> new java.util.ArrayDeque<>());
-        synchronized (q) {
-            q.removeIf(x -> System.currentTimeMillis() - x.at() > TWIN_WINDOW_MS);
-            while (q.size() >= 8) q.pollFirst();
-            q.addLast(new Pending(legacyFirst, text, System.currentTimeMillis()));
-        }
-    }
-
-    /**
-     * Is this event the twin of a line captured a moment ago through the OTHER event type? Matched by opposite type and text; if
-     * a chat plugin rewrote the text in between, a single outstanding line of the other type is accepted as the twin.
-     */
-    private boolean takeTwin(UUID id, boolean legacyNow, String text) {
-        var q = pending.get(id);
-        if (q == null) return false;
-        synchronized (q) {
-            q.removeIf(x -> System.currentTimeMillis() - x.at() > TWIN_WINDOW_MS);
-            Pending hit = null;
-            for (Pending x : q) if (x.legacyFirst() == !legacyNow && x.text().equals(text)) {
-                hit = x;
-                break;
-            }
-            if (hit == null && q.size() == 1 && q.peekFirst().legacyFirst() == !legacyNow) hit = q.peekFirst();
-            if (hit == null) return false;
-            q.remove(hit);
-            return true;
-        }
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onLegacyChat(AsyncPlayerChatEvent e) {
-        Player p = e.getPlayer();
-        String raw = e.getMessage();
-        if (takeTwin(p.getUniqueId(), true, raw)) { // the legacy twin of a line the modern event already captured
-            silence(e);
-            silenceLegacy.put(p.getUniqueId(), System.currentTimeMillis());
-            return;
-        }
+    /** The player pressed Submit. Stale dialogs (replaced, timed out, cancelled) are ignored. */
+    private void submit(Player p, long token, String raw) {
         Session s = sessions.get(p.getUniqueId());
-        if (s == null) return;
-        silence(e);
-        remember(p.getUniqueId(), true, raw);
-        silenceLegacy.put(p.getUniqueId(), System.currentTimeMillis());
-        gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> handle(p, s, raw));
-    }
-
-    @EventHandler(priority = EventPriority.LOWEST)
-    public void onChat(AsyncChatEvent e) {
-        Player p = e.getPlayer();
-        String raw = PlainTextComponentSerializer.plainText().serialize(e.message());
-        if (takeTwin(p.getUniqueId(), false, raw)) { // the modern twin of a line the legacy event already captured
-            silence(e);
-            silenceModern.put(p.getUniqueId(), System.currentTimeMillis());
-            return;
-        }
-        Session s = sessions.get(p.getUniqueId());
-        if (s == null) return;
-        silence(e);
-        remember(p.getUniqueId(), false, raw);
-        silenceModern.put(p.getUniqueId(), System.currentTimeMillis());
-        gui.plugin().getServer().getScheduler().runTask(gui.plugin(), () -> handle(p, s, raw));
-    }
-
-    /** Last word: whatever a plugin did in between, a captured line is cancelled and has no audience. */
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void guardLegacy(AsyncPlayerChatEvent e) {
-        if (fresh(silenceLegacy.remove(e.getPlayer().getUniqueId()))) silence(e);
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void guardModern(AsyncChatEvent e) {
-        if (fresh(silenceModern.remove(e.getPlayer().getUniqueId()))) silence(e);
-    }
-
-    private static void silence(AsyncPlayerChatEvent e) {
-        e.setCancelled(true);
-        e.getRecipients().clear();
-    }
-
-    private static void silence(AsyncChatEvent e) {
-        e.setCancelled(true);
-        e.viewers().clear();
-    }
-
-    private void handle(Player p, Session s, String raw) {
-        if (sessions.get(p.getUniqueId()) != s) return; // replaced or finished meanwhile
-        String text = Text.clean(raw);
-        if (text.equalsIgnoreCase(gui.settings().gui.cancelWord())) {
-            cancel(p, true);
-            return;
-        }
-        if (text.length() < s.min()) {
-            gui.messages().send(p, "prompt.too-short", "min", String.valueOf(s.min()));
-            return;
-        }
-        if (text.length() > s.max()) {
-            gui.messages().send(p, "prompt.too-long", "max", String.valueOf(s.max()));
+        if (s == null || s.token() != token || !p.isOnline()) return;
+        String text = Text.clean(raw == null ? "" : raw);
+        String error = null;
+        if (text.length() < s.min()) error = gui.messages().plain("prompt.too-short", "min", String.valueOf(s.min()));
+        else if (text.length() > s.max()) error = gui.messages().plain("prompt.too-long", "max", String.valueOf(s.max()));
+        if (error != null) { // keep the session, show the dialog again with the problem and what was typed
+            show(p, token, s.question(), s.min(), s.max(), Text.truncate(text, s.max()), error, gui.settings().gui.promptTimeoutSeconds());
             return;
         }
         sessions.remove(p.getUniqueId());
         s.timeout().cancel();
-        p.clearTitle();
         try {
             s.ok().accept(text);
         } catch (RuntimeException ex) {
@@ -208,14 +103,21 @@ public final class PromptManager implements Listener, PromptManagerAccess {
         }
     }
 
+    /** Abort a running prompt. @param notify tell the player. */
+    @Override
+    public void cancel(Player p, boolean notify) {
+        Session s = sessions.remove(p.getUniqueId());
+        if (s == null) return;
+        s.timeout().cancel();
+        presenter.close(p);
+        if (notify) gui.messages().send(p, "prompt.cancelled");
+        s.cancelled().run();
+    }
+
     @EventHandler
     public void onQuit(PlayerQuitEvent e) {
-        UUID id = e.getPlayer().getUniqueId();
-        Session s = sessions.remove(id);
+        Session s = sessions.remove(e.getPlayer().getUniqueId());
         if (s != null) s.timeout().cancel();
-        pending.remove(id);
-        silenceLegacy.remove(id);
-        silenceModern.remove(id);
     }
 
     /** Plugin disable / reload of the GUI layer: end every session and tell the player nothing was changed. */
@@ -226,12 +128,9 @@ public final class PromptManager implements Listener, PromptManagerAccess {
             s.timeout().cancel();
             Player p = gui.plugin().getServer().getPlayer(id);
             if (p != null) {
-                p.clearTitle();
+                presenter.close(p);
                 p.sendMessage(gui.messages().get("prompt.cancelled"));
             }
         }
-        pending.clear();
-        silenceLegacy.clear();
-        silenceModern.clear();
     }
 }
