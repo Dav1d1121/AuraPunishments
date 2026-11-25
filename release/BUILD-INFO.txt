@@ -1,10 +1,9 @@
-AuraPunishments 1.1.1 (chat-input hotfix)
-Source commit : 02335ddb80bdca584144d48b2482c1ef4436c90b   (branch claude/loving-gauss-yj9j6n; the jar was built from exactly this commit with a clean working tree)
-Packaged      : 2026-11-25T18:45Z
-Toolchain     : OpenJDK 25.0.5.1, Gradle 9.2.1, compiled against io.papermc.paper:paper-api:26.3.build.256-stable
-Target        : Paper 26.3 (api-version 26.3), Java 25
-Tested        : 238 automated tests (0 failed, run twice from a clean build). Live on Paper 26.3.build.256-stable with Towny 0.103.2, TownyChat 0.122, EssentialsX + EssentialsXChat 2.22.0, LuckPerms 5.5.71, JailReloaded 1.2.2, AuraCommandFilter 1.0.0, CoreProtect 25.1, DiscordSRV 1.30.4 (not connected to Discord): chat-input phase driven by real TCP protocol clients 82/82 (the same run on 1.1.0: 81/82, every prompt answer reached a legacy-event relay probe); regression phases 1, 2, 3 and 6 on fresh data: 54, 9, 8, 65 passed, 0 failed. The classes/resources of this jar are byte-identical to the jar used in those live runs.
-Not tested     : real Discord delivery / DiscordSRV forwarding (not connected); signed-chat (secure profile) clients; live phases 4 and 5; see docs/TEST_REPORT.md
-Evidence      : docs/TEST_REPORT.md, docs/ROOT_CAUSE_ANALYSIS_1.1.1.md, docs/evidence/
-SHA-256       : ec42a549d9c2bb28141b2f135712ac12c444864d1deb22718a5fde611041c221
-Note          : This file and the jar were added in a follow-up commit that changes no source; the source commit above is the release commit. Earlier release jars remain in release/ for rollback. Schema is unchanged (v2): rolling back to 1.1.0 is just replacing the jar.
+AuraPunishments 1.2.0 (text entry via dialog windows; no chat input)
+Source commit : 44d11f30574630e29b25e4828f4419781af4b342   (branch claude/loving-gauss-yj9j6n; built from exactly this commit, clean tree)
+Packaged      : 2026-11-25T22:48Z
+Toolchain     : OpenJDK 25.0.5.1, Gradle 9.2.1, paper-api 26.3.build.256-stable; Target Paper 26.3, Java 25
+Tested        : 209 automated tests (0 failed, twice, clean build). Live on Paper 26.3 with Towny, TownyChat, EssentialsX + Chat, LuckPerms, JailReloaded, AuraCommandFilter, CoreProtect, DiscordSRV (not connected), real TCP protocol clients answering real dialog packets: phase 7 = 83/83; regression phases 6/1/2/3 = 65/54/9/8 passed, 0 failed. Jar classes/resources byte-identical to the jar used in those runs.
+Not tested     : official game client rendering of the dialog; real Discord delivery; live phases 4 and 5; signed-chat clients
+Evidence      : docs/TEST_REPORT.md, docs/evidence/
+SHA-256       : 353b0957d09bca03d919c848402d8754a2fffcdeb6ff1cf4cec3af5175b40527
+Note          : Added in a follow-up commit that changes no source. Earlier jars remain in release/. Schema unchanged (v2).
