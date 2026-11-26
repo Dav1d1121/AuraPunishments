@@ -1,9 +1,8 @@
-AuraPunishments 1.2.0 (text entry via dialog windows; no chat input)
-Source commit : 44d11f30574630e29b25e4828f4419781af4b342   (branch claude/loving-gauss-yj9j6n; built from exactly this commit, clean tree)
-Packaged      : 2026-11-25T22:48Z
+AuraPunishments 1.2.1 (optional name confirmation)
+Source commit : 29cbf355ef1fdf6444ed74872dc6fb3abf4c8cce   (branch claude/loving-gauss-yj9j6n; built from exactly this commit, clean tree)
+Packaged      : 2026-11-26T14:48Z
 Toolchain     : OpenJDK 25.0.5.1, Gradle 9.2.1, paper-api 26.3.build.256-stable; Target Paper 26.3, Java 25
-Tested        : 209 automated tests (0 failed, twice, clean build). Live on Paper 26.3 with Towny, TownyChat, EssentialsX + Chat, LuckPerms, JailReloaded, AuraCommandFilter, CoreProtect, DiscordSRV (not connected), real TCP protocol clients answering real dialog packets: phase 7 = 83/83; regression phases 6/1/2/3 = 65/54/9/8 passed, 0 failed. Jar classes/resources byte-identical to the jar used in those runs.
-Not tested     : official game client rendering of the dialog; real Discord delivery; live phases 4 and 5; signed-chat clients
-Evidence      : docs/TEST_REPORT.md, docs/evidence/
-SHA-256       : 353b0957d09bca03d919c848402d8754a2fffcdeb6ff1cf4cec3af5175b40527
-Note          : Added in a follow-up commit that changes no source. Earlier jars remain in release/. Schema unchanged (v2).
+Tested        : 212 automated tests (0 failed, twice, clean build). Live on Paper 26.3 with Towny, TownyChat, EssentialsX + Chat, LuckPerms, JailReloaded, AuraCommandFilter, CoreProtect, DiscordSRV (not connected), real TCP protocol clients: phase 7 = 91/91; regression phases 6/1/2/3 = 65/54/9/8, 0 failed. Jar classes/resources byte-identical to the jar used in those runs.
+Not tested     : official game client rendering of dialogs; real Discord delivery; live phases 4 and 5
+SHA-256       : 4190e03e3b66166064686775da638e0a6e1bd86946e3c1d5a0edf6e863339b12
+Note          : Added in a follow-up commit that changes no source. Schema unchanged (v2).
