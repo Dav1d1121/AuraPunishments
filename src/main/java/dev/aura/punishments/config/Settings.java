@@ -46,7 +46,7 @@ public final class Settings {
     public record Emergency(boolean enabled, Set<PunishType> allowedTypes, long defaultDuration, long maxDuration,
                             long reviewDeadline, long overdueRepeat) {}
 
-    public record Quick(boolean requireReason, Set<PunishType> requireEvidence) {}
+    public record Quick(boolean requireReason, Set<PunishType> requireEvidence, boolean typeNameToConfirm) {}
 
     public record Protections(boolean enforceHierarchy, boolean blockSelf, String immunityNode) {}
 
@@ -206,7 +206,8 @@ public final class Settings {
                 dur(y, "emergency.overdue-repeat", "1h", false, p));
 
         this.quick = new Quick(y.getBoolean("punishments.quick.require-reason", true),
-                types(y.getStringList("punishments.quick.require-evidence"), "punishments.quick.require-evidence", p));
+                types(y.getStringList("punishments.quick.require-evidence"), "punishments.quick.require-evidence", p),
+                y.getBoolean("punishments.quick.type-name-to-confirm", false));
 
         Map<PunishType, LinkedHashMap<String, Long>> lim = new EnumMap<>(PunishType.class);
         ConfigurationSection ls = y.getConfigurationSection("punishments.limits");

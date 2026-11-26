@@ -35,14 +35,14 @@ public final class McFx implements AutoCloseable {
 
     /** The player types into the dialog's text box and presses Submit. */
     public void answer(org.bukkit.entity.Player p, String text) {
-        PromptManager.Request r = dialogs.get(p.getUniqueId());
+        PromptManager.Request r = dialogs.remove(p.getUniqueId()); // a dialog closes when a button is pressed
         if (r == null) throw new AssertionError("no dialog is open for " + p.getName());
         r.onSubmit().accept(text);
     }
 
     /** The player presses Cancel in the dialog. */
     public void pressCancel(org.bukkit.entity.Player p) {
-        PromptManager.Request r = dialogs.get(p.getUniqueId());
+        PromptManager.Request r = dialogs.remove(p.getUniqueId());
         if (r == null) throw new AssertionError("no dialog is open for " + p.getName());
         r.onCancel().run();
     }

@@ -429,7 +429,20 @@ final class Phase7 {
 
     // ------------------------------------------------------------------ 4. ban: evidence prompt + typed-name confirmation prompt
     private void ban(McClient staff) throws Exception {
-        String tname = "LiveTargetB" + run;
+        banFlow(staff, "LiveTargetB" + run, false);
+        // switch the optional "enter the player's name" step ON through the config file and /ap reload, then repeat
+        java.nio.file.Path cfg = t.ap.getDataFolder().toPath().resolve("config.yml");
+        String text = java.nio.file.Files.readString(cfg);
+        java.nio.file.Files.writeString(cfg, text.replaceFirst("(quick:[\\s\\S]*?)type-name-to-confirm: false", "$1type-name-to-confirm: true"));
+        staff.command("ap reload");
+        Thread.sleep(2500);
+        banFlow(staff, "LiveTargetN" + run, true);
+        java.nio.file.Files.writeString(cfg, text);
+        staff.command("ap reload");
+        Thread.sleep(2000);
+    }
+
+    private void banFlow(McClient staff, String tname, boolean nameRequired) throws Exception {
         McClient target = login(tname, "aurapunishments.level.1");
         staff.command("punish " + tname);
         waitTitle(staff, tname, 8000);
@@ -449,22 +462,31 @@ final class Phase7 {
         press(staff, "Evidence");
         t.check("evidence type picker shown", waitTitle(staff, "evidence", 4000) || slot(staff, "external link") >= 0, title(staff));
         press(staff, "external link");
-        String ev = sayRaw(staff, "the evidence reference", "https://example.com/proof-" + run);
+        sayRaw(staff, "the evidence reference", "https://example.com/proof-" + tname);
         press(staff, "CONTINUE");
         waitTitle(staff, "confirm", 4000);
         press(staff, "CONFIRM");
-        t.check("the heavy action asks the staff member to TYPE the player's name", waitFor(() -> {
-            try {
-                return prompting(staff);
-            } catch (Exception e) {
-                return false;
-            }
-        }, 5000), title(staff));
-        staff.submitDialog(tname);
-        Thread.sleep(2500);
-        t.check("the typed confirmation was captured, not broadcast", !watcher.saw(tname + "\u0000"), "");
-        t.check("ban recorded with the typed reason", dbHas("SELECT COUNT(*) FROM punishments WHERE type='BAN' AND target_name='" + tname + "' AND reason='" + q(reason) + "'"), "last message to staff: " + sys(staff) + " | screen: " + title(staff));
-        t.check("the evidence answer was stored on the case", dbHas("SELECT COUNT(*) FROM evidence WHERE reference LIKE '%proof-" + run + "%'"), "");
+        if (nameRequired) {
+            t.check("setting ON: the confirmation asks for the player's name in a dialog", waitFor(() -> {
+                try {
+                    return prompting(staff);
+                } catch (Exception e) {
+                    return false;
+                }
+            }, 5000), title(staff));
+            staff.submitDialog("SomeoneElse");
+            Thread.sleep(2000);
+            t.check("setting ON: a wrong name applies nothing", !dbHas("SELECT COUNT(*) FROM punishments WHERE type='BAN' AND target_name='" + tname + "'"), sys(staff));
+            waitTitle(staff, "confirm", 4000);
+            press(staff, "CONFIRM");
+            sayRaw(staff, "the player's name (confirmation)", tname);
+            Thread.sleep(2000);
+        } else {
+            Thread.sleep(2500);
+            t.check("setting OFF (default): no name dialog - Confirm applies the ban", !prompting(staff), title(staff));
+        }
+        t.check("ban recorded with the typed reason" + (nameRequired ? " (name entered)" : " (no name entry)"), dbHas("SELECT COUNT(*) FROM punishments WHERE type='BAN' AND target_name='" + tname + "' AND reason='" + q(reason) + "'"), "last message to staff: " + sys(staff) + " | screen: " + title(staff));
+        t.check("the evidence answer was stored on the case", dbHas("SELECT COUNT(*) FROM evidence WHERE reference LIKE '%proof-" + tname + "%'"), "");
         t.check("the banned target's client was disconnected", waitFor(() -> target.disconnected != null, 6000), "");
     }
 

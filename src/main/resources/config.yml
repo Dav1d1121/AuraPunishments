@@ -152,8 +152,9 @@ direct:
   min-justification-length: 30
   # Evidence items required (each offense may require more in offenses.yml).
   min-evidence: 1
-  # Confirmation requires typing the player's name for these (extra safety).
-  type-name-to-confirm: [BAN, IPBAN]
+  # For these punishment types the confirmation also asks for the player's name (extra safety). [] = only Confirm / Cancel
+  # (default since 1.2.1). Example to turn it back on: [BAN, IPBAN]. Takes effect on /ap reload.
+  type-name-to-confirm: []
 
 # ---------------------------------------------------------------------------
 #  Emergency protective actions (separately authorised, auto-expiring)
@@ -180,6 +181,9 @@ punishments:
     require-reason: true
     require-evidence: [IPBAN, BAN]
     # Permanent quick punishments additionally need the ".permanent" permission node.
+    # true  = bans, IP bans and permanent punishments ask the staff member to enter the player's name in a dialog before they apply.
+    # false = only the normal Confirm / Cancel screen (default since 1.2.1). Takes effect on /ap reload.
+    type-name-to-confirm: false
   # Staff can only issue a TIMED punishment up to the longest tier they hold:
   #   aurapunishments.limit.<type>.<tier>
   # e.g. a Jr Mod with aurapunishments.limit.mute.short may mute for up to 1h.

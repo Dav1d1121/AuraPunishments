@@ -109,7 +109,8 @@ final class QuickPunishMenu extends Menu {
             lines.add("Action: " + type.display() + (type.canBeTimed() ? " " + Views.duration(duration) : ""));
             lines.add("Reason: " + r);
             if (!evidence.isEmpty()) lines.add("Evidence items: " + evidence.size());
-            boolean heavy = type == PunishType.BAN || type == PunishType.IPBAN || (type.canBeTimed() && duration == Durations.PERMANENT);
+            boolean heavy = gui.settings().quick.typeNameToConfirm()
+                    && (type == PunishType.BAN || type == PunishType.IPBAN || (type.canBeTimed() && duration == Durations.PERMANENT));
             new ConfirmMenu(gui, p, this, type.display() + " " + target.name(), lines, heavy ? target.name() : null, () ->
                     gui.call(p, gui.punishments.issueQuick(gui.actor(p), new PunishmentService.Request(target, type, type.canBeTimed() ? duration : 0, r, List.copyOf(evidence))), pun -> {
                         gui.success(p, type.display() + " issued to " + target.name() + " (#" + pun.id() + ")"
