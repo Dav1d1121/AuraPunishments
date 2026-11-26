@@ -216,6 +216,9 @@ still recorded, staff are alerted, and the release is retried every minute.
 | `AUDIT LOG DAMAGED` | An audit row was edited or removed outside the plugin. Preserve the database file and investigate. |
 | Plugin disabled itself at startup | Invalid configuration, database cannot be opened, or active punishments could not be loaded - the console says which. The plugin refuses to run rather than silently skip bans. |
 
+### Optional name confirmation (1.2.1)
+`punishments.quick.type-name-to-confirm` (default `false`) and `direct.type-name-to-confirm` (default `[]`) control whether heavy actions ask for the player's name in a dialog after Confirm. Both take effect on `/ap reload`; existing config files keep their own values.
+
 ### Text entry (1.2.0): a native dialog window, never chat
 
 Whenever the GUI needs text (a reason, evidence reference, note, description, duration, player name, a typed-name confirmation), the

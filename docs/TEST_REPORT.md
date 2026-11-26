@@ -1,3 +1,9 @@
+# AuraPunishments 1.2.1 - Test report
+
+**1.2.1:** 212 automated tests, 0 failures (twice, clean build); new `TypeNameConfirmTest` (setting off: Confirm applies at once, no dialog; setting on: name dialog, a wrong name applies nothing, the right name applies; shipped direct default off). Live, real protocol clients: phase 7 **91/91** (the ban workflow now runs with the setting off, then switched on through the config file and `/ap reload`, and off again), phases 6/1/2/3: 65/54/9/8 passed, 0 failed. Same limits as 1.2.0 below (protocol clients, not the official client; Discord not connected; phases 4/5 not re-run).
+
+---
+
 # AuraPunishments 1.2.0 - Test report (dialog-window text entry; no chat input)
 
 ## 1.2.0 summary

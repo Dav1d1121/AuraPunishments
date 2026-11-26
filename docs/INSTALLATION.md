@@ -1,4 +1,4 @@
-# AuraPunishments 1.2.0 - Installation, Upgrade, Deployment and Rollback
+# AuraPunishments 1.2.1 - Installation, Upgrade, Deployment and Rollback
 
 ## Before you start
 
@@ -9,7 +9,7 @@
 ## Install
 
 1. Stop the server.
-2. Copy `AuraPunishments-1.2.0.jar` into `plugins/`. (SHA-256 is published next to the jar; see `release/`.)
+2. Copy `AuraPunishments-1.2.1.jar` into `plugins/`. (SHA-256 is published next to the jar; see `release/`.)
 3. Make sure JailReloaded has an enabled jail (see the Admin handbook, "Required JailReloaded setup").
 4. Start the server and read the startup summary (`JailReloaded: ... (compatible)`, `LuckPerms: connected`).
 5. Grant permissions with the LuckPerms commands from [PERMISSIONS.md](PERMISSIONS.md) section 3. At minimum for the
@@ -32,10 +32,10 @@ Do this on the live server with two staff accounts and one test player before an
 8. `/ap status` and `/ap audit verify` report healthy.
 9. Restart the server; confirm bans/mutes/custody persisted and `/ap status` is clean.
 
-## Upgrade to 1.2.0 (from 1.1.x or 1.0.0)
+## Upgrade to 1.2.1 (from 1.2.0, 1.1.x or 1.0.0)
 
 1. Stop the server, back up `plugins/AuraPunishments/`.
-2. Delete the old AuraPunishments jar, put `AuraPunishments-1.2.0.jar` in `plugins/`, start the server.
+2. Delete the old AuraPunishments jar, put `AuraPunishments-1.2.1.jar` in `plugins/`, start the server.
 3. No migration, no config or permission changes are required. Text entry is now a dialog window instead of chat; there is nothing to configure (`gui.prompt-timeout-seconds` still sets how long a dialog may stay open).
 4. The CoreProtect `log-cancelled-chat` advice from 1.1.1 no longer applies (nothing is typed into chat).
 5. Rollback: put the previous jar back (same schema).
@@ -43,7 +43,7 @@ Do this on the live server with two staff accounts and one test player before an
 ## (history) Upgrade from 1.1.0 to 1.1.1 (hotfix)
 
 1. Stop the server, back up `plugins/AuraPunishments/`.
-2. Replace `AuraPunishments-1.1.0.jar` with `AuraPunishments-1.2.0.jar`, start the server.
+2. Replace `AuraPunishments-1.1.0.jar` with `AuraPunishments-1.2.1.jar`, start the server.
 3. Nothing else changes: **no database migration, no configuration change, no permission change**. Your `config.yml`, `messages.yml`, database and permissions are used as they are.
 4. If CoreProtect is installed, the startup log may print *"CoreProtect is configured with log-cancelled-chat: true ..."*. To keep prompt answers out of CoreProtect's chat log set `log-cancelled-chat: false` in `plugins/CoreProtect/config.yml` and run `/co reload`.
 5. 1.1.1 now loads *before* TownyChat / EssentialsX / DiscordSRV (see the changelog). This is automatic; no action needed. If you have your own chat plugin that must see chat before AuraPunishments, tell us - it is not supported for prompt answers.
@@ -52,7 +52,7 @@ Do this on the live server with two staff accounts and one test player before an
 ## Upgrade from 1.0.0 (step by step)
 
 1. **Back up first.** Stop the server and copy the whole `plugins/AuraPunishments/` folder (the `.db`, `-wal`, `-shm` files and the YAMLs) somewhere safe, plus `plugins/JailReloaded/`.
-2. Replace `AuraPunishments-1.0.0.jar` with `AuraPunishments-1.2.0.jar` (verify the SHA-256 in `release/`) and start the server.
+2. Replace `AuraPunishments-1.0.0.jar` with `AuraPunishments-1.2.1.jar` (verify the SHA-256 in `release/`) and start the server.
 3. The database migrates from schema v1 to v2 automatically, **after copying the old database to `plugins/AuraPunishments/backups/punishments.db.pre-v2-<timestamp>`**. If the migration fails, the plugin disables itself and leaves your data untouched.
 4. What the migration does with your history: every record is kept as it was. 1.0.0 *quick* mutes / bans / IP bans are imported into the review table as **Legacy (pre-review)** - they are *not* put in the pending queue and *nothing* is posted to Discord for them. Warnings that were never shown to a player (still queued) are carried over so they are still delivered at next login (once).
 5. **Your `config.yml` is never modified.** New options use built-in defaults until you add them. A reference copy of the full 1.1.0 file is written once as `config-1.1.0-reference.yml` next to your config so you can adopt what you want. Your existing custody deadlines (default 48h review + 12h grace) and every other value are unchanged. Your `messages.yml` is also untouched; new messages fall back to the built-in text.
@@ -83,7 +83,7 @@ See [DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md). In short: create one webhook per
 ## Building from source
 
 ```
-./gradlew build            # JDK 25 required (toolchain); produces build/libs/AuraPunishments-1.2.0.jar
+./gradlew build            # JDK 25 required (toolchain); produces build/libs/AuraPunishments-1.2.1.jar
 ./gradlew test             # 196 unit/integration tests (JUnit 5, MockBukkit)
 ./gradlew :live-test:jar   # the live-server verification driver (see docs/TEST_REPORT.md)
 ```

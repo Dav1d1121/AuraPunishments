@@ -1,0 +1,56 @@
+== phase 1 ==
+PASS JailReloaded detected as compatible  -- JailReloaded 1.2.2 (compatible)
+PASS jail 'testjail' usable
+PASS unknown target rejected
+PASS ambiguous name rejected
+PASS verified offline target resolved  -- by uuid
+PASS custody initiated via JailReloaded
+PASS JailReloaded holds the prisoner
+PASS prisoner reason tagged with case  -- [AP-0002] Live test: repeated offensive behaviour towards other players.
+PASS pretrial = open-ended (time -1)  -- remaining=-1
+PASS jailer recorded  -- LiveJrMod
+PASS custody ACTIVE with 48h deadline  -- ACTIVE
+PASS jail prisoner id stored
+PASS second custody for same player refused  -- LiveSteve is already in custody (case AP-0002).
+PASS guilty verdict recorded
+PASS jail sentence imposed
+PASS same JailReloaded record converted (no second jail)
+PASS time-served credit applied (>=2s)  -- credit=2838ms
+PASS JailReloaded time unit is milliseconds & matches  -- remaining=7197162 expected~7197162
+PASS custody SERVING without review deadline  -- SERVING
+PASS custody for Alex
+PASS not guilty verdict
+PASS acquitted prisoner released in JailReloaded  -- Released from pretrial custody.
+PASS no punishment for an acquittal
+PASS custody for Bob
+PASS ban sentence imposed
+PASS custody ended before the ban (no contradictory state)
+PASS banned player denied at login  -- KICK_BANNED
+PASS clean player allowed at login  -- ALLOWED
+PASS custody for Carl
+PASS JailReloaded release event already reconciled the replaced custody  -- ENDED_EXTERNALLY
+PASS nothing left to release for the ended custody  -- There is no active custody for that case.
+PASS UNRELATED jail sentence was NOT released  -- unrelated sentence
+PASS adapter refuses to release a record with a different id (NOT_OURS)  -- NOT_OURS
+PASS ...and the prisoner is still held
+PASS adapter refuses to change the time of a different record  -- NOT_OURS
+PASS ...time unchanged
+PASS custody for Dora
+PASS external /unjailforce detected and reconciled via JailReloaded event  -- ENDED_EXTERNALLY
+PASS custody for Eve
+PASS reconcile detects prisoner missing from JailReloaded
+PASS custody for Frank (kept for restart test)
+PASS permanent ban issued
+PASS mute issued
+PASS direct punishment refused without evidence  -- Direct punishment for 'Cheating / Hacked Client' requires at least 2 evidence reference(s).
+PASS direct punishment with evidence issued
+PASS emergency action issued with review deadline
+PASS emergency action refused without its own permission  -- You do not have permission to use emergency protective actions.
+PASS offline higher-ranked staff protected (real LuckPerms lookup)  -- You cannot act against a player of equal or higher staff authority.
+PASS immune offline player protected (real LuckPerms lookup)  -- That player is immune to disciplinary action.
+PASS invalid config rejected; previous settings stay active
+PASS valid config reload applied live
+PASS audit hash chain intact  -- first bad=-1
+PASS audit has entries
+PASS unfinished pending operations
+== phase 1: 54 passed, 0 failed ==

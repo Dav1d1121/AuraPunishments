@@ -1,3 +1,9 @@
+# AuraPunishments 1.2.1 - Release notes
+
+Small update: the "enter the player's name" step before bans, IP bans and permanent punishments is now optional and **off by default** (`punishments.quick.type-name-to-confirm`). For direct punishments edit `direct.type-name-to-confirm` in your existing config to `[]`. Replace the jar and restart; no migration, no permission changes. Details: [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 # AuraPunishments 1.2.0 - Release notes
 
 **No more typing in chat.** Every text entry in the GUI is now a Minecraft dialog window with a text box and Submit / Cancel. Nothing is read from chat, so nothing can leak to chat plugins, Discord relays or logs. See [CHANGELOG.md](CHANGELOG.md).

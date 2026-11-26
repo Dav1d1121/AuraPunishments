@@ -1,0 +1,11 @@
+== phase 2 ==
+PASS permanent ban survived restart
+PASS temporary direct ban survived restart
+PASS mute survived restart
+PASS banned player denied at login after restart
+PASS custody record persisted and still ACTIVE after reconciliation  -- ACTIVE
+PASS JailReloaded persisted the prisoner (same record id)
+PASS case still persisted
+PASS audit chain intact after restart
+PASS release after restart works through JailReloaded
+== phase 2: 9 passed, 0 failed ==
