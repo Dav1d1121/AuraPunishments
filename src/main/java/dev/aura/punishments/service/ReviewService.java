@@ -52,14 +52,16 @@ public final class ReviewService extends Svc {
     /** @return the review id, or -1 when this punishment does not need one. */
     static long createIfRequired(Core core, Connection c, Actor actor, Punishment p, Long caseId) throws SQLException {
         Settings.Review cfg = core.settings.review;
-        if (!cfg.enabled() || p.source() != dev.aura.punishments.model.Simple.Source.QUICK || !cfg.requiredTypes().contains(p.type())) return -1;
+        boolean emergency = p.source() == dev.aura.punishments.model.Simple.Source.EMERGENCY && !core.mode.enabled() && cfg.includeEmergency();
+        if (!cfg.enabled() || !(p.source().quickLike() || emergency) || !(emergency || cfg.requiredTypes().contains(p.type()))) return -1;
+        if (!emergency && cfg.permanentOnlyTypes().contains(p.type()) && p.expiresAt() != null) return -1; // e.g. only permanent bans are reviewed
         long duration = p.expiresAt() == null ? Long.MAX_VALUE : p.expiresAt() - p.issuedAt();
-        if (duration < cfg.minDuration()) return -1;
+        if (!emergency && duration < cfg.minDuration()) return -1;
         if (cfg.exemptLevel() > 0 && actor.perms().level() >= cfg.exemptLevel()) return -1;
         long now = core.clock.now();
         long id = Repo.Reviews.insert(c, p.id(), caseId, p.targetUuid(), p.targetName(), p.issuerUuid(), p.issuerName(), p.type(),
                 p.expiresAt() == null ? null : duration, p.reason(), p.issuedAt(), ReviewStatus.PENDING_REVIEW,
-                now + cfg.evidenceDeadline(), now + cfg.reviewDeadline(), now);
+                now + cfg.evidenceDeadline(), emergency && p.reviewDeadline() != null ? p.reviewDeadline() : now + cfg.reviewDeadline(), now);
         Repo.Reviews.addEvent(c, id, now, actor.name(), "CREATED", p.classification() + " issued; owner review requested");
         return id;
     }
@@ -123,11 +125,20 @@ public final class ReviewService extends Svc {
             boolean priv = core.auth.has(actor, Perms.REVIEW_SENSITIVE);
             List<ReviewEvent> events = new ArrayList<>();
             for (ReviewEvent e : Repo.Reviews.events(c, id)) if (priv || !e.type().equals("NOTE")) events.add(e);
-            List<Evidence> ev = List.of();
-            if (r.caseId() != null && (core.auth.has(actor, Perms.EVIDENCE_VIEW) || isOwn(actor, r))) ev = Repo.Evidences.forCase(c, r.caseId(), false);
+            List<Evidence> ev = new ArrayList<>();
+            if (core.auth.has(actor, Perms.EVIDENCE_VIEW) || isOwn(actor, r)) {
+                if (r.punishmentId() != null) ev.addAll(Repo.Evidences.forPunishment(c, r.punishmentId(), false)); // evidence attached to the punishment itself
+                if (r.caseId() != null) ev.addAll(Repo.Evidences.forCase(c, r.caseId(), false));
+            }
             return Result.ok(new Detail(r, r.punishmentId() == null ? null : Repo.Punishments.get(c, r.punishmentId()), events, ev, priv,
-                    r.caseId() != null && Repo.Evidences.countActive(c, r.caseId()) > 0));
+                    hasEvidence(c, r)));
         });
+    }
+
+    /** Evidence counts wherever it lives: on the punishment itself or on its case. */
+    private static boolean hasEvidence(Connection c, Review r) throws SQLException {
+        return (r.punishmentId() != null && Repo.Evidences.countActiveForPunishment(c, r.punishmentId()) > 0)
+                || (r.caseId() != null && Repo.Evidences.countActive(c, r.caseId()) > 0);
     }
 
     // ------------------------------------------------------------------ workflow
@@ -234,6 +245,19 @@ public final class ReviewService extends Svc {
             if (r.status() == ReviewStatus.REVERSED || r.migrated()) return Result.<Evidence>fail(Code.STATE, r.ref() + " no longer accepts evidence.");
             long now = core.clock.now();
             Long caseId = r.caseId();
+            if (caseId == null && !core.mode.enabled()) {
+                // judicial system off: the evidence belongs to the punishment itself (no hidden case is created)
+                Punishment pun = r.punishmentId() == null ? null : Repo.Punishments.get(c, r.punishmentId());
+                if (pun == null) return Result.<Evidence>fail(Code.NOT_FOUND, r.ref() + " has no punishment to attach evidence to.");
+                if (Repo.Evidences.countActiveForPunishment(c, pun.id()) >= core.settings.cases.maxEvidence()) {
+                    return Result.<Evidence>fail(Code.LIMIT, "This punishment already has the maximum number of evidence items.");
+                }
+                long evId = Repo.Evidences.addToPunishment(c, pun.id(), in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
+                boolean late = r.evidenceDue() != null && now > r.evidenceDue();
+                Repo.Reviews.addEvent(c, id, now, actor.name(), "EVIDENCE_ADDED", in.type() + " #" + evId + (late ? " (after the evidence deadline)" : ""));
+                audit(c, actor, "review.evidence", r.targetUuid(), null, "review=" + id + " punishment=" + pun.id() + " evidence=" + evId, false);
+                return Result.ok(Repo.Evidences.get(c, evId));
+            }
             if (caseId == null) {
                 caseId = Repo.Cases.insert(c, CaseStatus.CLOSED, CaseKind.QUICK, r.targetUuid(), r.targetName(), "other", Severity.MODERATE,
                         clip(r.reason(), 400), null, r.issuerUuid(), r.issuerName(), now);
@@ -344,6 +368,10 @@ public final class ReviewService extends Svc {
                     return to == ReviewStatus.REVERSED ? Result.<Review>fail(Code.CONFLICT, "The punishment was reversed, but the review changed meanwhile; reopen it to record the decision.") : stale(id);
                 }
                 Repo.Reviews.addEvent(c, id, now, actor.name(), "DECISION", detail + ": " + why);
+                if (r.punishmentId() != null && to.decided()) {
+                    Punishment pp = Repo.Punishments.get(c, r.punishmentId());
+                    if (pp != null && pp.source() == dev.aura.punishments.model.Simple.Source.EMERGENCY) Repo.Punishments.markReviewed(c, pp.id()); // one decision settles both queues
+                }
                 audit(c, actor, "review." + to.name().toLowerCase(), r.targetUuid(), r.caseId(), "review=" + id + " " + detail, to != ReviewStatus.UPHELD);
                 return Result.ok(Repo.Reviews.get(c, id));
             });
@@ -379,6 +407,8 @@ public final class ReviewService extends Svc {
 
     /** Refer the punishment to the judicial system: opens a standard case and marks the review "Further investigation". */
     public CompletableFuture<Result<Long>> refer(Actor actor, long id, long expectedVersion, String note) {
+        Result<Long> off0 = core.mode.refuseNew("opening a case from a review");
+        if (off0 != null) return done(off0);
         Result<Void> perm = core.auth.requireAny(actor, "refer to the judicial system", Perms.REVIEW_REVIEW);
         if (!perm.isOk()) return done(perm.cast());
         Result<Void> cp = core.auth.require(actor, Perms.CASE_CREATE, "open cases");
@@ -448,7 +478,7 @@ public final class ReviewService extends Svc {
             int n = 0;
             for (Review r : Repo.Reviews.openReviews(c)) {
                 if (r.migrated()) continue;
-                boolean hasEvidence = r.caseId() != null && Repo.Evidences.countActive(c, r.caseId()) > 0;
+                boolean hasEvidence = hasEvidence(c, r);
                 // evidence reminder to the issuer
                 if (!hasEvidence && r.evidenceDue() != null && r.issuerUuid() != null && r.evidenceReminders() < cfg.maxEvidenceReminders()
                         && now >= r.evidenceDue() - cfg.reminderBefore()

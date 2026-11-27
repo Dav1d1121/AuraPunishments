@@ -159,4 +159,5 @@ command:
   busy: "<prefix><gray>Still working on your previous action..."
   legacy-blocked: "<prefix><red>Punishments are handled by AuraPunishments. Use <white>/punish <player></white> (or <white>/ap help</white>) instead of <white>/<command></white>."
   custody-guard: "<prefix><red>That prisoner is held for case <white><ref></white>. Use <white>/punish <player></white> to release them through the case process."
+  jail-guard: "<prefix><red>That prisoner is serving jail punishment <white><ref></white>. Release them with <white>/ap unjail <player> <reason></white> (or the history screen) so it is recorded properly."
   self-target: "<prefix><red>You cannot open your own punishment screen."

@@ -33,6 +33,10 @@ public final class Gui {
     public WorkQueueService workQueue;
     public ExportService exports;
     public CoreProtectService coreProtect;
+    /** 1.3.0 services (case-free evidence/notes, punishment appeals, standalone jail). */
+    public PunishmentRecords records;
+    public PunishmentAppeals appeals;
+    public JailService jails;
     public final AdminHooks admin;
     private final GuiManager manager;
     private final PromptManager prompts;
@@ -75,6 +79,12 @@ public final class Gui {
         this.workQueue = workQueue;
         this.exports = exports;
         this.coreProtect = coreProtect;
+    }
+
+    public void attach(PunishmentRecords records, PunishmentAppeals appeals, JailService jails) {
+        this.records = records;
+        this.appeals = appeals;
+        this.jails = jails;
     }
 
     public AdminService admin2() {
@@ -165,6 +175,7 @@ public final class Gui {
                 return;
             }
             try {
+                if (res.message() != null && !res.message().isBlank()) messages().sendInfo(p, res.message()); // a success with a caution
                 ok.accept(res.value());
             } catch (RuntimeException e) {
                 plugin.getLogger().severe("GUI follow-up failed: " + e);

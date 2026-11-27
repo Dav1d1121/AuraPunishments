@@ -6,6 +6,7 @@ import dev.aura.punishments.model.Records.Custody;
 import dev.aura.punishments.model.Records.Punishment;
 import dev.aura.punishments.service.Core;
 import dev.aura.punishments.service.CustodyService;
+import dev.aura.punishments.service.JailService;
 import dev.aura.punishments.service.Perms;
 import dev.aura.punishments.service.PunishmentService;
 import org.bukkit.Bukkit;
@@ -37,12 +38,14 @@ public final class CommandGuardListener implements Listener {
     private final Core core;
     private final PunishmentService punishments;
     private final CustodyService custody;
+    private final JailService jails;
     private final PromptManagerAccess prompts;
 
-    public CommandGuardListener(Core core, PunishmentService punishments, CustodyService custody, PromptManagerAccess prompts) {
+    public CommandGuardListener(Core core, PunishmentService punishments, CustodyService custody, JailService jails, PromptManagerAccess prompts) {
         this.core = core;
         this.punishments = punishments;
         this.custody = custody;
+        this.jails = jails;
         this.prompts = prompts;
     }
 
@@ -124,6 +127,13 @@ public final class CommandGuardListener implements Listener {
                     if (held.isPresent()) {
                         e.setCancelled(true);
                         p.sendMessage(core.messages.get("command.custody-guard", "ref", CustodyService.tag(held.get().caseId())));
+                        return;
+                    }
+                    // a prisoner serving a jail punishment issued through AuraPunishments is protected the same way
+                    Optional<Punishment> serving = jails.heldByName(t);
+                    if (serving.isPresent()) {
+                        e.setCancelled(true);
+                        p.sendMessage(core.messages.get("command.jail-guard", "ref", JailService.tag(serving.get().id())));
                         return;
                     }
                 }

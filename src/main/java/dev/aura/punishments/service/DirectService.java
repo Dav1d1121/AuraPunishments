@@ -38,7 +38,8 @@ public final class DirectService extends Svc {
 
     public record EmergencyRequest(Target target, PunishType type, long durationMs, String reason) {}
 
-    public enum ReviewDecision { ESCALATE_TO_TRIAL, REVOKE_AND_DISMISS }
+    /** UPHOLD only exists for case-free emergency actions (judicial system off): the action simply stands until it expires. */
+    public enum ReviewDecision { ESCALATE_TO_TRIAL, REVOKE_AND_DISMISS, UPHOLD }
 
     public DirectService(Core core, PunishmentService punishments) {
         super(core);
@@ -47,6 +48,8 @@ public final class DirectService extends Svc {
 
     // ------------------------------------------------------------------ direct
     public CompletableFuture<Result<Punishment>> direct(Actor actor, DirectRequest r) {
+        Result<Punishment> off0 = core.mode.refuseNew("a direct punishment (it exists to bypass the judicial process; ordinary punishments are final when it is off)");
+        if (off0 != null) return done(off0);
         Settings s = core.settings;
         if (!s.direct.enabled()) return done(Result.fail(Code.UNAVAILABLE, "Direct punishments are disabled in the configuration."));
         PunishType type = r.type();
@@ -176,13 +179,19 @@ public final class DirectService extends Svc {
             if (!tc.isOk()) return done(tc.<Punishment>cast());
             return db(c -> {
                 long now = core.clock.now();
-                long caseId = Repo.Cases.insert(c, CaseStatus.UNDER_INVESTIGATION, CaseKind.EMERGENCY, r.target().uuid(), r.target().name(),
-                        "other", Severity.SEVERE, "EMERGENCY: " + reason, null, actor.dbUuid(), actor.name(), now);
+                // With the judicial system off there is no case: the action is a punishment that expires by itself and is reviewed by senior staff.
+                boolean withCase = core.mode.enabled();
+                Long caseId = withCase ? Repo.Cases.insert(c, CaseStatus.UNDER_INVESTIGATION, CaseKind.EMERGENCY, r.target().uuid(), r.target().name(),
+                        "other", Severity.SEVERE, "EMERGENCY: " + reason, null, actor.dbUuid(), actor.name(), now) : null;
                 Result<Punishment> ins = punishments.insert(c, actor, type, r.target(), duration, "Temporary protective action: " + reason,
                         Source.EMERGENCY, caseId, "other", now + s.emergency.reviewDeadline(), null, true);
                 if (!ins.isOk()) return ins;
-                Repo.Events.add(c, caseId, now, actor.dbUuid(), actor.name(), "EMERGENCY_ACTION", null, CaseStatus.UNDER_INVESTIGATION,
-                        type.display() + " " + Durations.format(duration) + " - review due in " + Durations.format(s.emergency.reviewDeadline()));
+                if (withCase) {
+                    Repo.Events.add(c, caseId, now, actor.dbUuid(), actor.name(), "EMERGENCY_ACTION", null, CaseStatus.UNDER_INVESTIGATION,
+                            type.display() + " " + Durations.format(duration) + " - review due in " + Durations.format(s.emergency.reviewDeadline()));
+                } else {
+                    ReviewService.createIfRequired(core, c, actor, ins.value(), null); // owner review queue, when review.include-emergency is on
+                }
                 audit(c, actor, "emergency.action", r.target().uuid(), caseId, "punishment=" + ins.value().id() + " " + type + " " + Durations.format(duration), true);
                 return ins;
             });
@@ -198,9 +207,62 @@ public final class DirectService extends Svc {
         });
     }
 
+    /**
+     * Review an emergency action that has no case (judicial system off): uphold it (it runs to its expiry) or revoke it.
+     * Mirrors the decision on the owner-review record when one exists, so the two queues never disagree.
+     */
+    public CompletableFuture<Result<Punishment>> reviewEmergencyAction(Actor actor, long punishmentId, ReviewDecision decision, String reasoning) {
+        Result<Void> perm = core.auth.require(actor, Perms.EMERGENCY_REVIEW, "review emergency actions");
+        if (!perm.isOk()) return done(perm.cast());
+        if (decision == ReviewDecision.ESCALATE_TO_TRIAL) {
+            return done(Result.fail(Code.UNAVAILABLE, "There is no trial to escalate to (the judicial system is switched off). Uphold or revoke the action."));
+        }
+        String why = Text.clean(reasoning);
+        if (why.length() < core.settings.cases.minReason()) {
+            return done(Result.fail(Code.INVALID, "A reason of at least " + core.settings.cases.minReason() + " characters is required."));
+        }
+        Punishment[] revoked = new Punishment[1];
+        return db(c -> {
+            Punishment p = Repo.Punishments.get(c, punishmentId);
+            if (p == null || p.source() != Source.EMERGENCY) return Result.<Punishment>fail(Code.NOT_FOUND, "That is not an emergency action.");
+            if (p.reviewed()) return Result.<Punishment>fail(Code.STATE, "That emergency action has already been reviewed.");
+            if (p.caseId() != null) return Result.<Punishment>fail(Code.STATE, "That action belongs to a case; review it through the case.");
+            long now = core.clock.now();
+            Repo.Punishments.markReviewed(c, punishmentId);
+            var rv = Repo.Reviews.byPunishment(c, punishmentId);
+            if (decision == ReviewDecision.REVOKE_AND_DISMISS) {
+                if (p.status() == PunishStatus.ACTIVE) {
+                    Repo.Punishments.end(c, p.id(), PunishStatus.REVOKED, actor.name(), "Emergency review: " + Text.truncate(why, 100), now);
+                    revoked[0] = p;
+                }
+            }
+            if (rv != null && rv.status().open()) {
+                var to = decision == ReviewDecision.REVOKE_AND_DISMISS ? ReviewStatus.REVERSED : ReviewStatus.UPHELD;
+                Repo.Reviews.setStatus(c, rv.id(), rv.version(), to, actor.name(), why, true, now);
+                Repo.Reviews.addEvent(c, rv.id(), now, actor.name(), "DECISION", to.display() + " (through the emergency review): " + Text.truncate(why, 200));
+            }
+            audit(c, actor, "emergency.review", p.targetUuid(), null, "punishment=" + p.id() + " " + decision + " " + Text.truncate(why, 100), true);
+            return Result.ok(Repo.Punishments.get(c, punishmentId));
+        }).thenApply(res -> {
+            if (res.isOk()) {
+                if (revoked[0] != null) {
+                    punishments.cache().remove(revoked[0]);
+                    core.main.run(() -> {
+                        if (revoked[0].type() == PunishType.MUTE) core.enforcement.noticeUnmute(revoked[0].targetUuid());
+                    });
+                }
+                lastReviewAlert.remove(punishmentId);
+                core.emit(DomainEvent.of(DomainEvent.Type.REVERSAL).player(res.value().targetName()).actor(actor.name()).key("emergency-reviewed:" + punishmentId)
+                        .summary("Emergency action reviewed: " + (decision == ReviewDecision.REVOKE_AND_DISMISS ? "revoked" : "upheld")).field("Reasoning", Text.truncate(why, 300)).build());
+            }
+            return res;
+        });
+    }
+
     public CompletableFuture<Result<Case>> reviewEmergency(Actor actor, long punishmentId, ReviewDecision decision, String reasoning) {
         Result<Void> perm = core.auth.require(actor, Perms.EMERGENCY_REVIEW, "review emergency actions");
         if (!perm.isOk()) return done(perm.cast());
+        if (decision == ReviewDecision.UPHOLD) return done(Result.fail(Code.INVALID, "Choose escalate to trial or revoke and dismiss."));
         String why = Text.clean(reasoning);
         if (why.length() < core.settings.cases.minReason()) {
             return done(Result.fail(Code.INVALID, "A reason of at least " + core.settings.cases.minReason() + " characters is required."));

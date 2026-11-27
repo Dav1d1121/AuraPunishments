@@ -24,6 +24,7 @@ final class QuickPunishMenu extends Menu {
     private final PunishType type;
     private long duration;
     private String reason = "";
+    private String note = "";
     private final List<EvidenceValidator.Input> evidence = new ArrayList<>();
 
     private QuickPunishMenu(Gui gui, Player viewer, Menu parent, Target target, PunishType type) {
@@ -49,6 +50,8 @@ final class QuickPunishMenu extends Menu {
     protected void render() {
         navigation();
         boolean needsEvidence = gui.settings().quick.requireEvidence().contains(type);
+        // With the judicial system off there is no case to hang evidence or notes on: they are attached to the punishment itself.
+        boolean recordsOnPunishment = !gui.core().mode.enabled();
         set(4, Items.head(target.uuid(), target.name(), Items.t("<white><b><v>", "v", target.name()),
                 List.of(Items.t("<gray>Action: <white><v>", "v", type.display()))));
         if (type.canBeTimed()) {
@@ -78,7 +81,7 @@ final class QuickPunishMenu extends Menu {
                             reason = text;
                             open();
                         }, this::open));
-        if (needsEvidence || !evidence.isEmpty()) {
+        if (needsEvidence || !evidence.isEmpty() || (recordsOnPunishment && type != PunishType.KICK)) {
             List<Component> ev = new ArrayList<>();
             ev.add(Items.t(needsEvidence ? "<red>Required for " + type.display() + "s" : "<gray>Optional"));
             for (EvidenceValidator.Input in : evidence) ev.add(Items.t("<dark_gray>- <white><t>: <aqua><v>", "t", in.type().name().toLowerCase(), "v", Text.truncate(in.reference(), 32)));
@@ -95,6 +98,15 @@ final class QuickPunishMenu extends Menu {
                 });
             });
         }
+        if (recordsOnPunishment && viewer.hasPermission(Perms.NOTE_ADD)) {
+            set(16, Items.item(Material.OAK_SIGN, Items.t("<gold><b>Staff note <gray>(optional)"),
+                    note.isBlank() ? List.of(Items.t("<gray>A private note for other staff"), Items.t("<yellow>Click to enter"))
+                            : NotesWrap.wrap(note, 40).stream().map(s -> Items.t("<white><v>", "v", s)).toList()),
+                    (p, k) -> gui.prompts().ask(p, "Type a staff note (not shown to the player).", 3, gui.settings().cases.maxNote(), text -> {
+                        note = text;
+                        open();
+                    }, this::open));
+        }
         boolean ready = (!type.canBeTimed() || duration != 0) && (reason.length() >= gui.settings().cases.minReason() || (type == PunishType.KICK && !gui.settings().quick.requireReason()))
                 && (!needsEvidence || !evidence.isEmpty());
         set(40, Items.item(ready ? Material.LIME_CONCRETE : Material.RED_CONCRETE, Items.t(ready ? "<green><b>CONTINUE" : "<red><b>Incomplete"),
@@ -109,10 +121,13 @@ final class QuickPunishMenu extends Menu {
             lines.add("Action: " + type.display() + (type.canBeTimed() ? " " + Views.duration(duration) : ""));
             lines.add("Reason: " + r);
             if (!evidence.isEmpty()) lines.add("Evidence items: " + evidence.size());
+            if (!note.isBlank()) lines.add("Staff note attached");
+            if (type == PunishType.JAIL) lines.add("The player is jailed through JailReloaded and released automatically when the time is up.");
+            if (recordsOnPunishment) lines.add("This punishment takes effect immediately and is final.");
             boolean heavy = gui.settings().quick.typeNameToConfirm()
                     && (type == PunishType.BAN || type == PunishType.IPBAN || (type.canBeTimed() && duration == Durations.PERMANENT));
             new ConfirmMenu(gui, p, this, type.display() + " " + target.name(), lines, heavy ? target.name() : null, () ->
-                    gui.call(p, gui.punishments.issueQuick(gui.actor(p), new PunishmentService.Request(target, type, type.canBeTimed() ? duration : 0, r, List.copyOf(evidence))), pun -> {
+                    gui.call(p, gui.punishments.issueQuick(gui.actor(p), new PunishmentService.Request(target, type, type.canBeTimed() ? duration : 0, r, List.copyOf(evidence), note.isBlank() ? null : note)), pun -> {
                         gui.success(p, type.display() + " issued to " + target.name() + " (#" + pun.id() + ")"
                                 + (type == PunishType.WARN && !pun.delivered() ? " - will be shown at next login." : "."));
                         if (parent != null) parent.open();

@@ -29,6 +29,8 @@ public final class Perms {
     public static final String NOTE_VIEW = ROOT + "case.note.view";
     public static final String NOTE_VOID = ROOT + "case.note.void";
     public static final String APPEAL_FILE = ROOT + "case.appeal.file";
+    /** 1.3.0: decide appeals against punishments. Never granted by default; with the judicial system off it is the only way to decide. */
+    public static final String APPEAL_DECIDE = ROOT + "appeal.decide";
 
     // custody
     public static final String CUSTODY_VIEW = ROOT + "custody.view";

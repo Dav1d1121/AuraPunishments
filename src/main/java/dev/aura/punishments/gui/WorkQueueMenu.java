@@ -90,7 +90,8 @@ final class WorkQueueMenu extends Menu {
 
     private void go(Player p, Item it) {
         if (it.reviewId() != null && gui.can(p, Perms.REVIEW_VIEW)) ReviewMenu.open(gui, p, this, it.reviewId());
-        else if (it.caseId() != null) CaseMenu.open(gui, p, this, it.caseId());
-        else gui.messages().sendError(p, "There is no case linked to that item.");
+        else if (it.caseId() != null && gui.core().mode.judicialVisible()) CaseMenu.open(gui, p, this, it.caseId());
+        else if (it.punishmentId() != null && gui.records != null && gui.can(p, Perms.HISTORY_VIEW)) PunishmentMenu.open(gui, p, this, it.punishmentId());
+        else gui.messages().sendError(p, "There is nothing you may open for that item.");
     }
 }

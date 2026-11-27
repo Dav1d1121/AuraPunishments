@@ -80,18 +80,14 @@ final class HistoryMenu extends Menu {
         } else {
             int i = 0;
             for (Punishment pun : puns) {
-                boolean canRevoke = (pun.status() == PunishStatus.ACTIVE || pun.status() == PunishStatus.COMPLETED)
-                        && (viewer.hasPermission(Perms.REVOKE_ANY) || viewer.hasPermission(Perms.REVOKE));
                 var item = Views.punishmentItem(pun, ip, now);
-                if (canRevoke) {
-                    var meta = item.getItemMeta();
-                    var lore = new java.util.ArrayList<>(meta.lore());
-                    lore.add(Component.empty());
-                    lore.add(Items.t("<yellow>Click to revoke"));
-                    meta.lore(lore);
-                    item.setItemMeta(meta);
-                }
-                set(Views.LIST_SLOTS[i++], item, canRevoke ? (p, t) -> Pickers.revoke(gui, p, this, pun, () -> load(true, page)) : null);
+                var meta = item.getItemMeta();
+                var lore = new java.util.ArrayList<>(meta.lore());
+                lore.add(Component.empty());
+                lore.add(Items.t("<yellow>Click for evidence, notes, appeals and actions"));
+                meta.lore(lore);
+                item.setItemMeta(meta);
+                set(Views.LIST_SLOTS[i++], item, (p, t) -> PunishmentMenu.open(gui, p, this, pun.id()));
             }
             if (puns.isEmpty()) set(22, Items.item(Material.LIME_STAINED_GLASS_PANE, "<green>No punishments on record"));
             if (page > 0) set(48, Items.item(Material.SPECTRAL_ARROW, "<yellow>Previous page"), (p, t) -> load(true, page - 1));

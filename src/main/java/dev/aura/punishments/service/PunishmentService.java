@@ -34,9 +34,15 @@ import java.util.concurrent.CompletableFuture;
 public final class PunishmentService extends Svc {
     private final PunishmentCache cache = new PunishmentCache();
     private CustodyService custody;
+    private JailService jails;
 
+    /** @param note optional staff note stored with the punishment (judicial system off) or on the player's profile (on) */
     public record Request(Target target, PunishType type, long durationMs, String reason,
-                          List<EvidenceValidator.Input> evidence) {}
+                          List<EvidenceValidator.Input> evidence, String note) {
+        public Request(Target target, PunishType type, long durationMs, String reason, List<EvidenceValidator.Input> evidence) {
+            this(target, type, durationMs, reason, evidence, null);
+        }
+    }
 
     public PunishmentService(Core core) {
         super(core);
@@ -44,6 +50,10 @@ public final class PunishmentService extends Svc {
 
     void bind(CustodyService custody) {
         this.custody = custody;
+    }
+
+    public void bind(JailService jails) {
+        this.jails = jails;
     }
 
     public PunishmentCache cache() {
@@ -63,8 +73,14 @@ public final class PunishmentService extends Svc {
     public CompletableFuture<Result<Punishment>> issueQuick(Actor actor, Request r) {
         Settings s = core.settings;
         PunishType type = r.type();
+        final boolean judicial = core.mode.enabled();
         if (type == PunishType.JAIL) {
-            return done(Result.fail(Code.INVALID, "Jail sentences are issued through a case (pretrial custody or a judicial sentence)."));
+            if (judicial) {
+                return done(Result.fail(Code.INVALID, "Jail sentences are issued through a case (pretrial custody or a judicial sentence)."));
+            }
+            if (jails == null || !core.jail.available()) {
+                return done(Result.fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.jail.status() + "). Nobody was jailed."));
+            }
         }
         if (!core.auth.canQuick(actor, type)) {
             return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to issue " + type.display().toLowerCase() + "s."));
@@ -100,6 +116,13 @@ public final class PunishmentService extends Svc {
         if (evidence.size() > s.cases.maxEvidence()) {
             return done(Result.fail(Code.EVIDENCE, "Too many evidence items."));
         }
+        String noteText = r.note() == null ? null : Text.clean(r.note());
+        if (noteText != null && noteText.isEmpty()) noteText = null;
+        if (noteText != null) {
+            if (!core.auth.has(actor, Perms.NOTE_ADD)) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to add staff notes."));
+            if (noteText.length() > s.cases.maxNote()) return done(Result.fail(Code.INVALID, "The note is too long (max " + s.cases.maxNote() + ")."));
+        }
+        final String note = noteText;
         final String cleanReason = reason;
         final long dur2 = duration;
         // A kick needs a connected player; recording one against an offline player would do nothing.
@@ -112,8 +135,9 @@ public final class PunishmentService extends Svc {
             if (!tc.isOk()) return done(tc.<Punishment>cast());
             return db(c -> {
                 Long caseId = null;
-                if (!evidence.isEmpty()) {
-                    long now = core.clock.now();
+                long now0 = core.clock.now();
+                if (!evidence.isEmpty() && judicial) {
+                    long now = now0;
                     caseId = Repo.Cases.insert(c, CaseStatus.CLOSED, CaseKind.QUICK, r.target().uuid(), r.target().name(),
                             "other", Severity.MODERATE, clip(cleanReason, 400), null, actor.dbUuid(), actor.name(), now);
                     Repo.Events.add(c, caseId, now, actor.dbUuid(), actor.name(), "QUICK_PUNISHMENT", null, CaseStatus.CLOSED,
@@ -122,12 +146,33 @@ public final class PunishmentService extends Svc {
                         Repo.Evidences.add(c, caseId, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
                     }
                 }
-                Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, Source.QUICK, caseId, null, null, null, true);
-                if (ins.isOk()) ReviewService.createIfRequired(core, c, actor, ins.value(), caseId);
+                Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, judicial ? Source.QUICK : Source.STANDARD, caseId, null, null, null, true);
+                if (!ins.isOk()) return ins;
+                Punishment pun = ins.value();
+                if (!judicial) {
+                    // No case exists: evidence and the optional note belong to the punishment itself.
+                    for (EvidenceValidator.Input in : evidence) {
+                        Repo.Evidences.addToPunishment(c, pun.id(), in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now0, null);
+                    }
+                    if (note != null) Repo.Notes.addForPunishment(c, pun.id(), pun.targetUuid(), actor.dbUuid(), actor.name(), note, false, now0);
+                } else if (note != null) {
+                    Repo.Notes.add(c, null, pun.targetUuid(), actor.dbUuid(), actor.name(), note, false, now0);
+                }
+                if (type == PunishType.JAIL) {
+                    jails.recordPlacing(c, pun, now0); // the review (if any) is created once JailReloaded confirms
+                    return Result.ok(Repo.Punishments.get(c, pun.id()));
+                }
+                ReviewService.createIfRequired(core, c, actor, pun, caseId);
                 return ins;
             });
         }).thenCompose(res -> {
             if (!res.isOk()) return done(res);
+            if (type == PunishType.JAIL) {
+                return jails.place(actor, res.value()).thenApply(placed -> {
+                    if (placed.isOk()) emitIssued(placed.value());
+                    return placed;
+                });
+            }
             return afterIssue(res.value(), false).thenApply(v -> {
                 emitIssued(res.value());
                 return res;
@@ -191,7 +236,7 @@ public final class PunishmentService extends Svc {
             core.notifications.enqueue(c, "warn:" + id, target.uuid(), NotificationService.WARNING, "punishment", id, pl);
         }
         if (audit) {
-            boolean elevated = type == PunishType.IPBAN || (type.canBeTimed() && durationMs == Durations.PERMANENT) || source != Source.QUICK;
+            boolean elevated = type == PunishType.IPBAN || (type.canBeTimed() && durationMs == Durations.PERMANENT) || !source.quickLike();
             audit(c, actor, "punishment." + type.node(), target.uuid(), caseId,
                     "id=" + id + " source=" + source + " duration=" + (type.canBeTimed() ? Durations.format(durationMs) : "-")
                             + " reason=" + clip(reason, 120), elevated);
@@ -226,42 +271,83 @@ public final class PunishmentService extends Svc {
         if (why.length() < core.settings.cases.minReason()) {
             return done(Result.fail(Code.INVALID, "A reason of at least " + core.settings.cases.minReason() + " characters is required."));
         }
-        return db(c -> {
-            Punishment p = Repo.Punishments.get(c, id);
-            if (p == null) return Result.<Punishment>fail(Code.NOT_FOUND, "Punishment #" + id + " does not exist.");
-            if (p.status() != PunishStatus.ACTIVE && p.status() != PunishStatus.COMPLETED) {
-                return Result.<Punishment>fail(Code.STATE, "Punishment #" + id + " is already " + p.status().name().toLowerCase() + ".");
-            }
-            boolean own = actor.dbUuid() != null && actor.dbUuid().equals(p.issuerUuid()) && p.source() == Source.QUICK;
-            if (!(authorised || core.auth.has(actor, Perms.REVOKE_ANY) || (own && core.auth.has(actor, Perms.REVOKE)))) {
-                return Result.<Punishment>fail(Code.NO_PERMISSION, "You do not have permission to revoke that punishment.");
-            }
-            if (!Repo.Punishments.end(c, id, PunishStatus.REVOKED, actor.name(), why, core.clock.now())) {
-                return Result.<Punishment>fail(Code.CONFLICT, "That punishment changed while you were revoking it.");
-            }
-            if (p.caseId() != null) {
-                Repo.Events.add(c, p.caseId(), core.clock.now(), actor.dbUuid(), actor.name(), "PUNISHMENT_REVOKED", null, null,
-                        "#" + id + " " + p.type().display() + ": " + clip(why, 150));
-            }
-            audit(c, actor, "punishment.revoke", p.targetUuid(), p.caseId(), "id=" + id + " type=" + p.type() + " reason=" + clip(why, 120), !own);
-            return Result.ok(Repo.Punishments.get(c, id));
-        }).thenCompose(res -> {
-            if (!res.isOk()) return done(res);
-            Punishment p = res.value();
-            cache.remove(p);
-            core.main.run(() -> {
-                if (p.type() == PunishType.MUTE) core.enforcement.noticeUnmute(p.targetUuid());
-            });
-            CompletableFuture<Void> jail = CompletableFuture.completedFuture(null);
-            if (p.type() == PunishType.JAIL && custody != null) {
-                jail = custody.releaseForPunishment(actor, p, "Punishment #" + p.id() + " revoked: " + clip(why, 100)).thenAccept(r -> {
-                    if (!r.isOk()) core.log.warning("Punishment #" + p.id() + " revoked but jail release failed: " + r.message());
-                });
-            }
-            core.emit(DomainEvent.of(DomainEvent.Type.REVERSAL).caseId(p.caseId()).player(p.targetName()).actor(actor.name())
-                    .summary(p.type().display() + " #" + p.id() + " revoked: " + clip(why, 150)).field("Reason", clip(why, 200)).build());
-            return jail.thenApply(v -> res);
+        return db(c -> revokeTx(c, actor, id, why, authorised)).thenCompose(res -> afterRevoke(actor, res, why));
+    }
+
+    /** The database half of a revocation; runs inside the caller's transaction (so an appeal decision can use it atomically). */
+    Result<Punishment> revokeTx(Connection c, Actor actor, long id, String why, boolean authorised) throws SQLException {
+        Punishment p = Repo.Punishments.get(c, id);
+        if (p == null) return Result.fail(Code.NOT_FOUND, "Punishment #" + id + " does not exist.");
+        if (p.status() != PunishStatus.ACTIVE && p.status() != PunishStatus.COMPLETED) {
+            return Result.fail(Code.STATE, "Punishment #" + id + " is already " + p.status().name().toLowerCase() + ".");
+        }
+        boolean own = actor.dbUuid() != null && actor.dbUuid().equals(p.issuerUuid()) && p.source().quickLike();
+        if (!(authorised || core.auth.has(actor, Perms.REVOKE_ANY) || (own && core.auth.has(actor, Perms.REVOKE)))) {
+            return Result.fail(Code.NO_PERMISSION, "You do not have permission to revoke that punishment.");
+        }
+        if (!Repo.Punishments.end(c, id, PunishStatus.REVOKED, actor.name(), why, core.clock.now())) {
+            return Result.fail(Code.CONFLICT, "That punishment changed while you were revoking it.");
+        }
+        if (p.caseId() != null) {
+            Repo.Events.add(c, p.caseId(), core.clock.now(), actor.dbUuid(), actor.name(), "PUNISHMENT_REVOKED", null, null,
+                    "#" + id + " " + p.type().display() + ": " + clip(why, 150));
+        }
+        audit(c, actor, "punishment.revoke", p.targetUuid(), p.caseId(), "id=" + id + " type=" + p.type() + " reason=" + clip(why, 120), !own);
+        return Result.ok(Repo.Punishments.get(c, id));
+    }
+
+    /** Everything that follows a committed revocation: cache, unmute notice, jail release, Discord. */
+    CompletableFuture<Result<Punishment>> afterRevoke(Actor actor, Result<Punishment> res, String why) {
+        if (!res.isOk()) return done(res);
+        Punishment p = res.value();
+        cache.remove(p);
+        core.main.run(() -> {
+            if (p.type() == PunishType.MUTE) core.enforcement.noticeUnmute(p.targetUuid());
         });
+        CompletableFuture<Void> jail = CompletableFuture.completedFuture(null);
+        String[] releaseNote = new String[1];
+        if (p.type() == PunishType.JAIL && p.custodyId() != null && custody != null) {
+            jail = custody.releaseForPunishment(actor, p, "Punishment #" + p.id() + " revoked: " + clip(why, 100)).thenAccept(r -> {
+                if (!r.isOk()) core.log.warning("Punishment #" + p.id() + " revoked but jail release failed: " + r.message());
+            });
+        } else if (p.type() == PunishType.JAIL && jails != null && JailService.live(p.jailState())) {
+            jail = jails.releaseForRevoked(actor, p, "Punishment #" + p.id() + " revoked: " + clip(why, 100)).thenAccept(r -> {
+                if (!r.isOk()) {
+                    core.log.warning("Punishment #" + p.id() + " revoked but jail release is not complete: " + r.message());
+                    releaseNote[0] = "Revoked, but " + p.targetName() + " has not been released from jail yet: " + r.message();
+                }
+            });
+        }
+        core.emit(DomainEvent.of(DomainEvent.Type.REVERSAL).caseId(p.caseId()).player(p.targetName()).actor(actor.name())
+                .key("revoked:" + p.id()).summary(p.type().display() + " #" + p.id() + " revoked: " + clip(why, 150)).field("Reason", clip(why, 200)).build());
+        return jail.thenApply(v -> releaseNote[0] == null ? res : Result.okWith(res.value(), releaseNote[0]));
+    }
+
+    /**
+     * Change the expiry (and optionally the reason) of an ACTIVE punishment inside the caller's transaction. The first
+     * original expiry is kept for the record. Call {@link #afterModify} once the transaction has committed.
+     *
+     * @param newExpires absolute expiry, or null for permanent
+     */
+    Result<Punishment> modifyTx(Connection c, Actor actor, long id, Long newExpires, String newReason) throws SQLException {
+        Punishment p = Repo.Punishments.get(c, id);
+        if (p == null) return Result.fail(Code.NOT_FOUND, "Punishment #" + id + " does not exist.");
+        if (p.status() != PunishStatus.ACTIVE) return Result.fail(Code.STATE, "Punishment #" + id + " is no longer active, so it cannot be modified.");
+        long now = core.clock.now();
+        if (newExpires != null && newExpires <= now) return Result.fail(Code.INVALID, "That duration would already have elapsed. Revoke the punishment instead.");
+        if (!Repo.Punishments.modify(c, id, newExpires, newReason, actor.name(), now)) {
+            return Result.fail(Code.CONFLICT, "That punishment changed while you were modifying it.");
+        }
+        if (p.caseId() != null) {
+            Repo.Events.add(c, p.caseId(), now, actor.dbUuid(), actor.name(), "PUNISHMENT_MODIFIED", null, null,
+                    "#" + id + " " + (newExpires == null ? "permanent" : Durations.format(newExpires - p.issuedAt())));
+        }
+        audit(c, actor, "punishment.modify", p.targetUuid(), p.caseId(), "id=" + id + " expires=" + (newExpires == null ? "permanent" : Durations.format(newExpires - p.issuedAt())), true);
+        return Result.ok(Repo.Punishments.get(c, id));
+    }
+
+    void afterModify(Punishment p) {
+        cache.add(p); // replaces the cached copy (new expiry/reason)
     }
 
     // ------------------------------------------------------------------ expiry & delivery

@@ -1,5 +1,5 @@
 # ============================================================================
-#  AuraPunishments 1.0.0 - config.yml
+#  AuraPunishments 1.3.0 - config.yml
 #  Edit, then run /ap reload. A reload is validated first: if anything below is
 #  invalid the OLD settings stay active and the problems are listed in chat/console.
 #
@@ -17,6 +17,16 @@ general:
   # Staff members only ever see GUI actions they may use? true = locked actions are hidden,
   # false = locked actions are shown greyed-out with the reason.
   hide-locked-actions: false
+
+# ---------------------------------------------------------------------------
+#  Network identity  [RESTART]
+#  Give every server that runs AuraPunishments its own short name (smp, towny, skyblock, lobby...).
+#  The name is stamped on every record the server creates, so records stay identifiable when servers
+#  are joined into one network later. Choose it once and keep it. Blank = a random id is generated
+#  and remembered (srv-1a2b3c4d), which is fine for a single server.
+# ---------------------------------------------------------------------------
+network:
+  server-name: ""
 
 # ---------------------------------------------------------------------------
 #  Database  [RESTART]
@@ -109,6 +119,16 @@ custody:
 #  Judicial workflow
 # ---------------------------------------------------------------------------
 judicial:
+  # MASTER SWITCH for the whole judicial system: cases, pretrial detention, hearings, verdicts and sentencing.
+  #   false (default for new installs) - a punishment is final and enforced the moment staff issue it. There is no
+  #     mandatory case, no pretrial detention, no hearing and no sentencing step; those screens, commands, work queues,
+  #     scheduled checks and notifications are hidden. Everything else works: /punish, warnings, kicks, mutes, bans,
+  #     IP bans, jail, emergency actions, evidence, staff notes, history, revoke, owner review and appeals.
+  #   true  (what an upgraded 1.0-1.2 install keeps) - everything behaves exactly as before.
+  # If this line is missing the judicial system stays ON (so an upgrade never changes behaviour by itself).
+  # Takes effect on /ap reload. See docs/JUDICIAL-MODE.md before turning it OFF on a server that has open cases or detainees:
+  # nothing is ever released, deleted or resolved automatically - you are warned and finish the open items first.
+  enabled: false
   # May the staff member who opened a case also be its judge? The owner is the only
   # judge at launch, so this defaults to true.
   prosecutor-may-judge: true
@@ -177,6 +197,13 @@ emergency:
 punishments:
   # Evidence required to issue a QUICK punishment (outside a case / direct pathway).
   # Cases, direct punishments and emergency actions have their own rules above.
+  # Jail as an ordinary punishment (needs JailReloaded; used when judicial.enabled is false).
+  jail:
+    # Jail and cell to use. Blank = custody.jail-name / custody.cell-name (and then JailReloaded's own default).
+    jail-name: ""
+    cell-name: ""
+    # Mute the prisoner in JailReloaded while jailed.
+    mute-while-jailed: false
   quick:
     require-reason: true
     require-evidence: [IPBAN, BAN]
@@ -345,7 +372,15 @@ warnings:
 # ---------------------------------------------------------------------------
 review:
   enabled: true
+  # Which punishment types are automatically submitted for owner review (never WARN or KICK). JAIL is available
+  # when the judicial system is off. Review is a QUEUE for oversight, never an approval step: the punishment is
+  # already in force and stays in force until the owner upholds, modifies or reverses it.
   required-types: [MUTE, BAN, IPBAN]
+  # Types in this list are only reviewed when PERMANENT (a subset of required-types). Example: [MUTE] reviews permanent
+  # mutes but not routine temporary ones; [BAN, IPBAN, MUTE] reviews only permanent punishments of those types.
+  permanent-only-types: []
+  # When the judicial system is off, also submit emergency protective actions to the owner review queue.
+  include-emergency: true
   # Quick punishments shorter than this skip review (0s = review every one of the types above).
   min-duration: 0s
   # Issuers at or above this level (0 = nobody) are exempt from review.
@@ -435,6 +470,38 @@ discord:
   max-retries: 3
   retry-backoff-seconds: 5
   outbox-retention-days: 14
+  # ---- 1.3.0 punishment notifications --------------------------------------------------------------------------
+  # PRIVATE staff log: every punishment notice below goes to the "punishment" channel above (or to the webhooks listed
+  # here). Delivery is queued, retried and never duplicated; a Discord outage never delays or blocks a punishment.
+  punishment-log:
+    enabled: true
+    webhooks: []            # empty = use channels.punishment routing
+    types: [WARN, KICK, MUTE, BAN, IPBAN, JAIL]
+    # issued, modified, revoked, expired, appeal (filed/ticket/decision), judicial (cases, verdicts, sentences, custody)
+    events: [issued, modified, revoked, expired, appeal, judicial]
+    # player, type, reason, duration, expires, issuer, punishment-id, server, evidence, source, network-status, case
+    fields: [player, type, reason, duration, expires, issuer, punishment-id, server, evidence, source]
+  # OPTIONAL PUBLIC announcements (off by default). Sanitized by design: only player, type, reason, duration, expires
+  # and server can ever appear - never the issuing staff member, evidence, notes, addresses or internal ids - and the
+  # reason is shown only if show-reason is true. It never uses the private webhooks above: give it its own.
+  public-log:
+    enabled: false
+    webhooks: []
+    types: [BAN, IPBAN]
+    events: [issued]
+    fields: [player, type, duration]
+    show-reason: false
+
+# ---------------------------------------------------------------------------
+#  Appeals (1.3.0)
+#  Appeals are handled in Discord with Ticket Tool. Staff record the appeal against the punishment here and
+#  reference the ticket; AuraPunishments never creates, reads or closes Discord tickets. An appeal does not
+#  suspend the punishment. Deciding needs aurapunishments.appeal.decide (never granted by default).
+# ---------------------------------------------------------------------------
+appeals:
+  # Require a Ticket Tool ticket reference when an appeal is recorded.
+  require-ticket: false
+  min-reason-length: 10
 
 # ---------------------------------------------------------------------------
 #  Retention

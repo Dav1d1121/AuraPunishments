@@ -57,6 +57,9 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     private LuckPermsBackend luckPerms;
     private PunishmentService punishments;
     private CustodyService custody;
+    private JailService jails;
+    private PunishmentRecords records;
+    private PunishmentAppeals appeals;
     private CaseService cases;
     private JudicialService judicial;
     private DirectService direct;
@@ -90,7 +93,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             return;
         }
 
-        db = new Database(new File(getDataFolder(), settings.dbFile).toPath(), getLogger());
+        db = new Database(new File(getDataFolder(), settings.dbFile).toPath(), getLogger(), settings.network.serverName());
         try {
             db.open();
         } catch (java.sql.SQLException e) {
@@ -164,8 +167,12 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         punishments = new PunishmentService(core);
         custody = new CustodyService(core, punishments);
+        jails = new JailService(core, punishments);
+        punishments.bind(jails);
         reviews = new ReviewService(core, punishments);
         cases = new CaseService(core, custody);
+        records = new PunishmentRecords(core, cases);
+        appeals = new PunishmentAppeals(core, punishments);
         judicial = new JudicialService(core, custody, punishments);
         direct = new DirectService(core, punishments);
         admin = new AdminService(core, punishments);
@@ -192,13 +199,14 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         gui = new Gui(this, core, resolver, punishments, custody, cases, judicial, direct, admin, this);
         gui.attach(reviews, workQueue, exports, coreProtect);
+        gui.attach(records, appeals, jails);
         var pm = getServer().getPluginManager();
         enforcement.promptCheck(u -> { org.bukkit.entity.Player pp = Bukkit.getPlayer(u); return pp != null && gui.prompts().has(pp); });
         pm.registerEvents(gui.prompts(), this);   // prompts first so a typed answer is never treated as chat
         pm.registerEvents(gui.manager(), this);
         pm.registerEvents(new ConnectionListener(core, punishments, resolver, (BukkitEnforcement) core.enforcement), this);
         pm.registerEvents(new ChatListener(this, core, punishments), this);
-        pm.registerEvents(new CommandGuardListener(core, punishments, custody, gui.prompts()), this);
+        pm.registerEvents(new CommandGuardListener(core, punishments, custody, jails, gui.prompts()), this);
         registerJailListener();
 
         var punish = new PunishCommand(gui);
@@ -220,7 +228,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
 
         startTasks();
         // Recover anything interrupted by a crash or restart.
-        custody.reconcileOnStartup().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex()).exceptionally(t -> {
+        custody.reconcileOnStartup().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex())
+                .thenCompose(v -> jails.reconcileOnStartup()).thenCompose(v -> core.mode.refresh()).exceptionally(t -> {
             getLogger().warning("Startup recovery failed: " + t);
             return null;
         });
@@ -249,7 +258,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             jailListener = null;
         }
         if (core.jail.available()) {
-            jailListener = new JailEventListener(custody);
+            jailListener = new JailEventListener(custody, jails);
             getServer().getPluginManager().registerEvents(jailListener, this);
         }
     }
@@ -275,11 +284,17 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
             punishments.expireDue();
             custody.refreshIndex();
+            jails.refreshIndex();
         }, 100L, 200L));
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
-            custody.sweepDeadlines();
+            // Judicial housekeeping only runs while there is judicial work (switch on, or open items still being wound down).
+            if (core.mode.judicialVisible()) {
+                custody.sweepDeadlines();
+                custody.retryStuckReleases();
+            }
+            core.mode.refresh();
             direct.sweepReviews();
-            custody.retryStuckReleases();
+            jails.retryStuckReleases();
             reviews.remind();
             core.notifications.expireStale();
             admin.counts(Actor.system()).thenAccept(r -> {
@@ -287,7 +302,10 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             });
         }, 400L, 1200L));
         long reconcileTicks = Math.max(5, core.settings.custody.reconcileSeconds()) * 20L;
-        tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> custody.reconcile(), reconcileTicks, reconcileTicks));
+        tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
+            if (core.mode.judicialVisible()) custody.reconcile();
+            jails.reconcile();
+        }, reconcileTicks, reconcileTicks));
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
             int days = core.settings.auditRetentionDays;
             if (days > 0) admin.pruneAudit(Actor.system(), core.clock.now() - days * Durations.DAY);

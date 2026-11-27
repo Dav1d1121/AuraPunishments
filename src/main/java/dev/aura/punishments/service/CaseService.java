@@ -51,6 +51,8 @@ public final class CaseService extends Svc {
 
     // ------------------------------------------------------------------ create
     public CompletableFuture<Result<Case>> create(Actor actor, CreateRequest r) {
+        Result<Case> off0 = core.mode.refuseNew("opening a case");
+        if (off0 != null) return done(off0);
         Settings s = core.settings;
         boolean full = core.auth.has(actor, Perms.CASE_CREATE);
         boolean report = core.auth.has(actor, Perms.REPORT);
@@ -391,6 +393,11 @@ public final class CaseService extends Svc {
             if (cs.version() != expectedVersion) return Result.<Case>fail(Code.CONFLICT, "This case was changed by someone else. Reopen it to see the latest version.");
             if (!cs.status().canMoveTo(to)) {
                 return Result.<Case>fail(Code.STATE, "A case that is '" + cs.status().display() + "' cannot move to '" + to.display() + "'.");
+            }
+            // With the judicial system off, a finished case may only be closed; it cannot be brought back to life.
+            if (!core.mode.enabled() && !cs.status().isOpenForWork() && to != CaseStatus.CLOSED) {
+                return Result.<Case>fail(Code.UNAVAILABLE, "The judicial system is switched off, so a finished case cannot be reopened or appealed through the case. "
+                        + "Use the punishment's own appeal and history tools instead.");
             }
             if (to == CaseStatus.IN_TRIAL && cs.judgeUuid() == null) {
                 return Result.<Case>fail(Code.STATE, "Assign a judge before the trial starts.");

@@ -83,23 +83,33 @@ final class TargetMenu extends Menu {
         }
         set(4, Items.head(target.uuid(), target.name(), Items.t("<white><b><v>", "v", target.name()), head));
 
-        // ---- case & custody row
+        // ---- case & custody row (the judicial system: on = everything, wind-down = only what is still open, off = none of it)
+        boolean judicialOn = gui.core().mode.enabled();
+        boolean judicialShown = gui.core().mode.judicialVisible();
         boolean canCreate = can(Perms.CASE_CREATE) || can(Perms.REPORT);
-        action(10, canCreate, Material.WRITABLE_BOOK, "<green><b>Create Case",
-                List.of("<gray>Open a disciplinary case", "<gray>(the standard judicial process)"), (p, t) -> CaseCreateMenu.open(gui, p, this, target));
+        if (judicialOn) {
+            action(10, canCreate, Material.WRITABLE_BOOK, "<green><b>Create Case",
+                    List.of("<gray>Open a disciplinary case", "<gray>(the standard judicial process)"), (p, t) -> CaseCreateMenu.open(gui, p, this, target));
+        }
         boolean viewCases = can(Perms.CASE_VIEW_ALL) || can(Perms.CASE_VIEW_OWN);
-        action(11, viewCases, Material.BOOK, "<aqua><b>View Cases",
-                List.of("<gray>Active cases: <white>" + ov.openCases().size() + (ov.openCases().size() >= 5 ? "+" : ""), "<gray>Click to browse all cases"),
-                (p, t) -> CaseListMenu.open(gui, p, this, "Cases: " + target.name(),
-                        n -> gui.cases.historyForCases(gui.actor(p), target.uuid(), n, 28), null));
-        action(12, can(Perms.EVIDENCE_ADD), Material.SPYGLASS, "<yellow><b>Submit Evidence",
-                List.of("<gray>Attach evidence to one of", "<gray>this player's open cases"), (p, t) -> pickCaseFor("Add evidence to which case?", c -> EvidenceMenu.promptAdd(gui, p, this, c.id())));
+        if (judicialShown) {
+            action(11, viewCases, Material.BOOK, "<aqua><b>View Cases",
+                    List.of("<gray>Active cases: <white>" + ov.openCases().size() + (ov.openCases().size() >= 5 ? "+" : ""), "<gray>Click to browse all cases"),
+                    (p, t) -> CaseListMenu.open(gui, p, this, "Cases: " + target.name(),
+                            n -> gui.cases.historyForCases(gui.actor(p), target.uuid(), n, 28), null));
+        }
+        if (judicialOn) {
+            action(12, can(Perms.EVIDENCE_ADD), Material.SPYGLASS, "<yellow><b>Submit Evidence",
+                    List.of("<gray>Attach evidence to one of", "<gray>this player's open cases"), (p, t) -> pickCaseFor("Add evidence to which case?", c -> EvidenceMenu.promptAdd(gui, p, this, c.id())));
+        }
         boolean custodyOn = gui.settings().custody.enabled();
-        if (ov.custody() != null) {
+        if (!judicialShown) {
+            // nothing to do here: custody belongs to the judicial system
+        } else if (ov.custody() != null) {
             action(13, viewCases || can(Perms.CUSTODY_VIEW), Material.IRON_BARS, "<gold><b>In Custody",
                     List.of("<gray>Held for case AP-" + String.format("%04d", ov.custody().caseId()), "<gray>Click to open the case"),
                     (p, t) -> CaseMenu.open(gui, p, this, ov.custody().caseId()));
-        } else {
+        } else if (judicialOn) {
             action(13, custodyOn && can(Perms.CUSTODY_INITIATE), Material.IRON_BARS, "<gold><b>Pretrial Detention",
                     List.of("<gray>Hold this player in jail (via JailReloaded)", "<gray>until a trial can be held.", "<dark_gray>Review deadline: " + Durations.format(gui.settings().custody.reviewDeadline())),
                     (p, t) -> pickCaseFor("Detain for which case?", c -> new ConfirmMenu(gui, p, this, "Detain " + target.name(),
@@ -110,9 +120,11 @@ final class TargetMenu extends Menu {
                         reload();
                     }, this::open)).open()));
         }
-        action(14, can(Perms.CUSTODY_VIEW) || can(Perms.JUDICIAL_VIEW) || ov.custody() != null && viewCases, Material.CLOCK, "<gold><b>Jail Status",
-                jailStatusLore(now), (p, t) -> {
+        Punishment servingJail = ov.active().stream().filter(x -> x.type() == PunishType.JAIL && x.custodyId() == null && x.jailState() != null).findFirst().orElse(null);
+        action(14, can(Perms.CUSTODY_VIEW) || can(Perms.JUDICIAL_VIEW) || can(Perms.HISTORY_VIEW) || ov.custody() != null && viewCases, Material.CLOCK, "<gold><b>Jail Status",
+                jailStatusLore(now, servingJail), (p, t) -> {
                     if (ov.custody() != null) CaseMenu.open(gui, p, this, ov.custody().caseId());
+                    else if (servingJail != null && gui.records != null && can(Perms.HISTORY_VIEW)) PunishmentMenu.open(gui, p, this, servingJail.id());
                 });
         action(15, can(Perms.HISTORY_VIEW), Material.CHEST, "<aqua><b>Punishment History",
                 List.of("<gray>Cases, findings, acquittals and", "<gray>every punishment, incl. reversals"), (p, t) -> HistoryMenu.open(gui, p, this, target));
@@ -134,38 +146,64 @@ final class TargetMenu extends Menu {
         action(23, can(Perms.punish(PunishType.IPBAN)), Views.punishIcon(PunishType.IPBAN), "<dark_red><b>Issue IP Ban",
                 List.of("<gray>Blocks the account and its", "<gray>last known connection address", "<dark_gray>Evidence required by default"), (p, t) -> QuickPunishMenu.open(gui, p, this, target, PunishType.IPBAN));
         boolean directOk = gui.settings().direct.enabled() && can(Perms.DIRECT) && DirectService.DIRECT_TYPES.stream().anyMatch(t -> can(Perms.direct(t)));
-        action(24, directOk, Material.NETHERITE_SWORD, "<dark_red><b>Direct Punishment",
-                List.of("<red>MAJOR OFFENSES ONLY", "<gray>Skips the hearing. Requires evidence,", "<gray>a justification and confirmation.", "<dark_gray>Not the normal workflow."),
-                (p, t) -> DirectMenu.open(gui, p, this, target));
+        if (judicialOn) {
+            action(24, directOk, Material.NETHERITE_SWORD, "<dark_red><b>Direct Punishment",
+                    List.of("<red>MAJOR OFFENSES ONLY", "<gray>Skips the hearing. Requires evidence,", "<gray>a justification and confirmation.", "<dark_gray>Not the normal workflow."),
+                    (p, t) -> DirectMenu.open(gui, p, this, target));
+        } else {
+            // judicial system off: jail is an ordinary punishment (JailReloaded does the imprisonment)
+            action(24, can(Perms.punish(PunishType.JAIL)), Views.punishIcon(PunishType.JAIL), "<gold><b>Issue Jail",
+                    List.of("<gray>Jail the player for a set time", "<gray>(released automatically at the end)", gui.core().jail.available() ? "<green>JailReloaded ready" : "<red>JailReloaded unavailable"),
+                    (p, t) -> QuickPunishMenu.open(gui, p, this, target, PunishType.JAIL));
+        }
         action(25, gui.settings().emergency.enabled() && can(Perms.EMERGENCY_USE), Material.REDSTONE_TORCH, "<red><b>Emergency Action",
                 List.of("<gray>Short protective mute/ban for an", "<gray>urgent threat. Auto-expires and", "<gray>must be reviewed by senior staff."), (p, t) -> EmergencyMenu.open(gui, p, this, target));
 
-        // ---- judicial row
-        action(28, can(Perms.JUDICIAL_VIEW), Material.ANVIL, "<light_purple><b>Judicial Review",
-                List.of("<gray>Trials, verdicts and sentences", "<gray>for this player's cases"), (p, t) -> CaseListMenu.open(gui, p, this, "Judicial: " + target.name(),
-                        n -> gui.cases.historyForCases(gui.actor(p), target.uuid(), n, 28), null));
+        // ---- judicial row (appeals replace it when the judicial system is off)
+        if (judicialShown) {
+            action(28, can(Perms.JUDICIAL_VIEW), Material.ANVIL, "<light_purple><b>Judicial Review",
+                    List.of("<gray>Trials, verdicts and sentences", "<gray>for this player's cases"), (p, t) -> CaseListMenu.open(gui, p, this, "Judicial: " + target.name(),
+                            n -> gui.cases.historyForCases(gui.actor(p), target.uuid(), n, 28), null));
+        } else if (gui.appeals != null) {
+            boolean seeAppeals = can(Perms.APPEAL_DECIDE) || can(Perms.APPEAL_FILE) || can(Perms.APPEAL_TICKET);
+            action(28, seeAppeals, Material.LECTERN, "<light_purple><b>Appeals",
+                    List.of("<gray>Open appeals against punishments", "<gray>(handled through Discord Ticket Tool)"), (p, t) -> AppealListMenu.open(gui, p, this));
+        }
         boolean canRevoke = (can(Perms.REVOKE) || can(Perms.REVOKE_ANY));
         action(30, canRevoke, Material.ENDER_EYE, "<green><b>Release / Revoke Punishment",
                 List.of("<gray>Active punishments: <white>" + ov.active().size(), "<gray>Lift a punishment with a recorded reason"),
                 (p, t) -> PunishmentListMenu.open(gui, p, this, target));
 
-        // ---- open cases
+        // ---- open cases (or, with the judicial system off, the punishments in force)
         int slot = 38;
-        for (Case c : ov.openCases()) {
-            if (slot > 42) break;
-            ItemStack it = Views.caseItem(c);
-            set(slot++, it, (p, t) -> CaseMenu.open(gui, p, this, c.id()));
-        }
-        if (ov.openCases().isEmpty()) {
-            set(40, Items.item(Material.LIME_STAINED_GLASS_PANE, "<green>No open cases"));
+        if (judicialShown) {
+            for (Case c : ov.openCases()) {
+                if (slot > 42) break;
+                ItemStack it = Views.caseItem(c);
+                set(slot++, it, (p, t) -> CaseMenu.open(gui, p, this, c.id()));
+            }
+            if (ov.openCases().isEmpty()) {
+                set(40, Items.item(Material.LIME_STAINED_GLASS_PANE, "<green>No open cases"));
+            }
+        } else {
+            for (Punishment pun : ov.active()) {
+                if (slot > 42) break;
+                ItemStack it = Views.punishmentItem(pun, can(Perms.SENSITIVE_IP), now);
+                set(slot++, it, gui.records != null && can(Perms.HISTORY_VIEW) ? (p, t) -> PunishmentMenu.open(gui, p, this, pun.id()) : null);
+            }
+            if (ov.active().isEmpty()) set(40, Items.item(Material.LIME_STAINED_GLASS_PANE, "<green>No punishments in force"));
         }
         set(45, Items.item(Material.BARRIER, "<red>Close"), (p, t) -> p.closeInventory());
         set(53, Items.item(Material.SUNFLOWER, "<yellow>Refresh"), (p, t) -> reload());
     }
 
-    private List<String> jailStatusLore(long now) {
+    private List<String> jailStatusLore(long now, Punishment serving) {
         List<String> l = new ArrayList<>();
-        if (ov.custody() == null) {
+        if (ov.custody() == null && serving != null) {
+            l.add("<gold>Serving jail punishment #" + serving.id());
+            l.add("<gray>" + dev.aura.punishments.service.JailService.describe(serving).replace("<", "").replace(">", ""));
+            l.add("<gray>Click for the punishment's details");
+        } else if (ov.custody() == null) {
             l.add("<green>Not in custody");
             l.add("<gray>JailReloaded: <white>" + gui.core().jail.status());
         } else {

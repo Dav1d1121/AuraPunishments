@@ -76,6 +76,18 @@ final class Pickers {
                                 }, parent::open)).open(), parent::open);
     }
 
+    /** Early release of a jail punishment: reason prompt, confirmation, then /ap unjail's service call. */
+    static void releaseJail(Gui gui, Player p, Menu parent, Punishment pun, Runnable after) {
+        gui.prompts().ask(p, "Why is " + pun.targetName() + " being released from jail early?",
+                gui.settings().cases.minReason(), gui.settings().cases.maxReason(), reason ->
+                        new ConfirmMenu(gui, p, parent, "Release " + pun.targetName(),
+                                List.of("Jail punishment #" + pun.id(), "Reason: " + reason, "The punishment is revoked and recorded in the audit log."), null,
+                                () -> gui.call(p, gui.jails.unjail(gui.actor(p), pun.targetUuid(), reason), r -> {
+                                    gui.success(p, pun.targetName() + " released from jail.");
+                                    after.run();
+                                }, parent::open)).open(), parent::open);
+    }
+
     static Component none() {
         return Component.empty();
     }

@@ -24,6 +24,7 @@ public final class Core {
     public volatile Messages messages;
     public volatile Enforcement enforcement = Enforcement.NONE;
     public final NotificationService notifications;
+    public final JudicialMode mode;
 
     public Core(Database db, Clock clock, Logger log, MainThread main, Settings settings, OffenseCatalog offenses,
                 JailPort jail, LevelResolver levels, DomainEvent.Sink events) {
@@ -38,6 +39,7 @@ public final class Core {
         this.events = events;
         this.auth = new Authority(() -> this.settings);
         this.notifications = new NotificationService(this);
+        this.mode = new JudicialMode(this);
         this.auth.denialSink((a, node, what) -> emit(DomainEvent.of(DomainEvent.Type.SECURITY).key("security:" + a.name() + ":" + node + ":" + System.currentTimeMillis() / 60_000)
                 .actor(a.name()).summary("Refused: tried to " + what + " without " + node).build()));
     }

@@ -33,7 +33,14 @@ public final class Simple {
 
     /** How a punishment was reached. */
     public enum Source {
-        JUDICIAL, DIRECT, EMERGENCY, QUICK
+        JUDICIAL, DIRECT, EMERGENCY, QUICK,
+        /** An ordinary, final punishment issued while the judicial system is switched off (1.3.0). */
+        STANDARD;
+
+        /** Issued by staff straight from the punish GUI/commands (as opposed to through a case, direct charge or emergency). */
+        public boolean quickLike() {
+            return this == QUICK || this == STANDARD;
+        }
     }
 
     /** What kind of case record this is. */

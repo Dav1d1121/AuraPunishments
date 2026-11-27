@@ -47,10 +47,30 @@ public final class McFx implements AutoCloseable {
         r.onCancel().run();
     }
 
+    /** The judicial system on, as in an upgraded 1.0-1.2 install (the shipped file for a FRESH install has it off). */
     public McFx() {
+        this(true);
+    }
+
+    /** @param judicial true = config with judicial.enabled: true; false = the file exactly as a fresh install receives it */
+    public McFx(boolean judicial) {
         server = MockBukkit.mock();
-        File data = new File(server.getPluginsFolder(), "AuraPunishments");
+        String version = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                new java.io.InputStreamReader(McFx.class.getResourceAsStream("/plugin.yml"), java.nio.charset.StandardCharsets.UTF_8)).getString("version");
+        File data = new File(server.getPluginsFolder(), "AuraPunishments-" + version); // MockBukkit names the data folder <name>-<version>
         deleteRecursively(data);
+        deleteRecursively(new File(server.getPluginsFolder(), "AuraPunishments"));
+        if (judicial) {
+            try (var in = McFx.class.getResourceAsStream("/config.yml")) {
+                String text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                String on = text.replace("\n  enabled: false\n  # May the staff member", "\n  enabled: true\n  # May the staff member");
+                if (on.equals(text)) throw new IllegalStateException("shipped config.yml has no judicial.enabled line to switch on");
+                data.mkdirs();
+                java.nio.file.Files.writeString(new File(data, "config.yml").toPath(), on);
+            } catch (java.io.IOException e) {
+                throw new IllegalStateException(e);
+            }
+        }
         plugin = MockBukkit.load(AuraPunishmentsPlugin.class);
         gui = plugin.gui();
         plugin.core().jail = jail;

@@ -37,10 +37,13 @@ final class EmergencyReviewList extends Menu {
             var lore = new java.util.ArrayList<>(meta.lore());
             lore.add(Component.empty());
             lore.add(Items.t(p.reviewDeadline() != null && now > p.reviewDeadline() ? "<red>REVIEW OVERDUE" : "<gray>Review due: <white><v>", "v", p.reviewDeadline() == null ? "-" : Gui.time(p.reviewDeadline())));
-            lore.add(Items.t("<yellow>Click to open the case and review"));
+            lore.add(Items.t(p.caseId() == null ? "<yellow>Click to open and review" : "<yellow>Click to open the case and review"));
             meta.lore(lore);
             item.setItemMeta(meta);
-            set(Views.LIST_SLOTS[i++], item, (pl, t) -> CaseMenu.open(gui, pl, this, p.caseId()));
+            set(Views.LIST_SLOTS[i++], item, (pl, t) -> {
+                if (p.caseId() == null) PunishmentMenu.open(gui, pl, this, p.id());
+                else CaseMenu.open(gui, pl, this, p.caseId());
+            });
         }
         if (list.isEmpty()) set(22, Items.item(Material.LIME_STAINED_GLASS_PANE, "<green>No emergency actions await review"));
     }

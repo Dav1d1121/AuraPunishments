@@ -16,6 +16,11 @@ public record Result<T>(T value, Code code, String message) {
         return new Result<>(value, Code.OK, null);
     }
 
+    /** A success that also carries a note for the staff member (for example "revoked, but the release is still pending"). */
+    public static <T> Result<T> okWith(T value, String note) {
+        return new Result<>(value, Code.OK, note);
+    }
+
     public static Result<Void> ok() {
         return new Result<>(null, Code.OK, null);
     }

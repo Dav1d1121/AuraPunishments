@@ -35,8 +35,29 @@ public final class Settings {
 
     public record TimeServed(boolean enabled, double rate, Set<PunishType> appliesTo, Set<PunishType> defaultCreditFor) {}
 
-    public record Judicial(boolean prosecutorMayJudge, boolean requireAssignedJudge, int minVerdictReason,
+    /**
+     * @param enabled the judicial system (cases, pretrial detention, hearings, verdicts, sentencing). A config file that
+     *                does not contain {@code judicial.enabled} keeps the pre-1.3.0 behaviour (true); the file shipped to a
+     *                fresh install sets it to false. The explicit value always wins.
+     */
+    public record Judicial(boolean enabled, boolean prosecutorMayJudge, boolean requireAssignedJudge, int minVerdictReason,
                            TimeServed timeServed) {}
+
+    /** Which server this is; stamped on every record so a shared network database can tell them apart. */
+    public record Network(String serverName) {}
+
+    /** Appeals filed against punishments (Discord Ticket Tool tickets are referenced, never created, by this plugin). */
+    public record Appeals(boolean requireTicket, int minReason) {}
+
+    /** Standalone jail punishment (JailReloaded does the imprisonment). Blank names fall back to custody.jail-name / cell-name. */
+    public record JailCfg(String jailName, String cellName, boolean muteWhileJailed) {}
+
+    /**
+     * One Discord destination for punishment notifications. {@code webhooks} empty = use the "punishment" channel routing
+     * (staff log) or no destination (public log, which then posts nothing).
+     */
+    public record PunishLog(boolean enabled, List<String> webhooks, Set<PunishType> types, Set<String> events, Set<String> fields,
+                            boolean showReason) {}
 
     public record Escalation(boolean categoryScope, boolean countDirect) {}
 
@@ -62,7 +83,7 @@ public final class Settings {
 
     public record Discord(boolean enabled, String webhook, String username, String avatar,
                           Map<String, DiscordChannel> channels, Map<String, DiscordEvent> events, int timeoutSeconds, int maxRetries,
-                          int retentionDays, long backoffBaseMs, boolean legacyLayout) {}
+                          int retentionDays, long backoffBaseMs, boolean legacyLayout, PunishLog staffLog, PunishLog publicLog) {}
 
     public record WarnTitle(boolean enabled, String title, String subtitle, boolean showReason, int reasonMaxChars,
                             String subtitleWithReason, int fadeIn, int stay, int fadeOut) {}
@@ -75,7 +96,8 @@ public final class Settings {
                            boolean deferTitleWhilePrompting, WarnRepeat repeat) {}
 
     public record Review(boolean enabled, Set<PunishType> requiredTypes, long minDuration, int exemptLevel, long evidenceDeadline,
-                         long reviewDeadline, long reminderBefore, long reminderRepeat, int maxEvidenceReminders, boolean notifyInGame) {}
+                         long reviewDeadline, long reminderBefore, long reminderRepeat, int maxEvidenceReminders, boolean notifyInGame,
+                         Set<PunishType> permanentOnlyTypes, boolean includeEmergency) {}
 
     public record Dashboard(long approachingCustody, Map<String, Integer> priority) {}
 
@@ -92,6 +114,9 @@ public final class Settings {
     public final Cases cases;
     public final Custody custody;
     public final Judicial judicial;
+    public final Network network;
+    public final Appeals appeals;
+    public final JailCfg jail;
     public final Escalation escalation;
     public final Warnings warnings;
     public final Review review;
@@ -168,13 +193,23 @@ public final class Settings {
         // a missing key keeps 1.0.0 behaviour (credit offered on every applicable type); the shipped 1.1.0 file narrows it to JAIL
         double rate = y.getDouble("judicial.time-served.rate", 1.0);
         if (rate < 0 || rate > 1) p.add("judicial.time-served.rate: must be between 0.0 and 1.0");
-        this.judicial = new Judicial(y.getBoolean("judicial.prosecutor-may-judge", true),
+        this.judicial = new Judicial(y.getBoolean("judicial.enabled", true), y.getBoolean("judicial.prosecutor-may-judge", true),
                 y.getBoolean("judicial.require-assigned-judge-for-verdict", true),
                 range(y, "judicial.min-verdict-reason-length", 10, 0, 200, p),
                 new TimeServed(y.getBoolean("judicial.time-served.enabled", true), rate, credit,
                         y.isList("judicial.time-served.default-credit-for")
                                 ? types(y.getStringList("judicial.time-served.default-credit-for"), "judicial.time-served.default-credit-for", p)
                                 : EnumSet.copyOf(credit.isEmpty() ? EnumSet.noneOf(PunishType.class) : credit)));
+
+        String srv = y.getString("network.server-name", "").trim();
+        if (!srv.isEmpty() && !srv.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,39}")) {
+            p.add("network.server-name: use 1-40 letters, digits, '.', '_' or '-' (for example smp, towny, skyblock, lobby)");
+            srv = "";
+        }
+        this.network = new Network(srv);
+        this.appeals = new Appeals(y.getBoolean("appeals.require-ticket", false), range(y, "appeals.min-reason-length", 10, 1, 500, p));
+        this.jail = new JailCfg(y.getString("punishments.jail.jail-name", "").trim(), y.getString("punishments.jail.cell-name", "").trim(),
+                y.getBoolean("punishments.jail.mute-while-jailed", false));
 
         this.escalation = new Escalation(!"all".equalsIgnoreCase(y.getString("escalation.scope", "category")),
                 y.getBoolean("escalation.count-direct-punishments", true));
@@ -289,12 +324,14 @@ public final class Settings {
         // ---------------- owner review of quick punishments
         EnumSet<PunishType> reviewTypes = y.isList("review.required-types") ? types(y.getStringList("review.required-types"), "review.required-types", p)
                 : EnumSet.of(PunishType.MUTE, PunishType.BAN, PunishType.IPBAN);
-        if (reviewTypes.contains(PunishType.WARN) || reviewTypes.contains(PunishType.JAIL) || reviewTypes.contains(PunishType.KICK)) {
-            p.add("review.required-types: warnings and kicks never require owner review, and jail is not a quick punishment");
+        if (reviewTypes.contains(PunishType.WARN) || reviewTypes.contains(PunishType.KICK)) {
+            p.add("review.required-types: warnings and kicks never enter owner review");
             reviewTypes.remove(PunishType.WARN);
-            reviewTypes.remove(PunishType.JAIL);
             reviewTypes.remove(PunishType.KICK);
         }
+        EnumSet<PunishType> permOnly = types(y.getStringList("review.permanent-only-types"), "review.permanent-only-types", p);
+        for (PunishType t : permOnly) if (!reviewTypes.contains(t)) p.add("review.permanent-only-types: " + t + " is not listed in review.required-types");
+        permOnly.retainAll(reviewTypes);
         long evDeadline = dur(y, "review.evidence-deadline", "24h", false, p);
         long rvDeadline = dur(y, "review.review-deadline", "72h", false, p);
         long remBefore = dur(y, "review.reminder-before", "12h", false, p);
@@ -302,7 +339,7 @@ public final class Settings {
         this.review = new Review(y.getBoolean("review.enabled", true), reviewTypes, dur(y, "review.min-duration", "0s", false, p),
                 range(y, "review.exempt-level", 0, 0, 100000, p), evDeadline, rvDeadline, remBefore,
                 dur(y, "review.reminder-repeat", "12h", false, p), range(y, "review.max-evidence-reminders", 6, 1, 50, p),
-                y.getBoolean("review.notify-in-game", true));
+                y.getBoolean("review.notify-in-game", true), permOnly, y.getBoolean("review.include-emergency", true));
 
         // ---------------- dashboard
         Map<String, Integer> prio = new LinkedHashMap<>();
@@ -394,7 +431,9 @@ public final class Settings {
         this.discord = new Discord(dEnabled, defaultUrl, y.getString("discord.username", "AuraPunishments"),
                 y.getString("discord.avatar-url", ""), Map.copyOf(channels), Map.copyOf(events),
                 range(y, "discord.timeout-seconds", 10, 1, 60, p), range(y, "discord.max-retries", 3, 0, 20, p),
-                range(y, "discord.outbox-retention-days", 14, 1, 365, p), 1000L * range(y, "discord.retry-backoff-seconds", 5, 1, 300, p), legacy);
+                range(y, "discord.outbox-retention-days", 14, 1, 365, p), 1000L * range(y, "discord.retry-backoff-seconds", 5, 1, 300, p), legacy,
+                punishLog(y, "discord.punishment-log", true, env, p, secrets), punishLog(y, "discord.public-log", false, env, p, secrets));
+        if (dEnabled && publicLogNeedsUrl(this.discord.publicLog())) p.add("discord.public-log.enabled is true but discord.public-log.webhooks is empty: the public log never uses the private staff webhooks");
 
         this.auditRetentionDays = range(y, "retention.audit-days", 0, 0, 36500, p);
         this.jailEnabled = y.getBoolean("integrations.jailreloaded.enabled", true);
@@ -414,6 +453,43 @@ public final class Settings {
     }
 
     // ------------------------------------------------------------------ helpers
+    public static final Set<String> PUNISH_LOG_EVENTS = Set.of("issued", "modified", "revoked", "expired", "appeal", "judicial");
+    public static final Set<String> PUNISH_LOG_FIELDS = Set.of("player", "type", "reason", "duration", "expires", "issuer", "punishment-id",
+            "server", "evidence", "source", "network-status", "case");
+    /** The only fields a public (player-facing) notice may ever contain; nothing about staff, evidence, notes or addresses. */
+    public static final Set<String> PUBLIC_LOG_FIELDS = Set.of("player", "type", "reason", "duration", "expires", "server");
+
+    private static boolean publicLogNeedsUrl(PunishLog l) {
+        return l.enabled() && l.webhooks().isEmpty();
+    }
+
+    private static PunishLog punishLog(YamlConfiguration y, String path, boolean defaultEnabled, java.util.function.UnaryOperator<String> env,
+                                       List<String> p, YamlConfiguration secrets) {
+        boolean pub = path.endsWith("public-log");
+        List<String> urls = new ArrayList<>(urlList(y.getConfigurationSection(path), "webhooks", env, path + ".webhooks", p));
+        if (secrets != null) urls.addAll(secretUrls(secrets, pub ? "public-log" : "punishment-log", env, "webhooks.yml " + (pub ? "public-log" : "punishment-log"), p));
+        EnumSet<PunishType> ty = y.isList(path + ".types") ? types(y.getStringList(path + ".types"), path + ".types", p)
+                : (pub ? EnumSet.of(PunishType.BAN, PunishType.IPBAN) : EnumSet.allOf(PunishType.class));
+        Set<String> ev = new java.util.LinkedHashSet<>();
+        for (String e : y.isList(path + ".events") ? y.getStringList(path + ".events") : (pub ? List.of("issued") : new ArrayList<>(PUNISH_LOG_EVENTS))) {
+            String k = e.toLowerCase(Locale.ROOT);
+            if (!PUNISH_LOG_EVENTS.contains(k)) p.add(path + ".events: unknown event '" + e + "' (use " + String.join(", ", new java.util.TreeSet<>(PUNISH_LOG_EVENTS)) + ")");
+            else ev.add(k);
+        }
+        Set<String> fl = new java.util.LinkedHashSet<>();
+        List<String> defFields = pub ? List.of("player", "type", "duration") : new ArrayList<>(PUNISH_LOG_FIELDS);
+        for (String f : y.isList(path + ".fields") ? y.getStringList(path + ".fields") : defFields) {
+            String k = f.toLowerCase(Locale.ROOT);
+            if (!PUNISH_LOG_FIELDS.contains(k)) p.add(path + ".fields: unknown field '" + f + "' (use " + String.join(", ", new java.util.TreeSet<>(PUNISH_LOG_FIELDS)) + ")");
+            else if (pub && !PUBLIC_LOG_FIELDS.contains(k)) p.add(path + ".fields: '" + f + "' can never appear in the public log (allowed: " + String.join(", ", new java.util.TreeSet<>(PUBLIC_LOG_FIELDS)) + ")");
+            else fl.add(k);
+        }
+        boolean showReason = y.getBoolean(path + ".show-reason", false);
+        if (pub && showReason) fl.add("reason");
+        if (!pub) showReason = fl.contains("reason");
+        return new PunishLog(y.getBoolean(path + ".enabled", defaultEnabled), List.copyOf(urls), Set.copyOf(ty), Set.copyOf(ev), Set.copyOf(fl), showReason);
+    }
+
     private static int range(YamlConfiguration y, String path, int def, int min, int max, List<String> p) {
         int v = y.getInt(path, def);
         if (v < min || v > max) {

@@ -409,6 +409,7 @@ final class CaseMenu extends Menu {
         Punishment p = em.get();
         List<ChoiceMenu.Choice> ch = new ArrayList<>();
         for (DirectService.ReviewDecision rd : DirectService.ReviewDecision.values()) {
+            if (rd == DirectService.ReviewDecision.UPHOLD) continue; // only for case-free emergency actions
             boolean esc = rd == DirectService.ReviewDecision.ESCALATE_TO_TRIAL;
             ch.add(new ChoiceMenu.Choice(esc ? Material.CLOCK : Material.LIME_CONCRETE, (esc ? "<gold><b>Escalate to trial" : "<green><b>Revoke and dismiss"),
                     List.of(esc ? "<gray>The case goes to trial; the action runs to its expiry" : "<gray>Lifts the action now and dismisses the case"), true, () ->

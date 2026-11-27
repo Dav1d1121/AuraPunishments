@@ -71,6 +71,8 @@ public final class CustodyService extends Svc {
 
     // ------------------------------------------------------------------ initiate
     public CompletableFuture<Result<Custody>> initiate(Actor actor, long caseId) {
+        Result<Custody> off0 = core.mode.refuseNew("pretrial detention");
+        if (off0 != null) return done(off0);
         Settings s = core.settings;
         if (!s.custody.enabled()) return done(Result.fail(Code.UNAVAILABLE, "Pretrial custody is disabled in the configuration."));
         Result<Void> perm = core.auth.require(actor, Perms.CUSTODY_INITIATE, "initiate pretrial detention");

@@ -62,8 +62,11 @@ public final class WorkQueueService extends Svc {
     public CompletableFuture<Result<Queue>> queue(Actor actor) {
         Result<Void> p = core.auth.requireAny(actor, "view the work queue", Perms.DASHBOARD, Perms.JUDICIAL_VIEW, Perms.ADMIN, Perms.REVIEW_VIEW);
         if (!p.isOk()) return done(p.cast());
-        boolean seeCases = core.auth.has(actor, Perms.JUDICIAL_VIEW) || core.auth.has(actor, Perms.CASE_VIEW_ALL) || core.auth.has(actor, Perms.ADMIN);
-        boolean seeCustody = seeCases || core.auth.has(actor, Perms.CUSTODY_VIEW);
+        // judicial work (cases, custody, trials) is only listed while the judicial system is on or still has open items
+        boolean judicial = core.mode.judicialVisible();
+        boolean seeCases = judicial && (core.auth.has(actor, Perms.JUDICIAL_VIEW) || core.auth.has(actor, Perms.CASE_VIEW_ALL) || core.auth.has(actor, Perms.ADMIN));
+        boolean seeCustody = judicial && (seeCases || core.auth.has(actor, Perms.CUSTODY_VIEW));
+        boolean seeAppeals = core.auth.has(actor, Perms.APPEAL_DECIDE) || core.auth.has(actor, Perms.JUDICIAL_OVERTURN) || core.auth.has(actor, Perms.ADMIN);
         boolean seeReviews = core.auth.has(actor, Perms.REVIEW_VIEW);
         boolean seeEmergency = core.auth.has(actor, Perms.EMERGENCY_REVIEW);
         return db(c -> {
@@ -104,8 +107,17 @@ public final class WorkQueueService extends Svc {
                             r.reviewDue(), overdue));
                 }
             }
+            if (seeAppeals) {
+                for (var a : Repo.Appeals.openForPunishments(c, 60, 0)) {
+                    Punishment pu = Repo.Punishments.get(c, a.punishmentId());
+                    if (pu == null) continue;
+                    counts.merge(Kind.APPEAL, 1L, Long::sum);
+                    items.add(new Item(Kind.APPEAL, cfg.priority().get("appeal"), pu.targetName(), "Appeal #" + a.id() + " against " + pu.type().display() + " #" + pu.id()
+                            + (a.ticket() == null ? "" : " (ticket " + a.ticket() + ")"), null, null, pu.id(), null, false));
+                }
+            }
             if (seeCases) {
-                counts.put(Kind.APPEAL, Repo.Appeals.countPending(c));
+                counts.merge(Kind.APPEAL, Repo.Appeals.countPendingForCases(c), Long::sum);
                 addCases(c, items, Kind.APPEAL, List.of(CaseStatus.APPEALED), cfg.priority().get("appeal"), counts, false);
                 addCases(c, items, Kind.AWAITING_SENTENCING, List.of(CaseStatus.GUILTY, CaseStatus.AWAITING_SENTENCING), cfg.priority().get("awaiting-sentencing"), counts, true);
                 addCases(c, items, Kind.AWAITING_VERDICT, List.of(CaseStatus.IN_TRIAL, CaseStatus.AWAITING_VERDICT), cfg.priority().get("awaiting-verdict"), counts, true);

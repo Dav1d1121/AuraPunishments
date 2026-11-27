@@ -64,6 +64,7 @@ public final class Records {
                 case DIRECT -> "Direct Punishment";
                 case EMERGENCY -> "Emergency Protective Action";
                 case QUICK -> type == PunishType.WARN ? "Routine Warning" : type == PunishType.KICK ? "Quick Kick" : "Emergency Quick Punishment";
+                case STANDARD -> type == PunishType.WARN ? "Warning" : type == PunishType.KICK ? "Kick" : "Punishment";
             };
         }
 

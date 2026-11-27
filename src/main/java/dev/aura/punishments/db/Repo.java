@@ -170,6 +170,11 @@ public final class Repo {
             return count(c, sql.toString(), accused, excludeCase);
         }
 
+        /** Emergency cases (1.2.x) that are still being worked. */
+        public static long countOpenEmergency(Connection c) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM cases WHERE kind='EMERGENCY' AND status NOT IN ('CLOSED','DISMISSED','NOT_GUILTY','SENTENCED','DIRECT_PUNISHMENT_ISSUED')");
+        }
+
         public static long countOpenForAccused(Connection c, UUID accused) throws SQLException {
             return count(c, """
                     SELECT COUNT(*) FROM cases WHERE accused_uuid=? AND status IN
@@ -416,17 +421,28 @@ public final class Repo {
                     state, jailName, prisonerId, error, id);
         }
 
-        /** Jail punishments that still hold (or are about to hold) a prisoner, issued without a case/custody. */
+        private static final String LIVE_JAIL = "jail_state IN ('PLACING','HELD','PENDING_PLACEMENT','RELEASING')";
+
+        /**
+         * Standalone jail punishments (no case, no custody row) whose JailReloaded record still exists or may exist: being
+         * placed, held, waiting for the player to log in, or being released. A revoked punishment stays here until the
+         * prisoner is physically out.
+         */
         public static List<Punishment> liveStandaloneJail(Connection c) throws SQLException {
-            return query(c, "SELECT * FROM punishments WHERE type='JAIL' AND status='ACTIVE' AND custody_id IS NULL AND jail_state IS NOT NULL ORDER BY id ASC", MAP);
+            return query(c, "SELECT * FROM punishments WHERE type='JAIL' AND custody_id IS NULL AND " + LIVE_JAIL + " ORDER BY id ASC", MAP);
         }
 
         public static Punishment liveStandaloneJailFor(Connection c, UUID target) throws SQLException {
-            return one(c, "SELECT * FROM punishments WHERE type='JAIL' AND status='ACTIVE' AND custody_id IS NULL AND jail_state IS NOT NULL AND target_uuid=? ORDER BY id DESC LIMIT 1", MAP, target);
+            return one(c, "SELECT * FROM punishments WHERE type='JAIL' AND custody_id IS NULL AND " + LIVE_JAIL + " AND target_uuid=? ORDER BY id DESC LIMIT 1", MAP, target);
         }
 
         public static Punishment byJailPrisoner(Connection c, UUID target, String prisonerId) throws SQLException {
             return one(c, "SELECT * FROM punishments WHERE type='JAIL' AND target_uuid=? AND jail_prisoner_id=? ORDER BY id DESC LIMIT 1", MAP, target, prisonerId);
+        }
+
+        /** Active punishments that came out of the judicial system (they stay enforceable whatever the switch says). */
+        public static long countJudicialInForce(Connection c) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM punishments WHERE source='JUDICIAL' AND status='ACTIVE'");
         }
 
         public static boolean setOp(Connection c, long id, String opId) throws SQLException {
@@ -604,6 +620,10 @@ public final class Repo {
 
         public static long countPending(Connection c) throws SQLException {
             return count(c, "SELECT COUNT(*) FROM appeals WHERE status IN ('PENDING','UNDER_REVIEW')");
+        }
+
+        public static long countPendingForCases(Connection c) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM appeals WHERE case_id IS NOT NULL AND status IN ('PENDING','UNDER_REVIEW')");
         }
 
         public static long countPendingForPunishments(Connection c) throws SQLException {
