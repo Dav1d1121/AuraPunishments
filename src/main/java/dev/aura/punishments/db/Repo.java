@@ -5,6 +5,7 @@ import dev.aura.punishments.model.PunishType;
 import dev.aura.punishments.model.Records.*;
 import dev.aura.punishments.model.Simple.*;
 import dev.aura.punishments.db.Sql.RowMapper;
+import dev.aura.punishments.db.Dialect;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -32,11 +33,10 @@ public final class Repo {
                 rs.getLong("first_seen"), rs.getLong("last_seen"), rs.getString("last_ip"), rs.getInt("level"));
 
         public static void upsert(Connection c, UUID id, String name, String ip, int level, long now) throws SQLException {
-            update(c, """
-                    INSERT INTO profiles(uuid,name,name_lower,first_seen,last_seen,last_ip,level) VALUES(?,?,?,?,?,?,?)
-                    ON CONFLICT(uuid) DO UPDATE SET name=excluded.name, name_lower=excluded.name_lower,
-                      last_seen=excluded.last_seen, last_ip=COALESCE(excluded.last_ip, profiles.last_ip), level=excluded.level
-                    """, id, name, name.toLowerCase(Locale.ROOT), now, now, ip, level);
+            update(c, Dialect.of(c).upsert("profiles(uuid,name,name_lower,first_seen,last_seen,last_ip,level) VALUES(?,?,?,?,?,?,?)",
+                    List.of("uuid"), List.of("name={new:name}", "name_lower={new:name_lower}", "last_seen={new:last_seen}",
+                            "last_ip=COALESCE({new:last_ip}, profiles.last_ip)", "level={new:level}")),
+                    id, name, name.toLowerCase(Locale.ROOT), now, now, ip, level);
         }
 
         public static void updateLevel(Connection c, UUID id, int level, long now) throws SQLException {
@@ -70,7 +70,8 @@ public final class Repo {
                 rs.getString("verdict") == null ? null : Verdict.valueOf(rs.getString("verdict")),
                 rs.getString("verdict_reason"), rs.getString("verdict_by_name"), longOrNull(rs, "verdict_at"),
                 bool(rs, "overturned"), rs.getLong("created_at"), rs.getLong("updated_at"),
-                longOrNull(rs, "closed_at"), rs.getLong("version"), rs.getString("appeal_ticket"));
+                longOrNull(rs, "closed_at"), rs.getLong("version"), rs.getString("appeal_ticket"),
+                rs.getString("uid"), rs.getString("origin"));
 
         public static long insert(Connection c, CaseStatus status, CaseKind kind, UUID accused, String accusedName,
                                   String offense, Severity sev, String description, String context,
@@ -207,17 +208,39 @@ public final class Repo {
     public static final class Evidences {
         private Evidences() {}
 
-        static final RowMapper<Evidence> MAP = rs -> new Evidence(rs.getLong("id"), rs.getLong("case_id"),
+        static final RowMapper<Evidence> MAP = rs -> new Evidence(rs.getLong("id"), longOrNull(rs, "case_id"), longOrNull(rs, "punishment_id"),
                 EvidenceType.valueOf(rs.getString("type")), rs.getString("reference"), rs.getString("description"),
                 uuid(rs, "submitted_by"), rs.getString("submitted_name"), rs.getLong("submitted_at"),
                 bool(rs, "voided"), rs.getString("void_reason"), rs.getString("voided_name"),
-                longOrNull(rs, "voided_at"), longOrNull(rs, "corrects_id"));
+                longOrNull(rs, "voided_at"), longOrNull(rs, "corrects_id"), rs.getString("uid"), rs.getString("origin"));
 
         public static long add(Connection c, long caseId, EvidenceType type, String ref, String desc, UUID by,
                                String byName, long now, Long corrects) throws SQLException {
             return Sql.insert(c, """
                     INSERT INTO evidence(case_id,type,reference,description,submitted_by,submitted_name,submitted_at,corrects_id)
                     VALUES(?,?,?,?,?,?,?,?)""", caseId, type, ref, desc, by, byName, now, corrects);
+        }
+
+        /** Evidence attached straight to a punishment (the judicial system is off, or the punishment has no case). */
+        public static long addToPunishment(Connection c, long punishmentId, EvidenceType type, String ref, String desc, UUID by,
+                                           String byName, long now, Long corrects) throws SQLException {
+            return Sql.insert(c, """
+                    INSERT INTO evidence(punishment_id,type,reference,description,submitted_by,submitted_name,submitted_at,corrects_id)
+                    VALUES(?,?,?,?,?,?,?,?)""", punishmentId, type, ref, desc, by, byName, now, corrects);
+        }
+
+        public static List<Evidence> forPunishment(Connection c, long punishmentId, boolean includeVoided) throws SQLException {
+            return query(c, "SELECT * FROM evidence WHERE punishment_id=?" + (includeVoided ? "" : " AND voided=0") + " ORDER BY id ASC",
+                    MAP, punishmentId);
+        }
+
+        public static long countActiveForPunishment(Connection c, long punishmentId) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM evidence WHERE punishment_id=? AND voided=0", punishmentId);
+        }
+
+        /** Move punishment-level evidence onto a case (when a punishment is later brought under a case). */
+        public static int moveToCase(Connection c, long punishmentId, long caseId) throws SQLException {
+            return update(c, "UPDATE evidence SET case_id=?, punishment_id=NULL WHERE punishment_id=?", caseId, punishmentId);
         }
 
         public static Evidence get(Connection c, long id) throws SQLException {
@@ -245,12 +268,24 @@ public final class Repo {
 
         static final RowMapper<Note> MAP = rs -> new Note(rs.getLong("id"), longOrNull(rs, "case_id"),
                 uuid(rs, "profile_uuid"), uuid(rs, "author_uuid"), rs.getString("author_name"), rs.getString("text"),
-                rs.getLong("created_at"), bool(rs, "sensitive"), bool(rs, "voided"), rs.getString("void_reason"));
+                rs.getLong("created_at"), bool(rs, "sensitive"), bool(rs, "voided"), rs.getString("void_reason"),
+                longOrNull(rs, "punishment_id"));
 
         public static long add(Connection c, Long caseId, UUID profile, UUID author, String authorName, String text,
                                boolean sensitive, long now) throws SQLException {
             return Sql.insert(c, "INSERT INTO notes(case_id,profile_uuid,author_uuid,author_name,text,created_at,sensitive) VALUES(?,?,?,?,?,?,?)",
                     caseId, profile, author, authorName, text, now, sensitive);
+        }
+
+        /** A staff note about one punishment (also kept on the player's profile for the history view). */
+        public static long addForPunishment(Connection c, long punishmentId, UUID profile, UUID author, String authorName, String text,
+                                            boolean sensitive, long now) throws SQLException {
+            return Sql.insert(c, "INSERT INTO notes(punishment_id,profile_uuid,author_uuid,author_name,text,created_at,sensitive) VALUES(?,?,?,?,?,?,?)",
+                    punishmentId, profile, author, authorName, text, now, sensitive);
+        }
+
+        public static List<Note> forPunishment(Connection c, long punishmentId) throws SQLException {
+            return query(c, "SELECT * FROM notes WHERE punishment_id=? ORDER BY id ASC", MAP, punishmentId);
         }
 
         public static Note get(Connection c, long id) throws SQLException {
@@ -353,17 +388,49 @@ public final class Repo {
                 rs.getString("end_reason"), longOrNull(rs, "case_id"), Source.valueOf(rs.getString("source")),
                 rs.getString("offense_key"), bool(rs, "delivered"), longOrNull(rs, "review_deadline"),
                 bool(rs, "reviewed"), longOrNull(rs, "custody_id"), longOrNull(rs, "modified_at"), rs.getString("modified_by"),
-                longOrNull(rs, "original_expires_at"));
+                longOrNull(rs, "original_expires_at"), rs.getString("uid"), rs.getString("origin"), rs.getString("op_id"),
+                rs.getString("jail_prisoner_id"), rs.getString("jail_name"), rs.getString("jail_state"), rs.getString("jail_error"));
 
         public static long insert(Connection c, PunishType type, PunishStatus status, UUID target, String targetName, String ip,
                                   String reason, UUID issuer, String issuerName, long now, Long expiresAt, Long caseId,
                                   Source source, String offense, boolean delivered, Long reviewDeadline,
                                   Long custodyId) throws SQLException {
+            return insert(c, type, status, target, targetName, ip, reason, issuer, issuerName, now, expiresAt, caseId, source,
+                    offense, delivered, reviewDeadline, custodyId, null);
+        }
+
+        public static long insert(Connection c, PunishType type, PunishStatus status, UUID target, String targetName, String ip,
+                                  String reason, UUID issuer, String issuerName, long now, Long expiresAt, Long caseId,
+                                  Source source, String offense, boolean delivered, Long reviewDeadline,
+                                  Long custodyId, String opId) throws SQLException {
             return Sql.insert(c, """
                     INSERT INTO punishments(type,status,target_uuid,target_name,ip,reason,issuer_uuid,issuer_name,issued_at,
-                      expires_at,case_id,source,offense_key,delivered,review_deadline,custody_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      expires_at,case_id,source,offense_key,delivered,review_deadline,custody_id,op_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                     type, status, target, targetName, ip, reason, issuer, issuerName, now, expiresAt, caseId, source, offense,
-                    delivered, reviewDeadline, custodyId);
+                    delivered, reviewDeadline, custodyId, opId);
+        }
+
+        // ---- standalone jail (the punishment tracks its own JailReloaded prisoner record)
+        public static void setJail(Connection c, long id, String state, String jailName, String prisonerId, String error) throws SQLException {
+            update(c, "UPDATE punishments SET jail_state=?, jail_name=COALESCE(?, jail_name), jail_prisoner_id=COALESCE(?, jail_prisoner_id), jail_error=? WHERE id=?",
+                    state, jailName, prisonerId, error, id);
+        }
+
+        /** Jail punishments that still hold (or are about to hold) a prisoner, issued without a case/custody. */
+        public static List<Punishment> liveStandaloneJail(Connection c) throws SQLException {
+            return query(c, "SELECT * FROM punishments WHERE type='JAIL' AND status='ACTIVE' AND custody_id IS NULL AND jail_state IS NOT NULL ORDER BY id ASC", MAP);
+        }
+
+        public static Punishment liveStandaloneJailFor(Connection c, UUID target) throws SQLException {
+            return one(c, "SELECT * FROM punishments WHERE type='JAIL' AND status='ACTIVE' AND custody_id IS NULL AND jail_state IS NOT NULL AND target_uuid=? ORDER BY id DESC LIMIT 1", MAP, target);
+        }
+
+        public static Punishment byJailPrisoner(Connection c, UUID target, String prisonerId) throws SQLException {
+            return one(c, "SELECT * FROM punishments WHERE type='JAIL' AND target_uuid=? AND jail_prisoner_id=? ORDER BY id DESC LIMIT 1", MAP, target, prisonerId);
+        }
+
+        public static boolean setOp(Connection c, long id, String opId) throws SQLException {
+            return update(c, "UPDATE punishments SET op_id=? WHERE id=? AND op_id IS NULL", opId, id) == 1;
         }
 
         public static Punishment get(Connection c, long id) throws SQLException {
@@ -475,26 +542,54 @@ public final class Repo {
     public static final class Appeals {
         private Appeals() {}
 
-        static final RowMapper<Appeal> MAP = rs -> new Appeal(rs.getLong("id"), rs.getLong("case_id"),
+        static final RowMapper<Appeal> MAP = rs -> new Appeal(rs.getLong("id"), longOrNull(rs, "case_id"), longOrNull(rs, "punishment_id"),
                 rs.getString("filed_by_name"), rs.getLong("filed_at"), rs.getString("reason"),
                 AppealStatus.valueOf(rs.getString("status")), rs.getString("decided_by_name"),
-                rs.getString("decision_reason"), longOrNull(rs, "decided_at"), rs.getString("assigned_name"));
+                rs.getString("decision_reason"), longOrNull(rs, "decided_at"), rs.getString("assigned_name"),
+                rs.getString("ticket"), longOrNull(rs, "new_expires_at"), rs.getString("uid"), rs.getString("origin"));
 
         public static long add(Connection c, long caseId, String by, String reason, long now) throws SQLException {
             return Sql.insert(c, "INSERT INTO appeals(case_id,filed_by_name,filed_at,reason,status) VALUES(?,?,?,?,'PENDING')",
                     caseId, by, now, reason);
         }
 
+        /** An appeal against one punishment (no case involved). */
+        public static long addForPunishment(Connection c, long punishmentId, String by, String reason, String ticket, long now) throws SQLException {
+            return Sql.insert(c, "INSERT INTO appeals(punishment_id,filed_by_name,filed_at,reason,status,ticket) VALUES(?,?,?,?,'PENDING',?)",
+                    punishmentId, by, now, reason, ticket);
+        }
+
+        public static Appeal get(Connection c, long id) throws SQLException {
+            return one(c, "SELECT * FROM appeals WHERE id=?", MAP, id);
+        }
+
         public static List<Appeal> forCase(Connection c, long caseId) throws SQLException {
             return query(c, "SELECT * FROM appeals WHERE case_id=? ORDER BY id ASC", MAP, caseId);
+        }
+
+        public static List<Appeal> forPunishment(Connection c, long punishmentId) throws SQLException {
+            return query(c, "SELECT * FROM appeals WHERE punishment_id=? ORDER BY id ASC", MAP, punishmentId);
         }
 
         public static Appeal pendingForCase(Connection c, long caseId) throws SQLException {
             return one(c, "SELECT * FROM appeals WHERE case_id=? AND status IN ('PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", MAP, caseId);
         }
 
+        public static Appeal pendingForPunishment(Connection c, long punishmentId) throws SQLException {
+            return one(c, "SELECT * FROM appeals WHERE punishment_id=? AND status IN ('PENDING','UNDER_REVIEW') ORDER BY id DESC LIMIT 1", MAP, punishmentId);
+        }
+
+        /** Open appeals against punishments (the case-free queue), oldest first. */
+        public static List<Appeal> openForPunishments(Connection c, int limit, int offset) throws SQLException {
+            return query(c, "SELECT * FROM appeals WHERE punishment_id IS NOT NULL AND status IN ('PENDING','UNDER_REVIEW') ORDER BY id ASC LIMIT ? OFFSET ?", MAP, limit, offset);
+        }
+
         public static void setStatus(Connection c, long id, AppealStatus st, String assigned) throws SQLException {
             update(c, "UPDATE appeals SET status=?, assigned_name=COALESCE(?, assigned_name) WHERE id=?", st, assigned, id);
+        }
+
+        public static void setTicket(Connection c, long id, String ticket) throws SQLException {
+            update(c, "UPDATE appeals SET ticket=? WHERE id=?", ticket, id);
         }
 
         public static void decide(Connection c, long id, AppealStatus s, String by, String reason, long now) throws SQLException {
@@ -502,8 +597,17 @@ public final class Repo {
                     s, by, reason, now, id);
         }
 
+        public static void decide(Connection c, long id, AppealStatus s, String by, String reason, long now, Long newExpiresAt) throws SQLException {
+            update(c, "UPDATE appeals SET status=?, decided_by_name=?, decision_reason=?, decided_at=?, new_expires_at=? WHERE id=?",
+                    s, by, reason, now, newExpiresAt, id);
+        }
+
         public static long countPending(Connection c) throws SQLException {
             return count(c, "SELECT COUNT(*) FROM appeals WHERE status IN ('PENDING','UNDER_REVIEW')");
+        }
+
+        public static long countPendingForPunishments(Connection c) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM appeals WHERE punishment_id IS NOT NULL AND status IN ('PENDING','UNDER_REVIEW')");
         }
     }
 
@@ -514,7 +618,12 @@ public final class Repo {
         static final RowMapper<PendingOp> MAP = rs -> new PendingOp(rs.getLong("id"), rs.getString("kind"),
                 OpState.valueOf(rs.getString("state")), longOrNull(rs, "case_id"), longOrNull(rs, "custody_id"),
                 uuid(rs, "uuid"), rs.getString("payload"), rs.getInt("attempts"), rs.getLong("created_at"),
-                rs.getLong("updated_at"), rs.getString("last_error"));
+                rs.getLong("updated_at"), rs.getString("last_error"), longOrNull(rs, "punishment_id"));
+
+        public static long addForPunishment(Connection c, String kind, long punishmentId, UUID uuid, String payload, long now) throws SQLException {
+            return Sql.insert(c, "INSERT INTO pending_ops(kind,state,punishment_id,uuid,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                    kind, OpState.PENDING, punishmentId, uuid, payload, now, now);
+        }
 
         public static long add(Connection c, String kind, Long caseId, Long custodyId, UUID uuid, String payload, long now) throws SQLException {
             return Sql.insert(c, "INSERT INTO pending_ops(kind,state,case_id,custody_id,uuid,payload,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
@@ -651,7 +760,7 @@ public final class Repo {
 
         /** @return true when newly queued, false when this notification was already queued (duplicate prevention). */
         public static boolean enqueue(Connection c, String dedupeKey, UUID uuid, String kind, String refType, Long refId, String payload, long now) throws SQLException {
-            return update(c, "INSERT OR IGNORE INTO player_notifications(dedupe_key,uuid,kind,ref_type,ref_id,payload,state,created_at) VALUES(?,?,?,?,?,?,'PENDING',?)",
+            return update(c, Dialect.of(c).insertIgnore("player_notifications(dedupe_key,uuid,kind,ref_type,ref_id,payload,state,created_at) VALUES(?,?,?,?,?,?,'PENDING',?)"),
                     dedupeKey, uuid, kind, refType, refId, payload, now) == 1;
         }
 
@@ -698,7 +807,7 @@ public final class Repo {
                 rs.getInt("attempts"), rs.getLong("next_attempt"), rs.getLong("created_at"), longOrNull(rs, "sent_at"), rs.getString("last_error"));
 
         public static boolean enqueue(Connection c, String dedupeKey, String category, String event, String dest, String body, long now) throws SQLException {
-            return update(c, "INSERT OR IGNORE INTO discord_outbox(dedupe_key,category,event,dest,body,state,next_attempt,created_at) VALUES(?,?,?,?,?,'PENDING',?,?)",
+            return update(c, Dialect.of(c).insertIgnore("discord_outbox(dedupe_key,category,event,dest,body,state,next_attempt,created_at) VALUES(?,?,?,?,?,'PENDING',?,?)"),
                     dedupeKey, category, event, dest, body, now, now) == 1;
         }
 
@@ -767,10 +876,16 @@ public final class Repo {
         /** Append inside the caller's transaction, so the record and its audit entry are atomic. */
         public static void append(Connection c, long ts, UUID actor, String actorName, String action, UUID target,
                                   Long caseId, String detail, boolean elevated) throws SQLException {
+            append(c, ts, actor, actorName, action, target, caseId, detail, elevated, null);
+        }
+
+        /** @param opId the operation (one service call = one transaction) this entry belongs to; not part of the hash chain. */
+        public static void append(Connection c, long ts, UUID actor, String actorName, String action, UUID target,
+                                  Long caseId, String detail, boolean elevated, String opId) throws SQLException {
             String prev = lastHash(c);
             String hash = digest(prev, ts, actor, actorName, action, target, caseId, detail, elevated);
-            update(c, "INSERT INTO audit_log(ts,actor_uuid,actor_name,action,target_uuid,case_id,detail,elevated,prev_hash,hash) VALUES(?,?,?,?,?,?,?,?,?,?)",
-                    ts, actor, actorName, action, target, caseId, detail, elevated, prev, hash);
+            update(c, "INSERT INTO audit_log(ts,actor_uuid,actor_name,action,target_uuid,case_id,detail,elevated,prev_hash,hash,op_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    ts, actor, actorName, action, target, caseId, detail, elevated, prev, hash, opId);
         }
 
         public static List<Audit> recent(Connection c, int limit, int offset) throws SQLException {
@@ -804,7 +919,7 @@ public final class Repo {
         public static int prune(Connection c, long olderThan) throws SQLException {
             Audit lastOld = one(c, "SELECT * FROM audit_log WHERE ts<? ORDER BY id DESC LIMIT 1", MAP, olderThan);
             if (lastOld == null) return 0;
-            update(c, "INSERT INTO audit_anchor(id,hash,seq) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET hash=excluded.hash, seq=excluded.seq",
+            update(c, Dialect.of(c).upsert("audit_anchor(id,hash,seq) VALUES(1,?,?)", List.of("id"), List.of("hash={new:hash}", "seq={new:seq}")),
                     lastOld.hash(), lastOld.id());
             return update(c, "DELETE FROM audit_log WHERE id<=?", lastOld.id());
         }

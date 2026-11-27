@@ -1,19 +1,57 @@
 package dev.aura.punishments.db;
 
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Versioned schema. Add a new {@link Migration} to the end of {@link #MIGRATIONS}; never edit a
- * released one. The SQL is deliberately plain so a MySQL/MariaDB dialect can be added later
- * (the only SQLite-specific parts are AUTOINCREMENT and the pragmas in {@link Database}).
+ * released one. The SQL is deliberately plain and runs through the {@link Dialect}, so MySQL/MariaDB
+ * can be added behind the same interface in the network release. A migration step is either one SQL
+ * statement or a small piece of Java (used where a data fix-up cannot be written portably).
  */
 public final class Schema {
     private Schema() {}
 
-    public record Migration(int version, String description, List<String> statements) {}
+    /** Everything a Java migration step may need. */
+    public record Context(Dialect dialect, String origin, java.util.logging.Logger log) {}
+
+    @FunctionalInterface
+    public interface Step {
+        void run(Connection c, Context ctx) throws SQLException;
+    }
+
+    public record Migration(int version, String description, List<Step> steps, List<String> statements) {
+        public Migration(int version, String description, List<Step> steps) {
+            this(version, description, steps, List.of());
+        }
+
+        /** A migration made only of SQL statements. */
+        public static Migration sql(int version, String description, List<String> statements) {
+            List<Step> steps = new ArrayList<>();
+            for (String stmt : statements) steps.add((c, ctx) -> {
+                try (Statement st = c.createStatement()) {
+                    st.execute(ctx.dialect().translate(stmt));
+                }
+            });
+            return new Migration(version, description, steps, List.copyOf(statements));
+        }
+    }
+
+    private static Step sql(String statement) {
+        return (c, ctx) -> {
+            try (Statement st = c.createStatement()) {
+                st.execute(ctx.dialect().translate(statement));
+            }
+        };
+    }
+
+    private static final List<String> UID_TABLES = List.of("punishments", "cases", "evidence", "notes", "appeals", "reviews", "custody");
 
     public static final List<Migration> MIGRATIONS = List.of(
-            new Migration(1, "Initial schema", List.of(
+            Migration.sql(1, "Initial schema", List.of(
                     """
                     CREATE TABLE profiles (
                       uuid TEXT PRIMARY KEY,
@@ -213,7 +251,7 @@ public final class Schema {
                     )""",
                     "CREATE INDEX idx_ops_state ON pending_ops(state)"
             )),
-            new Migration(2, "1.1.0: owner reviews, player notifications, Discord outbox, appeal tickets", List.of(
+            Migration.sql(2, "1.1.0: owner reviews, player notifications, Discord outbox, appeal tickets", List.of(
                     "ALTER TABLE cases ADD COLUMN appeal_ticket TEXT",
                     "ALTER TABLE appeals ADD COLUMN assigned_name TEXT",
                     "ALTER TABLE punishments ADD COLUMN modified_at INTEGER",
@@ -308,8 +346,129 @@ public final class Schema {
                     INSERT INTO review_events(review_id, ts, actor_name, type, detail)
                     SELECT id, issued_at, 'Migration', 'MIGRATED', 'Imported from AuraPunishments 1.0.0; issued before reviews existed'
                     FROM reviews WHERE migrated=1"""
-            ))
+            )),
+            migration3()
     );
+
+    // ------------------------------------------------------------------ 1.3.0
+
+    /**
+     * 1.3.0: optional judicial system, case-free evidence/notes/appeals, standalone jail, and the identifiers the
+     * network release needs. Existing rows are preserved with their ids; nothing is deleted. The two tables whose
+     * case reference becomes optional (evidence, appeals) are rebuilt (copy, drop, rename) inside the migration's
+     * transaction, so a failure leaves the database exactly as it was.
+     */
+    private static Migration migration3() {
+        List<Step> steps = new ArrayList<>();
+        // identifiers: globally unique id + the server that created the record (backfilled below)
+        for (String t : UID_TABLES) {
+            if (t.equals("evidence") || t.equals("appeals")) continue; // rebuilt below with the new columns
+            steps.add(sql("ALTER TABLE " + t + " ADD COLUMN uid TEXT"));
+            steps.add(sql("ALTER TABLE " + t + " ADD COLUMN origin TEXT"));
+        }
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN op_id TEXT"));
+        // standalone jail: the punishment itself tracks its JailReloaded prisoner record
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN jail_prisoner_id TEXT"));
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN jail_name TEXT"));
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN jail_state TEXT"));
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN jail_error TEXT"));
+        steps.add(sql("ALTER TABLE notes ADD COLUMN punishment_id INTEGER"));
+        steps.add(sql("CREATE INDEX idx_notes_punishment ON notes(punishment_id)"));
+        steps.add(sql("ALTER TABLE pending_ops ADD COLUMN punishment_id INTEGER"));
+        steps.add(sql("ALTER TABLE audit_log ADD COLUMN origin TEXT"));
+        steps.add(sql("ALTER TABLE audit_log ADD COLUMN op_id TEXT"));
+
+        // evidence: belongs to a case OR directly to a punishment
+        steps.add(sql("""
+                CREATE TABLE evidence_v3 (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  case_id INTEGER REFERENCES cases(id),
+                  punishment_id INTEGER REFERENCES punishments(id),
+                  type TEXT NOT NULL,
+                  reference TEXT NOT NULL,
+                  description TEXT,
+                  submitted_by TEXT,
+                  submitted_name TEXT NOT NULL,
+                  submitted_at INTEGER NOT NULL,
+                  voided INTEGER NOT NULL DEFAULT 0,
+                  void_reason TEXT,
+                  voided_by TEXT,
+                  voided_name TEXT,
+                  voided_at INTEGER,
+                  corrects_id INTEGER,
+                  uid TEXT,
+                  origin TEXT,
+                  CHECK (case_id IS NOT NULL OR punishment_id IS NOT NULL)
+                )"""));
+        steps.add(sql("""
+                INSERT INTO evidence_v3(id,case_id,type,reference,description,submitted_by,submitted_name,submitted_at,
+                                        voided,void_reason,voided_by,voided_name,voided_at,corrects_id)
+                SELECT id,case_id,type,reference,description,submitted_by,submitted_name,submitted_at,
+                       voided,void_reason,voided_by,voided_name,voided_at,corrects_id FROM evidence"""));
+        steps.add(sql("DROP TABLE evidence"));
+        steps.add(sql("ALTER TABLE evidence_v3 RENAME TO evidence"));
+        steps.add(sql("CREATE INDEX idx_evidence_case ON evidence(case_id)"));
+        steps.add(sql("CREATE INDEX idx_evidence_punishment ON evidence(punishment_id)"));
+
+        // appeals: against a case OR directly against a punishment; carries the Discord Ticket Tool reference
+        steps.add(sql("""
+                CREATE TABLE appeals_v3 (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  case_id INTEGER REFERENCES cases(id),
+                  punishment_id INTEGER REFERENCES punishments(id),
+                  filed_by_name TEXT NOT NULL,
+                  filed_at INTEGER NOT NULL,
+                  reason TEXT NOT NULL,
+                  status TEXT NOT NULL,
+                  decided_by_name TEXT,
+                  decision_reason TEXT,
+                  decided_at INTEGER,
+                  assigned_name TEXT,
+                  ticket TEXT,
+                  new_expires_at INTEGER,
+                  uid TEXT,
+                  origin TEXT,
+                  CHECK (case_id IS NOT NULL OR punishment_id IS NOT NULL)
+                )"""));
+        steps.add(sql("""
+                INSERT INTO appeals_v3(id,case_id,filed_by_name,filed_at,reason,status,decided_by_name,decision_reason,decided_at,assigned_name,ticket)
+                SELECT a.id,a.case_id,a.filed_by_name,a.filed_at,a.reason,a.status,a.decided_by_name,a.decision_reason,a.decided_at,a.assigned_name,
+                       (SELECT cs.appeal_ticket FROM cases cs WHERE cs.id=a.case_id)
+                FROM appeals a"""));
+        steps.add(sql("DROP TABLE appeals"));
+        steps.add(sql("ALTER TABLE appeals_v3 RENAME TO appeals"));
+        steps.add(sql("CREATE INDEX idx_appeals_case ON appeals(case_id)"));
+        steps.add(sql("CREATE INDEX idx_appeals_punishment ON appeals(punishment_id)"));
+        steps.add(sql("CREATE INDEX idx_appeals_status ON appeals(status)"));
+
+        // give every existing record its globally unique id and the server it came from
+        steps.add((c, ctx) -> {
+            for (String t : UID_TABLES) {
+                try (var ps = c.prepareStatement("UPDATE " + t + " SET uid=" + ctx.dialect().randomId() + ", origin=? WHERE uid IS NULL")) {
+                    ps.setString(1, ctx.origin());
+                    ps.executeUpdate();
+                }
+            }
+            try (var ps = c.prepareStatement("UPDATE audit_log SET origin=? WHERE origin IS NULL")) {
+                ps.setString(1, ctx.origin());
+                ps.executeUpdate();
+            }
+        });
+        for (String t : UID_TABLES) steps.add(sql("CREATE UNIQUE INDEX idx_" + t + "_uid ON " + t + "(uid)"));
+        // ... and make that hold for every record created from now on, whichever code path inserts it
+        for (String t : UID_TABLES) steps.add((c, ctx) -> {
+            try (Statement st = c.createStatement()) {
+                st.execute(ctx.dialect().identityTrigger(t));
+            }
+        });
+        steps.add((c, ctx) -> {
+            try (Statement st = c.createStatement()) {
+                st.execute(ctx.dialect().originTrigger("audit_log"));
+            }
+        });
+        steps.add(sql("CREATE INDEX idx_pun_jail ON punishments(type, status, jail_prisoner_id)"));
+        return new Migration(3, "1.3.0: optional judicial system, case-free evidence/notes/appeals, standalone jail, network identifiers", steps);
+    }
 
     public static int latest() {
         return MIGRATIONS.get(MIGRATIONS.size() - 1).version();

@@ -16,7 +16,8 @@ public final class Records {
                        UUID prosecutorUuid, String prosecutorName, UUID judgeUuid, String judgeName,
                        Long trialAt, String hearingRef, Verdict verdict, String verdictReason,
                        String verdictByName, Long verdictAt, boolean overturned,
-                       long createdAt, long updatedAt, Long closedAt, long version, String appealTicket) {
+                       long createdAt, long updatedAt, Long closedAt, long version, String appealTicket,
+                       String uid, String origin) {
         public String ref() {
             return "AP-" + String.format("%04d", id);
         }
@@ -25,12 +26,14 @@ public final class Records {
     public record CaseEvent(long id, long caseId, long ts, String actorName, String type,
                             String fromStatus, String toStatus, String detail) {}
 
-    public record Evidence(long id, long caseId, EvidenceType type, String reference, String description,
+    /** Evidence belongs to a case or, when the judicial system is off, directly to a punishment (exactly one of the two). */
+    public record Evidence(long id, Long caseId, Long punishmentId, EvidenceType type, String reference, String description,
                            UUID submittedBy, String submittedName, long submittedAt,
-                           boolean voided, String voidReason, String voidedName, Long voidedAt, Long correctsId) {}
+                           boolean voided, String voidReason, String voidedName, Long voidedAt, Long correctsId,
+                           String uid, String origin) {}
 
     public record Note(long id, Long caseId, UUID profileUuid, UUID authorUuid, String authorName,
-                       String text, long createdAt, boolean sensitive, boolean voided, String voidReason) {}
+                       String text, long createdAt, boolean sensitive, boolean voided, String voidReason, Long punishmentId) {}
 
     public record Custody(long id, long caseId, UUID uuid, String name, CustodyStatus status,
                           String requestedName, long requestedAt, Long startedAt, Long deadline,
@@ -47,7 +50,9 @@ public final class Records {
                              long issuedAt, Long expiresAt, Long endedAt, String endedBy, String endReason,
                              Long caseId, Source source, String offenseKey, boolean delivered,
                              Long reviewDeadline, boolean reviewed, Long custodyId,
-                             Long modifiedAt, String modifiedBy, Long originalExpiresAt) {
+                             Long modifiedAt, String modifiedBy, Long originalExpiresAt,
+                             String uid, String origin, String opId,
+                             String jailPrisonerId, String jailName, String jailState, String jailError) {
         public boolean permanent() {
             return expiresAt == null;
         }
@@ -67,15 +72,17 @@ public final class Records {
         }
     }
 
-    public record Appeal(long id, long caseId, String filedByName, long filedAt, String reason,
-                         AppealStatus status, String decidedByName, String decisionReason, Long decidedAt, String assignedName) {}
+    /** An appeal against a case outcome (judicial system on) or directly against a punishment. */
+    public record Appeal(long id, Long caseId, Long punishmentId, String filedByName, long filedAt, String reason,
+                         AppealStatus status, String decidedByName, String decisionReason, Long decidedAt, String assignedName,
+                         String ticket, Long newExpiresAt, String uid, String origin) {}
 
     public record Audit(long id, long ts, UUID actorUuid, String actorName, String action,
                         UUID targetUuid, Long caseId, String detail, boolean elevated,
                         String prevHash, String hash) {}
 
     public record PendingOp(long id, String kind, OpState state, Long caseId, Long custodyId, UUID uuid,
-                            String payload, int attempts, long createdAt, long updatedAt, String lastError) {}
+                            String payload, int attempts, long createdAt, long updatedAt, String lastError, Long punishmentId) {}
 
     public record Review(long id, Long punishmentId, Long caseId, UUID targetUuid, String targetName, UUID issuerUuid,
                          String issuerName, PunishType ptype, Long durationMs, String reason, long issuedAt,

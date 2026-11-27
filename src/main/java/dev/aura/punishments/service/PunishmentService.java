@@ -179,7 +179,7 @@ public final class PunishmentService extends Svc {
         PunishStatus status = type.instant() ? PunishStatus.COMPLETED : PunishStatus.ACTIVE;
         boolean online = type != PunishType.WARN; // warnings count as delivered only once the player has actually seen them
         long id = Repo.Punishments.insert(c, type, status, target.uuid(), target.name(), ip, reason, actor.dbUuid(), actor.name(),
-                now, expires, caseId, source, offense, online, reviewDeadline, custodyId);
+                now, expires, caseId, source, offense, online, reviewDeadline, custodyId, opId());
         if (type == PunishType.WARN) {
             Settings.WarnRepeat rep = core.settings.warnings.repeat();
             long n = Repo.Punishments.countWarningsSince(c, target.uuid(), now - rep.window(), rep.sameCategoryOnly() && offense != null ? offense : null); // quick warnings carry no offense category: count them all

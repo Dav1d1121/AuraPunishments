@@ -15,6 +15,13 @@ import java.util.concurrent.CompletionException;
 abstract class Svc {
     protected final Core core;
 
+    /** The unique id of the service operation (= one database transaction) running on this thread, or null outside one. */
+    private static final ThreadLocal<String> OP = new ThreadLocal<>();
+
+    static String opId() {
+        return OP.get();
+    }
+
     protected Svc(Core core) {
         this.core = core;
     }
@@ -36,9 +43,14 @@ abstract class Svc {
      */
     protected <T> CompletableFuture<Result<T>> db(SqlFunction<Result<T>> work) {
         return core.db.tx(c -> {
-            Result<T> r = work.apply(c);
-            if (!r.isOk()) throw new Abort(r);
-            return r;
+            OP.set(java.util.UUID.randomUUID().toString());
+            try {
+                Result<T> r = work.apply(c);
+                if (!r.isOk()) throw new Abort(r);
+                return r;
+            } finally {
+                OP.remove();
+            }
         }).handle((r, ex) -> ex == null ? r : this.<T>failure(ex));
     }
 
@@ -65,7 +77,7 @@ abstract class Svc {
     protected void audit(Connection c, Actor a, String action, UUID target, Long caseId, String detail,
                          boolean elevated) throws SQLException {
         Repo.Audits.append(c, core.clock.now(), a.dbUuid(), a.name(), action, target, caseId,
-                detail == null ? "" : detail, elevated);
+                detail == null ? "" : detail, elevated, opId());
     }
 
     /** Resolve the target's authority (online or offline) and apply hierarchy rules. */

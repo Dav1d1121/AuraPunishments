@@ -10,6 +10,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -29,11 +30,23 @@ public final class Database implements AutoCloseable {
     private final String jdbcUrl;
     private final Path file;
     private final Logger log;
+    private final String configuredOrigin;
+    private volatile String origin = "default";
+    private final Dialect dialect = Dialect.SQLITE;
     private final ExecutorService exec;
     private final AtomicReference<String> lastError = new AtomicReference<>();
     private Connection conn; // only touched on the executor thread
 
     public Database(Path file, Logger log) {
+        this(file, log, null);
+    }
+
+    /**
+     * @param configuredOrigin the admin-chosen name of this server ({@code network.server-name}); blank means "generate
+     *                         one once and remember it". It is stamped on every record this server creates.
+     */
+    public Database(Path file, Logger log, String configuredOrigin) {
+        this.configuredOrigin = configuredOrigin == null ? "" : configuredOrigin.trim();
         this.file = file;
         this.jdbcUrl = "jdbc:sqlite:" + (file == null ? ":memory:" : file.toAbsolutePath());
         this.log = log;
@@ -82,10 +95,20 @@ public final class Database implements AutoCloseable {
         conn = c;
     }
 
+    /** The identifier of this server that is stamped on records it creates (never blank once the database is open). */
+    public String origin() {
+        return origin;
+    }
+
+    public Dialect dialect() {
+        return dialect;
+    }
+
     private void migrate() throws SQLException {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE IF NOT EXISTS meta (k TEXT PRIMARY KEY, v TEXT NOT NULL)");
         }
+        resolveOrigin();
         int current = Sql.one(conn, "SELECT v FROM meta WHERE k='schema_version'", rs -> Integer.parseInt(rs.getString(1))) == null
                 ? 0 : Sql.one(conn, "SELECT v FROM meta WHERE k='schema_version'", rs -> Integer.parseInt(rs.getString(1)));
         int latest = Schema.latest();
@@ -99,12 +122,9 @@ public final class Database implements AutoCloseable {
             if (m.version() <= current) continue;
             conn.setAutoCommit(false);
             try {
-                for (String s : m.statements()) {
-                    try (Statement st = conn.createStatement()) {
-                        st.execute(s);
-                    }
-                }
-                Sql.update(conn, "INSERT INTO meta(k,v) VALUES('schema_version',?) ON CONFLICT(k) DO UPDATE SET v=excluded.v",
+                Schema.Context ctx = new Schema.Context(dialect, origin, log);
+                for (Schema.Step step : m.steps()) step.run(conn, ctx);
+                Sql.update(conn, dialect.upsert("meta(k,v) VALUES('schema_version',?)", List.of("k"), List.of("v={new:v}")),
                         String.valueOf(m.version()));
                 conn.commit();
                 log.info("Database migrated to schema v" + m.version() + " (" + m.description() + ")");
@@ -115,6 +135,29 @@ public final class Database implements AutoCloseable {
                 conn.setAutoCommit(true);
             }
         }
+    }
+
+    /**
+     * Server identity: a random id is generated once and kept in {@code meta}; the admin-chosen name wins when set.
+     * A name that differs from the one first recorded is used but logged, because renaming a server later splits
+     * its records across two origins (they stay valid; they just no longer group together).
+     */
+    private void resolveOrigin() throws SQLException {
+        String id = Sql.one(conn, "SELECT v FROM meta WHERE k='server_id'", rs -> rs.getString(1));
+        if (id == null) {
+            id = "srv-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+            Sql.update(conn, "INSERT INTO meta(k,v) VALUES('server_id',?)", id);
+        }
+        String recorded = Sql.one(conn, "SELECT v FROM meta WHERE k='origin_name'", rs -> rs.getString(1));
+        String chosen = configuredOrigin.isEmpty() ? (recorded != null ? recorded : id) : configuredOrigin;
+        if (recorded == null) {
+            Sql.update(conn, "INSERT INTO meta(k,v) VALUES('origin_name',?)", chosen);
+        } else if (!recorded.equals(chosen)) {
+            log.warning("network.server-name is now '" + chosen + "' but this database's records were created as '" + recorded
+                    + "'. Records already stored keep the old name; choose one name per server and keep it.");
+            Sql.update(conn, "UPDATE meta SET v=? WHERE k='origin_name'", chosen);
+        }
+        this.origin = chosen;
     }
 
     private void backup(int fromVersion) {
