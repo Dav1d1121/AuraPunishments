@@ -49,6 +49,14 @@ public final class Menus {
         WorkQueueMenu.open(gui, p, null);
     }
 
+    public static void openPunishment(Gui gui, Player p, long id) {
+        PunishmentMenu.open(gui, p, null, id);
+    }
+
+    public static void openAppeals(Gui gui, Player p) {
+        AppealListMenu.open(gui, p, null);
+    }
+
     public static void openWarnings(Gui gui, Player p, Target t) {
         WarningHistoryMenu.open(gui, p, null, t);
     }

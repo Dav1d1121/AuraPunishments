@@ -388,6 +388,12 @@ public final class ReviewService extends Svc {
                 punishments.cache().add(p); // replaces the cached copy atomically the cached copy (modified expiry/reason); no-op when no longer active
             });
         }
+        if (r.status() == ReviewStatus.MODIFIED && r.punishmentId() != null) {
+            core.db.tx(c -> Repo.Punishments.get(c, r.punishmentId())).thenAccept(pm -> {
+                if (pm != null) core.emit(DomainEvent.of(DomainEvent.Type.PUNISHMENT_MODIFIED).key("modified:" + pm.id() + ":" + r.version()).player(pm.targetName()).actor(actor.name())
+                        .summary(pm.type().display() + " #" + pm.id() + " modified by owner review").field("Why", Text.truncate(note, 300)).punishment(pm, "modified", 0).build());
+            });
+        }
         core.emit(DomainEvent.of(DomainEvent.Type.REVIEW_DECISION).key("review-decision:" + r.id() + ":" + r.version()).caseId(r.caseId())
                 .player(r.targetName()).actor(actor.name()).summary(r.ref() + ": " + r.status().display())
                 .field("Issued by", r.issuerName()).field("Decision note", Text.truncate(note, 400)).build());

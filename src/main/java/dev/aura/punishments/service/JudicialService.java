@@ -356,7 +356,7 @@ public final class JudicialService extends Svc {
                         .summary(type.display() + (type.canBeTimed() ? " (" + Durations.format(pl.durationMs()) + ")" : ""))
                         .field("Sentence", type.display()).field("Duration", type.canBeTimed() ? Durations.format(pl.durationMs()) : null)
                         .field("Time served credit", pl.creditMs() > 0 ? Durations.format(pl.creditMs()) : null)
-                        .field("Reasoning", Text.truncate(pl.reason(), 300)).build());
+                        .field("Reasoning", Text.truncate(pl.reason(), 300)).punishment(p, "issued", 0).build());
                 return res;
             });
         });

@@ -148,6 +148,7 @@ permissions:
   aurapunishments.export: { description: "Export a case summary (Markdown/text) from the GUI or /ap export.", default: false }
   aurapunishments.case.evidence.coreprotect: { description: "Run read-only CoreProtect lookups as case evidence.", default: false }
   aurapunishments.case.appeal.ticket: { description: "Link a Discord Ticket Tool ticket to an appeal.", default: false }
+  aurapunishments.appeal.decide: { description: "Decide appeals against punishments (uphold, reduce, overturn). Never granted automatically and NOT part of aurapunishments.*; with the judicial system off this is the only node that can decide an appeal.", default: false }
   aurapunishments.custody.*:
     default: false
     children:
@@ -178,6 +179,8 @@ permissions:
       aurapunishments.punish.ban.permanent: true
       aurapunishments.punish.ipban: true
       aurapunishments.punish.ipban.permanent: true
+      aurapunishments.punish.jail: true
+      aurapunishments.punish.jail.permanent: true
       aurapunishments.punish.revoke: true
       aurapunishments.punish.revoke.any: true
   aurapunishments.punish.warn: { description: "Issue warnings.", default: false }
@@ -188,6 +191,8 @@ permissions:
   aurapunishments.punish.ban.permanent: { description: "Issue permanent bans.", default: false }
   aurapunishments.punish.ipban: { description: "Issue timed IP bans (needs a duration tier limit node).", default: false }
   aurapunishments.punish.ipban.permanent: { description: "Issue permanent IP bans.", default: false }
+  aurapunishments.punish.jail: { description: "Jail players as an ordinary punishment (judicial system off; needs a jail duration tier limit node).", default: false }
+  aurapunishments.punish.jail.permanent: { description: "Jail players until released (no end time).", default: false }
   aurapunishments.punish.revoke: { description: "Revoke punishments you issued through the quick pathway.", default: false }
   aurapunishments.punish.revoke.any: { description: "Revoke any punishment, including judicial and direct ones.", default: false }
   # Duration tier limits shipped in the default config.yml (tiers are configurable; LuckPerms supports aurapunishments.limit.<type>.*)

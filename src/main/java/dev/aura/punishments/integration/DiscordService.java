@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -154,6 +155,18 @@ public class DiscordService {
         if (!s.discord.enabled()) return out;
         Settings.DiscordEvent ev = s.discord.events().get(e.type().discordKey);
         if (ev != null && !ev.enabled()) return out;
+        // 1.3.0 private punishment log: which punishment types and lifecycle events are posted (the staff destinations)
+        Settings.PunishLog staff = s.discord.staffLog();
+        if (e.info() != null) {
+            if (!staff.enabled() || !staff.types().contains(dev.aura.punishments.model.PunishType.valueOf(e.info().type()))
+                    || !staff.events().contains(e.info().event())) return out;
+            if (!staff.webhooks().isEmpty()) {
+                for (int i = 0; i < staff.webhooks().size(); i++) out.add("plog#" + i);
+                return out;
+            }
+        } else if ((e.type().category.equals(DomainEvent.Cat.JUDICIAL) || e.type().category.equals(DomainEvent.Cat.CUSTODY)) && !staff.events().contains("judicial")) {
+            return out; // judicial notices switched off in punishment-log.events
+        }
         // Upgraded install (no discord.channels section): events that did not exist in 1.0.0 stay off until the admin lists them under discord.events.
         if (s.discord.legacyLayout() && ev == null && !LEGACY_EVENTS.contains(e.type().discordKey)) return out;
         String cat = ev != null && !ev.category().isEmpty() ? ev.category() : e.type().category;
@@ -177,13 +190,28 @@ public class DiscordService {
         return out;
     }
 
+    /**
+     * Destinations of the optional PUBLIC log for this event. Public notices are sanitized (see {@link #publicBody}) and use only
+     * the webhooks listed under discord.public-log - never the private staff webhooks or the default webhook.
+     */
+    public static List<String> publicRoute(Settings s, DomainEvent e) {
+        List<String> out = new ArrayList<>();
+        Settings.PunishLog pub = s.discord.publicLog();
+        if (!s.discord.enabled() || !pub.enabled() || e.info() == null || pub.webhooks().isEmpty()) return out;
+        if (!pub.types().contains(dev.aura.punishments.model.PunishType.valueOf(e.info().type())) || !pub.events().contains(e.info().event())) return out;
+        for (int i = 0; i < pub.webhooks().size(); i++) out.add("pub#" + i);
+        return out;
+    }
+
     static String resolve(Settings s, String dest) {
         try {
             int hash = dest.lastIndexOf('#');
             int idx = Integer.parseInt(dest.substring(hash + 1));
             String head = dest.substring(0, hash);
             List<String> urls;
-            if (head.equals("default")) urls = List.of(s.discord.webhook());
+            if (head.equals("pub")) urls = s.discord.publicLog().webhooks();
+            else if (head.equals("plog")) urls = s.discord.staffLog().webhooks();
+            else if (head.equals("default")) urls = List.of(s.discord.webhook());
             else if (head.startsWith("cat:")) urls = s.discord.channels().get(head.substring(4)).webhooks();
             else urls = s.discord.events().get(head.substring(3)).webhooks();
             return idx < urls.size() ? urls.get(idx) : null;
@@ -196,18 +224,28 @@ public class DiscordService {
         Settings s = settings.get();
         if (!s.discord.enabled()) return;
         List<String> dests = route(s, e);
-        if (dests.isEmpty()) {
+        List<String> pubDests = publicRoute(s, e);
+        if (dests.isEmpty() && pubDests.isEmpty()) {
             Settings.DiscordEvent ev = s.discord.events().get(e.type().discordKey);
             boolean intentionallyOff = ev != null && !ev.enabled();
-            if (!intentionallyOff && !channelOff(s, e)) unrouted++;
+            boolean filteredByLog = e.info() != null || isJudicialCategory(e);
+            if (!intentionallyOff && !filteredByLog && !channelOff(s, e)) unrouted++;
             return;
         }
-        String body = body(s, e);
         String base = e.key() != null ? e.key() : e.type().discordKey + ":" + UUID.randomUUID();
         long now = clock.getAsLong();
+        if (!dests.isEmpty()) enqueueAll(base, e, dests, body(s, e), now);
+        if (!pubDests.isEmpty()) enqueueAll(base, e, pubDests, publicBody(s, e), now);
+    }
+
+    private static boolean isJudicialCategory(DomainEvent e) {
+        return e.type().category.equals(DomainEvent.Cat.JUDICIAL) || e.type().category.equals(DomainEvent.Cat.CUSTODY);
+    }
+
+    private void enqueueAll(String base, DomainEvent e, List<String> dests, String body, long now) {
         for (String d : dests) {
             try {
-                store.enqueue(base + "@" + d, e.type().category, e.type().discordKey, d, body, now);
+                store.enqueue(base + "@" + d, e.type().category, e.type().discordKey, d, body, now); // the key makes redelivery of the same fact to the same destination impossible
             } catch (Exception ex) {
                 warn("Discord outbox could not store a notification (" + ex.getClass().getSimpleName() + "); moderation is unaffected");
             }
@@ -250,13 +288,85 @@ public class DiscordService {
         embed.addProperty("color", e.type().color);
         embed.addProperty("timestamp", Instant.now().toString());
         JsonArray fields = new JsonArray();
-        if (!e.player().isBlank()) field(fields, "Player", e.player(), true);
-        if (!e.actor().isBlank()) field(fields, "By", e.actor(), true);
-        for (Map.Entry<String, String> f : e.fields().entrySet()) field(fields, f.getKey(), f.getValue(), false);
+        if (e.info() != null) {
+            staffFields(s.discord.staffLog(), e, fields);
+        } else {
+            if (!e.player().isBlank()) field(fields, "Player", e.player(), true);
+            if (!e.actor().isBlank()) field(fields, "By", e.actor(), true);
+            for (Map.Entry<String, String> f : e.fields().entrySet()) field(fields, f.getKey(), f.getValue(), false);
+        }
         embed.add("fields", fields);
         JsonObject footer = new JsonObject();
         footer.addProperty("text", "AuraPunishments - " + cat);
         embed.add("footer", footer);
+        JsonArray embeds = new JsonArray();
+        embeds.add(embed);
+        root.add("embeds", embeds);
+        return root.toString();
+    }
+
+    /** Fields of a punishment notice for the private staff log, limited to what punishment-log.fields lists. */
+    private static void staffFields(Settings.PunishLog log, DomainEvent e, JsonArray fields) {
+        DomainEvent.Info i = e.info();
+        java.util.Set<String> want = log.fields();
+        java.util.Set<String> shown = new java.util.HashSet<>();
+        if (want.contains("player") && !e.player().isBlank()) { field(fields, "Player", e.player(), true); shown.add("player"); }
+        if (want.contains("type")) { field(fields, "Type", typeLabel(i), true); shown.add("type"); }
+        if (want.contains("duration") && i.timed()) { field(fields, "Duration", i.durationMs() == null ? "permanent" : dev.aura.punishments.util.Durations.format(i.durationMs()), true); shown.add("duration"); }
+        if (want.contains("expires") && i.timed()) { field(fields, "Expires", i.expiresAt() == null ? "never" : "<t:" + (i.expiresAt() / 1000) + ":f>", true); shown.add("expires"); }
+        if (want.contains("reason")) { field(fields, "Reason", Text.truncate(i.reason(), 300), false); shown.add("reason"); }
+        if (want.contains("issuer") && !e.actor().isBlank()) { field(fields, "By", e.actor(), true); shown.add("issuer"); }
+        if (want.contains("punishment-id")) { field(fields, "Punishment", "#" + i.id(), true); shown.add("punishment-id"); }
+        if (want.contains("server") && i.origin() != null) { field(fields, "Server", i.origin(), true); shown.add("server"); }
+        if (want.contains("evidence") && i.evidence() > 0) { field(fields, "Evidence", i.evidence() + " item(s)", true); shown.add("evidence"); }
+        if (want.contains("source")) { field(fields, "Source", i.source().toLowerCase(Locale.ROOT), true); shown.add("source"); }
+        if (want.contains("network-status")) { field(fields, "Network", "this server only", true); shown.add("network-status"); }
+        if (want.contains("case") && i.caseId() != null) { field(fields, "Case", "AP-" + String.format("%04d", i.caseId()), true); shown.add("case"); }
+        // anything else the event carries (classification, justification, reasoning...) is kept, except what the admin left out above
+        for (Map.Entry<String, String> f : e.fields().entrySet()) {
+            String k = f.getKey().toLowerCase(Locale.ROOT);
+            if (k.equals("reason") && (!want.contains("reason") || shown.contains("reason"))) continue;
+            field(fields, f.getKey(), f.getValue(), false);
+        }
+    }
+
+    private static String typeLabel(DomainEvent.Info i) {
+        return dev.aura.punishments.model.PunishType.valueOf(i.type()).display();
+    }
+
+    /**
+     * The PUBLIC notice: player, type, duration/expiry, server and (only if show-reason) the reason. By construction it cannot
+     * contain the issuing staff member, evidence, notes, punishment ids, case numbers, addresses or anything an event carries as a
+     * free field - those are never read here.
+     */
+    public static String publicBody(Settings s, DomainEvent e) {
+        DomainEvent.Info i = e.info();
+        Settings.PunishLog pub = s.discord.publicLog();
+        JsonObject root = new JsonObject();
+        if (!s.discord.username().isBlank()) root.addProperty("username", Text.truncate(s.discord.username(), 80));
+        if (!s.discord.avatar().isBlank() && s.discord.avatar().startsWith("https://")) root.addProperty("avatar_url", s.discord.avatar());
+        JsonObject allowed = new JsonObject();
+        allowed.add("parse", new JsonArray());
+        root.add("allowed_mentions", allowed);
+        JsonObject embed = new JsonObject();
+        String verb = switch (i.event()) {
+            case "revoked" -> "lifted";
+            case "expired" -> "ended";
+            case "modified" -> "changed";
+            default -> "issued";
+        };
+        embed.addProperty("title", Text.truncate(typeLabel(i) + " " + verb, 250));
+        embed.addProperty("color", e.type().color);
+        embed.addProperty("timestamp", Instant.now().toString());
+        JsonArray fields = new JsonArray();
+        java.util.Set<String> want = pub.fields();
+        if (want.contains("player") && !e.player().isBlank()) field(fields, "Player", e.player(), true);
+        if (want.contains("type")) field(fields, "Type", typeLabel(i), true);
+        if (want.contains("duration") && i.timed()) field(fields, "Duration", i.durationMs() == null ? "permanent" : dev.aura.punishments.util.Durations.format(i.durationMs()), true);
+        if (want.contains("expires") && i.timed()) field(fields, "Expires", i.expiresAt() == null ? "never" : "<t:" + (i.expiresAt() / 1000) + ":f>", true);
+        if (want.contains("server") && i.origin() != null) field(fields, "Server", i.origin(), true);
+        if (pub.showReason() && i.reason() != null && !i.reason().isBlank()) field(fields, "Reason", Text.truncate(i.reason(), 300), false);
+        embed.add("fields", fields);
         JsonArray embeds = new JsonArray();
         embeds.add(embed);
         root.add("embeds", embeds);

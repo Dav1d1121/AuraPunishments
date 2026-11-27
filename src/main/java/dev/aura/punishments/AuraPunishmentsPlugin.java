@@ -45,7 +45,7 @@ import java.util.function.Supplier;
  * AuraPunishments: GUI-driven moderation, judicial case management and punishment enforcement for Aurehaven.
  * Jailing is delegated to JailReloaded; this plugin never implements a jail of its own.
  */
-public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks {
+public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks, org.bukkit.event.Listener {
     private Core core;
     private Database db;
     private DiscordService discord;
@@ -208,6 +208,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         pm.registerEvents(new ChatListener(this, core, punishments), this);
         pm.registerEvents(new CommandGuardListener(core, punishments, custody, jails, gui.prompts()), this);
         registerJailListener();
+        pm.registerEvents(this, this); // administrator warning while judicial work is still open
 
         var punish = new PunishCommand(gui);
         getCommand("punish").setExecutor(punish);
@@ -229,7 +230,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         startTasks();
         // Recover anything interrupted by a crash or restart.
         custody.reconcileOnStartup().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex())
-                .thenCompose(v -> jails.reconcileOnStartup()).thenCompose(v -> core.mode.refresh()).exceptionally(t -> {
+                .thenCompose(v -> jails.reconcileOnStartup()).thenCompose(v -> core.mode.refresh()).thenAccept(r -> warnWindDown(null)).exceptionally(t -> {
             getLogger().warning("Startup recovery failed: " + t);
             return null;
         });
@@ -263,11 +264,41 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         }
     }
 
+    /** Console (and optionally one player) warning while the judicial system is off but work is still open. Never changes anything. */
+    private void warnWindDown(CommandSender to) {
+        if (core.mode.state() != JudicialMode.State.WIND_DOWN) return;
+        var report = core.mode.report();
+        List<String> lines = new ArrayList<>();
+        lines.add("The judicial system is switched OFF but judicial work is still open. NOTHING has been released, closed or deleted automatically:");
+        if (!report.known()) lines.add("  (the open items could not be counted yet)");
+        for (String l : report.lines()) lines.add("  - " + l);
+        lines.add("Finish them with the normal tools (/ap judge, /ap cases open). Details and the resolution steps: docs/JUDICIAL-MODE.md. "
+                + "Switching judicial.enabled back to true at any time restores everything.");
+        if (to == null) {
+            lines.forEach(getLogger()::warning);
+        } else {
+            for (String l : lines) to.sendMessage(core.messages.get("error", "message", l));
+        }
+    }
+
+    /** Tell administrators who join while judicial work is still open after the system was switched off. */
+    @org.bukkit.event.EventHandler
+    public void onAdminJoin(org.bukkit.event.player.PlayerJoinEvent e) {
+        Player p = e.getPlayer();
+        if (core == null || !p.hasPermission(Perms.ADMIN) || core.mode.state() != JudicialMode.State.WIND_DOWN) return;
+        Bukkit.getScheduler().runTaskLater(this, () -> {
+            if (p.isOnline()) warnWindDown(p);
+        }, 60L);
+    }
+
     private void logStartup(long ms) {
         var log = getLogger();
         log.info("AuraPunishments " + getPluginMeta().getVersion() + " enabled in " + ms + "ms (schema v" + db.schemaVersion() + ", "
                 + punishments.cache().size() + " active punishments).");
         log.info("JailReloaded: " + core.jail.status());
+        log.info("Server name (records are stamped with it): " + db.origin());
+        log.info("Judicial system: " + (core.mode.enabled() ? "ENABLED (cases, pretrial detention, hearings, verdicts and sentencing are available)"
+                : "DISABLED (judicial.enabled: false) - punishments are final and immediately enforceable"));
         if (!core.jail.available()) {
             log.warning("Pretrial custody and jail sentences are UNAVAILABLE until JailReloaded is present and compatible. Everything else works.");
         }
@@ -326,15 +357,24 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
     private void writeUpgradeReference() {
         try {
             YamlConfiguration current = load("config.yml");
-            if (current.isConfigurationSection("warnings") && current.isConfigurationSection("review")) return;
+            boolean has11 = current.isConfigurationSection("warnings") && current.isConfigurationSection("review");
+            boolean has13 = current.contains("judicial.enabled");
+            if (has11 && has13) return;
             String name = "config-" + getPluginMeta().getVersion() + "-reference.yml";
             File ref = new File(getDataFolder(), name);
             if (ref.exists()) return;
             try (var in = getResource("config.yml")) {
                 if (in != null) java.nio.file.Files.copy(in, ref.toPath());
             }
-            getLogger().info("Upgrade: your config.yml was NOT changed. New 1.1 options (warnings, review, dashboard, defendant, exports, "
-                    + "discord channels...) use safe built-in defaults. See " + name + " for every new option and copy what you want.");
+            if (!has11) {
+                getLogger().info("Upgrade: your config.yml was NOT changed. New 1.1 options (warnings, review, dashboard, defendant, exports, "
+                        + "discord channels...) use safe built-in defaults. See " + name + " for every new option and copy what you want.");
+            }
+            if (!has13) {
+                getLogger().info("Upgrade to 1.3: your config.yml has no 'judicial.enabled' line, so the judicial system stays ON and everything behaves as before. "
+                        + "To switch it off (punishments become final immediately), add 'judicial:' / '  enabled: false' and run /ap reload - read docs/JUDICIAL-MODE.md first. "
+                        + "All other new options (network, appeals, jail, review rules, Discord punishment log) use safe defaults; " + name + " lists them.");
+            }
         } catch (Exception e) {
             getLogger().warning("Could not write the upgrade reference config: " + e.getMessage());
         }
@@ -361,6 +401,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             Settings s = Settings.parse(load("config.yml"), secrets(), System::getenv);
             OffenseCatalog o = OffenseCatalog.parse(load("offenses.yml"));
             Messages m = Messages.parse(load("messages.yml"), defaults("messages.yml"));
+            boolean judicialBefore = core.settings.judicial.enabled();
             core.settings = s;
             core.offenses = o;
             core.messages = m;
@@ -373,6 +414,23 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
             });
             core.emit(DomainEvent.of(DomainEvent.Type.ADMIN_ACTION).key("reload:" + core.clock.now()).actor(who.name()).summary("Configuration reloaded").build());
             to.sendMessage(core.messages.get("command.reload-ok"));
+            if (judicialBefore != s.judicial.enabled()) {
+                core.db.tx(c -> {
+                    dev.aura.punishments.db.Repo.Audits.append(c, core.clock.now(), who.dbUuid(), who.name(), "admin.judicial-switch", null, null,
+                            "judicial.enabled " + judicialBefore + " -> " + s.judicial.enabled(), true);
+                    return null;
+                });
+                getLogger().warning("judicial.enabled changed from " + judicialBefore + " to " + s.judicial.enabled() + " by " + to.getName() + ".");
+                core.mode.refresh().thenAccept(r -> Bukkit.getScheduler().runTask(this, () -> {
+                    if (s.judicial.enabled()) {
+                        to.sendMessage(core.messages.get("info", "message", "Judicial system switched ON: cases, pretrial detention, hearings, verdicts and sentencing are available again."));
+                    } else {
+                        to.sendMessage(core.messages.get("info", "message", "Judicial system switched OFF: new punishments are final and immediately enforceable."));
+                        warnWindDown(to);
+                        warnWindDown(null);
+                    }
+                }));
+            }
             getLogger().info("Configuration reloaded by " + to.getName() + ". Settings marked [RESTART] in config.yml (database) were not changed.");
         } catch (ConfigException e) {
             to.sendMessage(core.messages.get("command.reload-failed"));
@@ -388,6 +446,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks 
         l.add("Database: " + (db.healthy() ? "healthy" : "PROBLEM: " + db.lastError()));
         l.add("Active bans/mutes cached: " + punishments.cache().size());
         l.add("JailReloaded: " + core.jail.status());
+        l.add("Server name: " + db.origin() + ", database schema v" + db.schemaVersion());
+        l.add("Judicial system: " + core.mode.state() + (core.mode.state() == JudicialMode.State.WIND_DOWN ? " - " + String.join("; ", core.mode.report().lines()) : ""));
         l.add("LuckPerms: " + (luckPerms != null ? "connected" : "not connected"));
         l.add("Discord: " + discord.status());
         l.add("CoreProtect: " + coreProtect.status());

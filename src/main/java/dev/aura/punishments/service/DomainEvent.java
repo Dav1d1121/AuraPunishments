@@ -5,7 +5,21 @@ import java.util.Map;
 
 /** Something noteworthy happened. Routed to in-game staff alerts and Discord; never contains IPs. */
 public record DomainEvent(Type type, Long caseId, String player, String actor, String summary,
-                          Map<String, String> fields, String key) {
+                          Map<String, String> fields, String key, Info info) {
+
+    /**
+     * Structured facts about the punishment an event is about (null for events that are not about one punishment). The Discord
+     * punishment log uses it to filter by type/event and to choose which fields to show; the sanitized public log uses only the
+     * public subset. Never contains IP addresses or staff notes.
+     *
+     * @param event issued | modified | revoked | expired | appeal
+     */
+    public record Info(String type, long id, String reason, Long durationMs, boolean timed, Long expiresAt, String issuer, String origin,
+                       String source, int evidence, String event, Long caseId) {}
+
+    public DomainEvent(Type type, Long caseId, String player, String actor, String summary, Map<String, String> fields, String key) {
+        this(type, caseId, player, actor, summary, fields, key, null);
+    }
 
     /** Discord log destinations; see {@code discord.channels} in config.yml. */
     public static final class Cat {
@@ -45,6 +59,7 @@ public record DomainEvent(Type type, Long caseId, String player, String actor, S
         REVIEW_OVERDUE("review-overdue", "reviews", Cat.OWNER_REVIEW, 0xE74C3C, "Review overdue"),
         APPEAL("appeal", "verdicts", Cat.APPEAL, 0x1ABC9C, "Appeal"),
         APPEAL_TICKET("appeal-ticket", "verdicts", Cat.APPEAL, 0x48C9B0, "Appeal ticket linked"),
+        PUNISHMENT_EXPIRED("punishment-expired", "verdicts", Cat.PUNISHMENT, 0x7FB3D5, "Punishment ended"),
         ADMIN_ACTION("admin-action", "admin", Cat.ADMIN, 0x34495E, "Administrative action"),
         EXPORT("export", "admin", Cat.ADMIN, 0x566573, "Case summary exported"),
         INTEGRATION_ERROR("integration-error", "admin", Cat.ADMIN, 0xB03A2E, "Integration problem"),
@@ -77,6 +92,7 @@ public record DomainEvent(Type type, Long caseId, String player, String actor, S
         private String summary = "";
         private final Map<String, String> fields = new LinkedHashMap<>();
         private String key;
+        private Info info;
 
         private Builder(Type type) {
             this.type = type;
@@ -113,8 +129,18 @@ public record DomainEvent(Type type, Long caseId, String player, String actor, S
             return this;
         }
 
+        /** Attach structured punishment facts (see {@link Info}). */
+        public Builder punishment(dev.aura.punishments.model.Records.Punishment p, String event, int evidenceCount) {
+            if (p == null) return this;
+            Long dur = p.type().canBeTimed() ? (p.expiresAt() == null ? null : p.expiresAt() - p.issuedAt()) : null;
+            this.info = new Info(p.type().name(), p.id(), p.reason(), dur, p.type().canBeTimed(), p.expiresAt(), p.issuerName(), p.origin(),
+                    p.source().name(), evidenceCount, event, p.caseId());
+            if (this.caseId == null) this.caseId = p.caseId();
+            return this;
+        }
+
         public DomainEvent build() {
-            return new DomainEvent(type, caseId, player, actor, summary, Map.copyOf(fields), key);
+            return new DomainEvent(type, caseId, player, actor, summary, Map.copyOf(fields), key, info);
         }
     }
 

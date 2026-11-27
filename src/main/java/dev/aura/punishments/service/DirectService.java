@@ -149,7 +149,7 @@ public final class DirectService extends Svc {
                 core.emit(DomainEvent.of(DomainEvent.Type.DIRECT).caseId(p.caseId()).player(p.targetName()).actor(actor.name())
                         .summary(type.display() + " (" + Durations.format(duration) + ")").field("Offense", offense.display())
                         .field("Punishment", type.display()).field("Duration", Durations.format(duration))
-                        .field("Justification", Text.truncate(just, 300)).build());
+                        .field("Justification", Text.truncate(just, 300)).punishment(p, "issued", evidence.size()).build());
                 return res;
             });
         });
@@ -201,7 +201,7 @@ public final class DirectService extends Svc {
             return punishments.afterIssue(p, false).thenApply(v -> {
                 core.emit(DomainEvent.of(DomainEvent.Type.EMERGENCY).caseId(p.caseId()).player(p.targetName()).actor(actor.name())
                         .summary(type.display() + " for " + Durations.format(duration) + "; senior review required")
-                        .field("Reason", Text.truncate(reason, 300)).field("Review by", "<t:" + (p.reviewDeadline() / 1000) + ":R>").build());
+                        .field("Reason", Text.truncate(reason, 300)).field("Review by", "<t:" + (p.reviewDeadline() / 1000) + ":R>").punishment(p, "issued", 0).build());
                 return res;
             });
         });

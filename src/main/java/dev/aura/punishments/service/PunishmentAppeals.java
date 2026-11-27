@@ -218,7 +218,7 @@ public final class PunishmentAppeals extends Svc {
                     .key(key + ":" + a.status()).actor(actor.name()).summary(summary + (p == null ? "" : " (punishment #" + p.id() + ")"))
                     .field("Ticket", a.ticket()).field("Reasoning", reasoning == null ? null : Text.truncate(reasoning, 300))
                     .field("Decision", a.status().open() ? null : a.status().name());
-            if (p != null) b.caseId(p.caseId()).player(p.targetName());
+            if (p != null) b.caseId(p.caseId()).player(p.targetName()).punishment(p, "appeal", 0);
             core.emit(b.build());
         }).exceptionally(t -> null);
     }

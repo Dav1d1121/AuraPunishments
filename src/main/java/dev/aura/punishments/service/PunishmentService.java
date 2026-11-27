@@ -169,24 +169,24 @@ public final class PunishmentService extends Svc {
             if (!res.isOk()) return done(res);
             if (type == PunishType.JAIL) {
                 return jails.place(actor, res.value()).thenApply(placed -> {
-                    if (placed.isOk()) emitIssued(placed.value());
+                    if (placed.isOk()) emitIssued(placed.value(), evidence.size());
                     return placed;
                 });
             }
             return afterIssue(res.value(), false).thenApply(v -> {
-                emitIssued(res.value());
+                emitIssued(res.value(), evidence.size());
                 return res;
             });
         });
     }
 
     /** Discord/staff events for a quick punishment, plus the review request when one was created. */
-    private void emitIssued(Punishment p) {
+    private void emitIssued(Punishment p, int evidenceCount) {
         boolean warn = p.type() == PunishType.WARN;
         DomainEvent.Builder b = DomainEvent.of(warn ? DomainEvent.Type.WARNING : DomainEvent.Type.QUICK_PUNISHMENT)
                 .key((warn ? "warning:" : "quick:") + p.id()).caseId(p.caseId()).player(p.targetName()).actor(p.issuerName())
                 .summary(p.classification() + ": " + p.type().display() + (p.type().canBeTimed() ? " (" + (p.expiresAt() == null ? "permanent" : Durations.format(p.expiresAt() - p.issuedAt())) + ")" : ""))
-                .field("Classification", p.classification()).field("Reason", clip(p.reason(), 300));
+                .field("Classification", p.classification()).field("Reason", clip(p.reason(), 300)).punishment(p, "issued", evidenceCount);
         core.emit(b.build());
         core.db.tx(c -> Repo.Reviews.byPunishment(c, p.id())).thenAccept(rv -> {
             if (rv != null && rv.status() == dev.aura.punishments.model.Simple.ReviewStatus.PENDING_REVIEW) ReviewService.emitCreated(core, rv, p);
@@ -319,7 +319,8 @@ public final class PunishmentService extends Svc {
             });
         }
         core.emit(DomainEvent.of(DomainEvent.Type.REVERSAL).caseId(p.caseId()).player(p.targetName()).actor(actor.name())
-                .key("revoked:" + p.id()).summary(p.type().display() + " #" + p.id() + " revoked: " + clip(why, 150)).field("Reason", clip(why, 200)).build());
+                .key("revoked:" + p.id()).summary(p.type().display() + " #" + p.id() + " revoked: " + clip(why, 150)).field("Revoked because", clip(why, 200))
+                .punishment(p, "revoked", 0).build());
         return jail.thenApply(v -> releaseNote[0] == null ? res : Result.okWith(res.value(), releaseNote[0]));
     }
 
@@ -368,6 +369,8 @@ public final class PunishmentService extends Svc {
                 if (p.type() == PunishType.JAIL) continue;
                 cache.remove(p);
                 n++;
+                core.emit(DomainEvent.of(DomainEvent.Type.PUNISHMENT_EXPIRED).key("expired:" + p.id()).player(p.targetName()).actor("System")
+                        .summary(p.type().display() + " #" + p.id() + " ended (its time ran out)").punishment(p, "expired", 0).build());
                 if (p.type() == PunishType.MUTE) core.main.run(() -> core.enforcement.noticeUnmute(p.targetUuid()));
             }
             return Result.ok(n);
