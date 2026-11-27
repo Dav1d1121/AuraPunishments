@@ -1,0 +1,112 @@
+== phase 8 ==
+PASS real TCP clients are in the play phase
+PASS a fresh install starts with the judicial system OFF
+PASS config.yml on disk contains the explicit 'enabled: false' line
+PASS schema is v3 with this server's name recorded  -- srv-6e41c740
+PASS no judicial work is open
+PASS JailReloaded is detected and compatible  -- JailReloaded 1.2.2 (compatible)
+PASS /punish opened the target screen  -- Punish: LiveTgtM13232
+PASS judicial option hidden: Create Case
+PASS judicial option hidden: View Cases
+PASS judicial option hidden: Pretrial Detention
+PASS judicial option hidden: Direct Punishment
+PASS judicial option hidden: Judicial Review
+PASS judicial option hidden: Submit Evidence
+PASS option available: Issue Warning
+PASS option available: Issue Kick
+PASS option available: Issue Mute
+PASS option available: Issue Ban
+PASS option available: Issue IP Ban
+PASS option available: Issue Jail
+PASS option available: Emergency Action
+PASS option available: Punishment History
+PASS option available: Staff Notes
+PASS option available: Warnings
+PASS option available: Jail Status
+PASS option available: Appeals
+PASS option available: Release / Revoke
+PASS /ap help does not list the judicial dashboard
+PASS /ap help lists jail, unjail, appeals and the judicial status command
+PASS target screen  -- Punish: LiveTgtM13232
+PASS dialog is waiting for the mute duration  -- screen: 
+PASS dialog is waiting for the mute reason  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS dialog is waiting for the staff note  -- screen: 
+PASS confirmation screen  -- Confirm: Mute LiveTgtM13232
+PASS the mute was recorded
+PASS it is a final, immediately active punishment (ACTIVE, source STANDARD, no case)  -- Punishment[id=1, type=MUTE, status=ACTIVE, targetUuid=30394d1c-942f-32cb-9435-efc78cb6030b, targetName=LiveTgtM13232, ip=null, reason=Spamming the global channel repeatedly, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747839535, expiresAt=1795751439535, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=aabef3bc-7d0e-48e7-a9da-e92649cdcfdd, origin=srv-6e41c740, opId=a51ba8a3-13d1-42c4-a348-a2f0c7eab319, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS the evidence is attached to the punishment, not to a case
+PASS the staff note is attached to the punishment
+PASS no case exists anywhere
+PASS the punishment carries a unique id and this server's name  -- aabef3bc-7d0e-48e7-a9da-e92649cdcfdd / srv-6e41c740
+PASS the muted player cannot chat and is told so  -- [ClientboundSystemChatPacket|[AuraPunishments] You are muted and cannot do that. (Expires: 2026-11-27 03:50 UTC (59m left)), ClientboundSetTimePacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket]
+PASS the punishment is in the owner review queue (mute is a reviewed type)
+PASS target screen  -- Punish: LiveTgtB13232
+PASS dialog is waiting for the ban duration  -- screen: 
+PASS dialog is waiting for the ban reason  -- screen: 
+PASS without evidence the screen stays (incomplete)  -- Ban: LiveTgtB13232
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the ban was recorded
+PASS the online player was disconnected with the ban screen  -- ClientboundDisconnectPacket ClientboundDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated griefing of the spawn builds}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-04 02:50 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#2}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]]
+PASS the banned player cannot log back in (checked at login, no restart needed)  -- login did not reach the play phase: ClientboundLoginDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated griefing of the spawn builds}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-04 02:50 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#2}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]] [ClientboundLoginDisconnectPacket]
+PASS /ap punishment opened the punishment screen  -- Punishment #2 (Ban)
+PASS evidence screen  -- Evidence - #2 Ban
+PASS dialog is waiting for the later evidence link  -- screen: 
+PASS evidence added AFTER the fact is attached to the punishment
+PASS punishment screen again  -- Punishment #2 (Ban)
+PASS dialog is waiting for the appeal grounds  -- screen: 
+PASS dialog is waiting for the ticket reference  -- screen: 
+PASS the appeal is recorded with the Ticket Tool reference and nothing is lifted
+PASS an appeal never suspends the punishment
+PASS the appeal is listed in the appeals queue
+PASS decision choices  -- Appeal #1
+PASS dialog is waiting for the decision reasoning  -- screen: 
+PASS confirmation  -- Confirm: Appeal overturned
+PASS overturning revokes the ban
+PASS the appeal records reviewer, decision and rationale  -- Appeal[id=1, caseId=null, punishmentId=2, filedByName=LiveStaff813232, filedAt=1795747910627, reason=The player says another account was used, status=OVERTURNED, decidedByName=LiveStaff813232, decisionReason=New evidence shows the wrong account was banned, decidedAt=1795747917934, assignedName=LiveStaff813232, ticket=0042, newExpiresAt=null, uid=44825390-13ba-4d09-b81b-24e221d85aa7, origin=srv-6e41c740]
+PASS the player can log in again after the appeal was upheld
+PASS target screen  -- Punish: LiveTgtJ13232
+PASS jail screen  -- Jail Sentence: LiveTgtJ13232
+PASS dialog is waiting for the jail duration  -- screen: 
+PASS dialog is waiting for the jail reason  -- screen: 
+PASS confirmation screen mentions JailReloaded and that it is final  -- Confirm: Jail Sentence LiveTgtJ13232
+PASS the jail punishment is recorded as HELD  -- Punishment[id=3, type=JAIL, status=ACTIVE, targetUuid=d51fa51e-4d8a-3a52-b44e-8bc765d368fd, targetName=LiveTgtJ13232, ip=null, reason=Griefing the shared farm area, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747930980, expiresAt=1795749730980, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=0486ec0c-9010-449a-9b2d-a6886b6afbe7, origin=srv-6e41c740, opId=04f5ed97-8701-4a6d-944c-b0547323569b, jailPrisonerId=8ecd0186-3a52-48d8-a4e1-c9a377069e07, jailName=testjail, jailState=HELD, jailError=null]
+PASS JailReloaded really holds the player (its own API says so)
+PASS the prisoner record carries our tag so it is recognisable after a crash
+PASS no case and no pretrial custody exist for it
+PASS the player is actually inside the jail area
+PASS the target screen's Jail Status shows the jail punishment
+PASS another staff member cannot release the prisoner through JailReloaded's own command (guarded)  -- [PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSystemChatPacket|[AuraPunishments] That prisoner is serving jail punishment AP-J0003. Release them with /ap unjail <player> <reason> (or the history screen) so it is recorded properly., ClientboundLevelParticlesPacket, PosRot, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundDamageEventPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundRemoveEntitiesPacket, ClientboundBundlePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundEntityPositionSyncPacket, ClientboundSetEntityDataPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, PosRot, ClientboundRotateHeadPacket, Pos, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundUpdateAttributesPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundDamageEventPacket, ClientboundLevelParticlesPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundDamageEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundSetEntityMotionPacket, Pos]
+PASS the prisoner is still held
+PASS /ap unjail frees the prisoner in JailReloaded
+PASS the punishment is revoked, with the staff member and reason recorded  -- Punishment[id=3, type=JAIL, status=REVOKED, targetUuid=d51fa51e-4d8a-3a52-b44e-8bc765d368fd, targetName=LiveTgtJ13232, ip=null, reason=Griefing the shared farm area, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747930980, expiresAt=1795749730980, endedAt=1795747935328, endedBy=LiveStaff813232, endReason=Served enough, behaving well now, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=0486ec0c-9010-449a-9b2d-a6886b6afbe7, origin=srv-6e41c740, opId=04f5ed97-8701-4a6d-944c-b0547323569b, jailPrisonerId=8ecd0186-3a52-48d8-a4e1-c9a377069e07, jailName=testjail, jailState=RELEASED, jailError=null]
+PASS the release was our own, so no 'ended outside AuraPunishments' alert was raised
+PASS audit chain is intact
+PASS a 20-second jail punishment is accepted
+PASS held by JailReloaded  -- Punishment[id=4, type=JAIL, status=ACTIVE, targetUuid=9a39cc5d-63e4-3d48-b63e-9ffdb24a6791, targetName=LiveTgtX13232, ip=null, reason=Short test sentence for the timer, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747938576, expiresAt=1795747958576, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=9e4a6b77-9450-4754-9bc3-1b0db3c32776, origin=srv-6e41c740, opId=484c45d4-c4c3-4018-87a8-989f3a5155e7, jailPrisonerId=a206a59c-d583-426d-9c76-4e4c4552efae, jailName=testjail, jailState=HELD, jailError=null]
+PASS when JailReloaded's timer ends the sentence, the punishment becomes SERVED automatically  -- Punishment[id=4, type=JAIL, status=SERVED, targetUuid=9a39cc5d-63e4-3d48-b63e-9ffdb24a6791, targetName=LiveTgtX13232, ip=null, reason=Short test sentence for the timer, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747938576, expiresAt=1795747958576, endedAt=1795747951431, endedBy=System, endReason=Sentence served, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=9e4a6b77-9450-4754-9bc3-1b0db3c32776, origin=srv-6e41c740, opId=484c45d4-c4c3-4018-87a8-989f3a5155e7, jailPrisonerId=a206a59c-d583-426d-9c76-4e4c4552efae, jailName=testjail, jailState=RELEASED, jailError=null]
+PASS and the player is out of JailReloaded
+PASS the end was recorded as a served sentence, not as an outside release  -- Sentence served
+PASS an emergency action is accepted with no case
+PASS it carries a review deadline and is waiting for senior review  -- Punishment[id=5, type=MUTE, status=ACTIVE, targetUuid=26f2c905-23ae-3898-b7a3-7824126129ac, targetName=LiveTgtE13232, ip=null, reason=Temporary protective action: Raiding the voice chat with slurs right now, issuerUuid=e84cf227-f470-3f69-b2a9-6ca36d2f749a, issuerName=LiveStaff813232, issuedAt=1795747951528, expiresAt=1795751551528, endedAt=null, endedBy=null, endReason=null, caseId=null, source=EMERGENCY, offenseKey=other, delivered=true, reviewDeadline=1795791151528, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=ab43a2ed-1ce6-4198-a6cc-83b2edcb3989, origin=srv-6e41c740, opId=54a6ac47-fc7b-4d59-b7fe-890807f19378, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS it also entered the owner review queue (review.include-emergency)
+PASS punishment screen  -- Punishment #5 (Mute)
+PASS dialog is waiting for the review reasoning  -- screen: 
+PASS upholding settles the emergency review and the owner review together
+PASS the action is still in force until it expires
+PASS the permanent-or-long bans/mutes created above are in the review queue while already in force
+PASS /ap review opens the queue  -- Owner review: Open (needs a decision)
+PASS an OFFLINE player can be jailed (registered, placed at next login)
+== phase 8: 98 passed, 0 failed ==

@@ -1,3 +1,128 @@
+# AuraPunishments 1.3.0 - Test report
+
+Results are grouped by how they were obtained, because they do not all prove the same thing. Nothing below is claimed beyond what the category shows.
+
+## 1. Summary
+
+| Category | Result |
+|---|---|
+| **A. Automated unit / integration tests** (real services over a real SQLite database, fake JailReloaded, controllable clock) | **335 tests, 0 failures** (212 inherited from 1.2.1, all unmodified in what they assert; 123 new). All tests re-run from a clean test state (`gradlew cleanTest test`). |
+| **B. MockBukkit GUI / command / plugin-lifecycle tests** (the real plugin class loaded in a mocked Paper server, real menus, real dialog flow, real command dispatch) | included in A (gui.* classes), see the table below |
+| **C. Live server, real protocol clients** (Paper 26.3, real JailReloaded 1.2.2, LuckPerms, Towny, TownyChat, EssentialsX, CoreProtect, AuraCommandFilter, DiscordSRV not connected) | **358/358 checks pass** in 8 live phases (3 new + 5 regression) |
+| **D. Real-data upgrade** (data folders written by 1.0.0 and 1.x on the live server, booted with 1.3.0, then compared row-by-row with the originals) | 2 real data folders (schema v1 and v2) upgraded in place: **26/26 runtime checks** and **696 original rows in 28 table comparisons, all identical** |
+| **E. Not tested** | official game client rendering of dialogs; real Discord delivery; Velocity / multi-server (not part of 1.3.0); live phases 4 and 5 (incompatible JailReloaded jar, version drift - unchanged code path); load/soak testing |
+
+The jar that was tested live is the jar that is delivered: SHA-256 `be77920ea0d9a6cecc534bf4250ff64b9040026e86a242044ab1cb5d06a5691a`.
+
+## 2. A/B - automated tests by area
+
+| Test class | Tests | Failed | |
+|---|---|---|---|
+| `CaseAndCustodyTest` | 31 | 0 |  |
+| `ConfigAndModelTest` | 12 | 0 |  |
+| `DefendantAndEventsTest` | 8 | 0 |  |
+| `DiscordServiceTest` | 15 | 0 |  |
+| `JudicialAndPunishmentTest` | 44 | 0 |  |
+| `MigrationV2Test` | 3 | 0 |  |
+| `QueueExportAppealTest` | 11 | 0 |  |
+| `ReviewAndWarningTest` | 17 | 0 |  |
+| `ReviewFixesRegressionTest` | 7 | 0 |  |
+| `SmokeMockTest` | 1 | 0 |  |
+| `UpgradeAndConfigTest` | 6 | 0 |  |
+| `gui.BukkitLayerTest` | 30 | 0 |  |
+| `gui.CommandsV13Test` | 5 | 0 | **new** |
+| `gui.DialogInputTest` | 8 | 0 |  |
+| `gui.GuiFlowTest` | 5 | 0 |  |
+| `gui.MuteChatTest` | 5 | 0 |  |
+| `gui.NonJudicialGuiTest` | 8 | 0 | **new** |
+| `gui.ReviewGuiTest` | 6 | 0 |  |
+| `gui.TypeNameConfirmTest` | 3 | 0 |  |
+| `v13.DialectTest` | 4 | 0 | **new** |
+| `v13.DiscordPunishmentLogTest` | 15 | 0 | **new** |
+| `v13.JailModificationTest` | 6 | 0 | **new** |
+| `v13.JudicialModeTest` | 12 | 0 | **new** |
+| `v13.MigrationV3Test` | 9 | 0 | **new** |
+| `v13.NonJudicialWorkflowTest` | 18 | 0 | **new** |
+| `v13.PunishmentAppealTest` | 16 | 0 | **new** |
+| `v13.StandaloneJailTest` | 25 | 0 | **new** |
+| `v13.UpgradeV13Test` | 5 | 0 | **new** |
+| **Total** | **335** | **0** | 123 new, 212 inherited |
+
+What the new suites cover (the categories requested for this release):
+
+| Requested category | Where |
+|---|---|
+| Fresh install / default config | `JudicialModeTest` (shipped file = off; missing key = on; explicit value wins), `NonJudicialGuiTest` (a real fresh plugin load), `UpgradeV13Test` |
+| Upgrade from earlier versions | `UpgradeV13Test` (1.0.0 and 1.2.1 configs, a real upgraded plugin folder: config/messages/offenses byte-for-byte untouched, reference file, data loaded), `MigrationV3Test`, `MigrationV2Test` |
+| Mode transitions | `JudicialModeTest`: on -> off with open cases and a detainee (nothing released/closed/deleted; new work refused; existing work finishable; DISABLED when empty; back ON restores; finished case not reopenable), `CommandsV13Test` (`/ap judicial`), `NonJudicialGuiTest` (dashboard banner) |
+| Active cases / pretrial detention | `JudicialModeTest`, the 212 inherited judicial tests (unchanged) |
+| Every punishment type, final and immediate, no case | `NonJudicialWorkflowTest` (warn, kick, mute, ban, IP ban, jail; offline players; hierarchy; rank limits; permanent nodes) |
+| Standalone jail | `StandaloneJailTest` (25), `JailModificationTest` (6), `NonJudicialGuiTest`, `CommandsV13Test` |
+| Evidence / notes without cases | `NonJudicialWorkflowTest`, `NonJudicialGuiTest` (at issuance and afterwards via history) |
+| Appeals | `PunishmentAppealTest` (16: ticket validation, require-ticket, take/decide/uphold/reduce/overturn, permission in both modes, hierarchy, no suspension), `JailModificationTest`, `NonJudicialGuiTest` |
+| Owner review rules / emergency | `NonJudicialWorkflowTest` (permanent-only types, review switched off, emergency without a case, both queues settle each other, unchanged with judicial on) |
+| Discord notifications | `DiscordPunishmentLogTest` (15: type/event/field filters, own webhooks, judicial gate, public log sanitization, public never uses private webhooks, no duplicates, no new notice kinds on upgraded installs, no IPs) plus the inherited `DiscordServiceTest` (retries, rate limits, failures never block moderation) |
+| Permissions / hierarchy | `PunishmentAppealTest`, `StandaloneJailTest`, `NonJudicialWorkflowTest`, inherited suites |
+| GUI / dialogs | `NonJudicialGuiTest` (8), inherited `GuiFlowTest`, `BukkitLayerTest`, `DialogInputTest`, `TypeNameConfirmTest`, `ReviewGuiTest`, `MuteChatTest` |
+| Data preservation | `MigrationV3Test` (9): counts, ids, voiding/correction links, appeal decisions and tickets, custody, audit chain still verifies, unique ids, triggers, re-open idempotent, services work on the migrated data |
+| Storage abstraction | `DialectTest` (4) |
+| Full regression | the 212 inherited tests run unchanged (the only fixture change: the test fixtures that exercise judicial behaviour switch `judicial.enabled` on, because the shipped file for a fresh install has it off) |
+
+## 3. C - live server, real protocol clients
+
+| Phase | What it proves | Result | Evidence file |
+|---|---|---|---|
+| 8 | Fresh install, judicial system OFF (as shipped): GUI visibility, mute/ban/jail/appeal/evidence/emergency/owner-review through real dialogs and clicks, online player removed at once and refused at login, real JailReloaded placement, guarded `/jail unjail`, `/ap unjail`, timer end -> served | **98/98** | `docs/evidence/live-results-1.3.0-phase-8-fresh-install-judicial-off.txt` |
+| 9 | Same server after a **real restart**: every record, mute enforcement, offline-jailed player placed at login, reconcile, unjail | **11/11** | `docs/evidence/live-results-1.3.0-phase-9-after-restart.txt` |
+| 10 | Judicial **ON -> OFF -> ON** with real open work (a case, a really-jailed online detainee): nothing released/closed by the switch, new work refused, work finished with normal tools, DISABLED when empty, ON restores | **22/22** | `docs/evidence/live-results-1.3.0-phase-10-judicial-switch-wind-down.txt` |
+| 7 | Regression (judicial ON): every dialog workflow of 1.2.x - warnings, mute, ban + evidence, case wizard, judicial, review, dashboard, concurrency | **91/91** | `docs/evidence/live-results-1.3.0-regression-phase-7.txt` |
+| 6 | Regression: online players, TownyChat mute, AuraCommandFilter, CoreProtect, real login enforcement | **65/65** | `docs/evidence/live-results-1.3.0-regression-phase-6.txt` |
+| 1 | Regression: full functional run (cases, custody, sentencing, direct, emergency, reversals) | **54/54** | `docs/evidence/live-results-1.3.0-regression-phase-1.txt` |
+| 2 | Regression: after restart (persistence) | **9/9** | `docs/evidence/live-results-1.3.0-regression-phase-2.txt` |
+| 3 | Regression: JailReloaded absent (fails safely) | **8/8** | `docs/evidence/live-results-1.3.0-regression-phase-3.txt` |
+| | **Total** | **358/358** | |
+
+Environment: Paper 26.3 (build 256), Java 25, Towny 0.103.2, TownyChat 0.122, EssentialsX 2.22.0 + Chat, LuckPerms 5.5.71, **JailReloaded 1.2.2**, AuraCommandFilter 1.0.0, CoreProtect 25.1, DiscordSRV 1.30.4 (not connected to Discord), `online-mode=false`. Clients are protocol clients doing the real handshake/login/configuration and sending real command, container-click and dialog `custom_click_action` packets.
+
+Notes on the live runs, stated plainly:
+* Phase 8 of the **first** pass of the final jar scored 97/98: one check (the guarded `/jail unjail` message) failed because the vanilla server answered a protocol client's command with "Chat disabled in client options" - a test-driver artefact, not a plugin behaviour (the same check passed in the earlier run and in the rerun). The driver now resends a command once if that answer appears; Phase 8 was rerun in full on the same jar and scored **98/98** (the table shows that rerun; the first pass is kept as `live-results-1.3.0-phase-8-first-pass-97of98.txt`).
+* Two further driver mistakes were found and fixed while running (user names longer than Minecraft's 16-character limit in phases 9 and 10; two wrong expectations in the upgrade phase - see section 4). None involved the plugin.
+* Phases 4 and 5 (incompatible / outdated JailReloaded jar, EssentialsX-only) were not re-run: the code paths they cover were not touched.
+
+
+## 4. D - real-data upgrade
+
+| Data folder | Written by | Boot result with 1.3.0 | Row-by-row comparison with the original database |
+|---|---|---|---|
+| **1.0.0** (schema v1; real live data: 10 punishments, 14 cases, 7 custody records, 77 audit entries) | 1.0.0 | **13/13** | 204 original rows compared across 12 tables; ALL IDENTICAL (`docs/evidence/upgrade-v1-row-comparison.txt`) |
+| **1.x** (schema v2; real live data: 42 punishments, 24 cases, 12 custody records, 12 reviews, 163 audit entries) | 1.x | **13/13** | 492 original rows compared across 16 tables; ALL IDENTICAL (`docs/evidence/upgrade-v2-row-comparison.txt`) |
+
+JailReloaded was removed for these two boots so that start-up reconciliation of old custody records against an empty jail could not legitimately change rows; the comparison therefore proves the *migration* alone. Checked at runtime: schema v3, judicial system ON (the old `config.yml` has no switch), `config.yml` byte-identical (hash), reference file written, pre-migration backup present, unique ids and server name on every row, audit chain verifies, every punishment that was still running before the upgrade is enforced afterwards and nothing that had run out is, the open-work report matches the data, old cases and punishments open through the services.
+
+
+## 5. Known limitations and what was not verified
+
+* **No network behaviour.** 1.3.0 is the foundation. Several servers running 1.3.0 with separate databases do not see each other's punishments.
+* **Real Discord** could not be reached from the build environment: delivery is verified against a local HTTP stand-in (headers, bodies, retries, 429 handling), the message content against the documented webhook JSON format. The public/private separation and sanitization are verified on the rendered payloads.
+* **The official Minecraft client** was not used: the "clients" are protocol clients that perform the real handshake/login/configuration and send the real packets (commands, container clicks, dialog `custom_click_action`). What the dialog *looks like* was not verified.
+* **JailReloaded** behaviour is JailReloaded's: jail time counts only while the prisoner is online (configurable in JailReloaded); an offline prisoner's release completes at next login. Our records say so (`PENDING_PLACEMENT`, `RELEASING`) and are reconciled.
+* **LuckPerms / EssentialsX versions:** tested with LuckPerms 5.5.71 and EssentialsX 2.22.0 (your servers run 5.5.91 / 2.22.1-dev).
+* **Soak / load:** none. SQLite behaviour under heavy concurrent writes was not stress-tested (all writes are serialised on one thread by design).
+* **Wind-down** counts open cases of every kind; a case nobody intends to finish has to be closed or the switch kept on.
+* Windows were not available: all runs were on Linux.
+
+## 6. Reproduce
+
+```
+./gradlew test                       # category A/B
+./gradlew jar :live-test:jar         # the plugin and the live driver
+# live: Paper 26.3 with the plugins above; write plugins/APLiveTest/phase.txt = 8 (fresh install), 9 (after restart), 10 (judicial on -> off -> on),
+# 11 (boot real older data; JailReloaded absent), 7 / 6 / 1 / 2 / 3 (regression, judicial on); start the server; the driver writes results-N.txt and stops it.
+# The raw outputs are in docs/evidence/ (live-results-1.3.0-*).
+```
+
+---
+
 # AuraPunishments 1.2.1 - Test report
 
 **1.2.1:** 212 automated tests, 0 failures (twice, clean build); new `TypeNameConfirmTest` (setting off: Confirm applies at once, no dialog; setting on: name dialog, a wrong name applies nothing, the right name applies; shipped direct default off). Live, real protocol clients: phase 7 **91/91** (the ban workflow now runs with the setting off, then switched on through the config file and `/ap reload`, and off again), phases 6/1/2/3: 65/54/9/8 passed, 0 failed. Same limits as 1.2.0 below (protocol clients, not the official client; Discord not connected; phases 4/5 not re-run).

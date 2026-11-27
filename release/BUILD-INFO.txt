@@ -1,8 +1,9 @@
-AuraPunishments 1.2.1 (optional name confirmation)
-Source commit : 29cbf355ef1fdf6444ed74872dc6fb3abf4c8cce   (branch claude/loving-gauss-yj9j6n; built from exactly this commit, clean tree)
-Packaged      : 2026-11-26T14:48Z
+AuraPunishments 1.3.0 (optional judicial system, case-free workflows, standalone jail, appeals, network-ready storage foundation)
+Source        : branch claude/loving-gauss-yj9j6n. The jar was built from commit b1686ad; src/main is byte-identical in the release commit (git diff b1686ad <release> -- src/main is empty). Later commits change tests, the live-test driver and documentation only.
+Packaged      : 2026-11-27
 Toolchain     : OpenJDK 25.0.5.1, Gradle 9.2.1, paper-api 26.3.build.256-stable; Target Paper 26.3, Java 25
-Tested        : 212 automated tests (0 failed, twice, clean build). Live on Paper 26.3 with Towny, TownyChat, EssentialsX + Chat, LuckPerms, JailReloaded, AuraCommandFilter, CoreProtect, DiscordSRV (not connected), real TCP protocol clients: phase 7 = 91/91; regression phases 6/1/2/3 = 65/54/9/8, 0 failed. Jar classes/resources byte-identical to the jar used in those runs.
-Not tested     : official game client rendering of dialogs; real Discord delivery; live phases 4 and 5
-SHA-256       : 4190e03e3b66166064686775da638e0a6e1bd86946e3c1d5a0edf6e863339b12
-Note          : Added in a follow-up commit that changes no source. Schema unchanged (v2).
+Schema        : v3 (automatic migration from v1/v2, backed up first; nothing deleted)
+Tested        : 335 automated tests (0 failed; 212 inherited from 1.2.1 + 123 new). Live on Paper 26.3 with Towny, TownyChat, EssentialsX + Chat, LuckPerms, JailReloaded 1.2.2, AuraCommandFilter, CoreProtect, DiscordSRV (not connected), real TCP protocol clients: new phases 8/9/10 = 98/11/22; regression phases 7/6/1/2/3 = 91/65/54/9/8; real-data upgrades from 1.0.0 (v1) and 1.x (v2) data: 13/13 each, 696 original rows identical. 0 failed. The jar in this folder is byte-identical to the jar used in every one of those runs.
+Not tested    : official game client rendering of dialogs; real Discord delivery; Velocity / multi-server (not part of 1.3.0); live phases 4 and 5; load/soak
+SHA-256       : be77920ea0d9a6cecc534bf4250ff64b9040026e86a242044ab1cb5d06a5691a
+Note          : Fresh installs get judicial.enabled: false; an upgraded config.yml without the line keeps the judicial system ON (behaviour unchanged until you edit it). Read docs/JUDICIAL-MODE.md before switching off a server that has open cases.

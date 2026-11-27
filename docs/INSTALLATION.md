@@ -34,7 +34,7 @@ Do this on the live server with two staff accounts and one test player before an
 
 ## Upgrade to 1.3.0 (from 1.2.x, 1.1.x or 1.0.0)
 
-1. Stop the server and **copy `plugins/AuraPunishments/`** (the plugin also makes its own backup, `backups/punishments.db.pre-v3-<time>`, before migrating).
+1. Stop the server and **copy `plugins/AuraPunishments/`** (the plugin also makes its own backup, `backups/punishments.db.pre-v<N>-<time>` - N = 3 from 1.1.x/1.2.x, 2 from 1.0.0 - before migrating).
 2. Replace the old jar with `AuraPunishments-1.3.0.jar` and start. The log shows `Database migrated to schema v3`.
 3. **Nothing changes by itself.** Your `config.yml` has no `judicial.enabled` line, so the judicial system stays **on** and everything behaves as in 1.2.x. `config.yml`, `messages.yml`, `offenses.yml` are never rewritten; the console prints how to see the new options (`config-1.3.0-reference.yml`).
 4. Optional, in your own time: give the server a name (`network.server-name`), decide whether to turn the judicial system off ([JUDICIAL-MODE.md](JUDICIAL-MODE.md) - read it first if you have open cases or detainees), grant `aurapunishments.appeal.decide` to appeal reviewers ([APPEALS.md](APPEALS.md)), grant `aurapunishments.punish.jail` for jail punishments ([JAIL.md](JAIL.md)), and look at the Discord punishment log options ([DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md)).

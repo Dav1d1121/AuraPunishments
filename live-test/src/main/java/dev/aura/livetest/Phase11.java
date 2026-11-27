@@ -40,14 +40,26 @@ final class Phase11 {
         t.check("config.yml was not modified by the upgrade", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(cfg)).equals(originalConfigHash), "");
         t.check("a reference copy of the new options was written next to it", new File(data, "config-1.3.0-reference.yml").isFile(), "");
         t.check("a pre-migration backup of the database exists", new File(data, "backups").isDirectory()
-                && java.util.Arrays.stream(new File(data, "backups").list()).anyMatch(n -> n.contains("pre-v3")), String.join(",", new File(data, "backups").list()));
+                && java.util.Arrays.stream(new File(data, "backups").list()).anyMatch(n -> n.contains("pre-v2") || n.contains("pre-v3")), String.join(",", new File(data, "backups").list())); // named after the first migration step taken
         t.check("every row has a unique id and the server name", count("SELECT COUNT(*) FROM punishments WHERE uid IS NULL OR origin IS NULL") == 0
                 && count("SELECT COUNT(*) FROM cases WHERE uid IS NULL OR origin IS NULL") == 0
                 && count("SELECT COUNT(*) FROM evidence WHERE uid IS NULL OR origin IS NULL") == 0
                 && count("SELECT COUNT(*) FROM punishments") == count("SELECT COUNT(DISTINCT uid) FROM punishments"), "");
         t.check("the audit hash chain still verifies after the migration", t.ap.core().db.txSync(cn -> Repo.Audits.verify(cn)) == -1L, "");
-        t.check("every ban/IP ban/mute that was active before the upgrade is enforced right after it", t.ap.punishments().cache().size() == activeBlocks,
-                t.ap.punishments().cache().size() + " cached, expected " + activeBlocks);
+        // enforcement is judged the way the server does it: a lookup must find the punishment, and it must find NOTHING that has run out
+        var rows = t.ap.core().db.txSync(cn -> Repo.Punishments.active(cn));
+        long live = 0;
+        long wrong = 0;
+        long now = System.currentTimeMillis();
+        for (var p : rows) {
+            if (p.type() != dev.aura.punishments.model.PunishType.BAN && p.type() != dev.aura.punishments.model.PunishType.IPBAN && p.type() != dev.aura.punishments.model.PunishType.MUTE) continue;
+            var hit = p.type() == dev.aura.punishments.model.PunishType.MUTE ? t.ap.punishments().muteFor(p.targetUuid()) : t.ap.punishments().banFor(p.targetUuid(), p.ip());
+            boolean running = p.expiresAt() == null || p.expiresAt() > now;
+            if (running && hit.isPresent() && hit.get().id() == p.id()) live++;
+            else if (!running && hit.isPresent() && hit.get().id() == p.id()) wrong++;
+        }
+        t.check("every ban/IP ban/mute that was running before the upgrade is enforced right after it (" + activeBlocks + " expected)", live == activeBlocks, live + " enforced");
+        t.check("nothing that had already run out is enforced", wrong == 0, wrong + " expired punishments still enforced");
         long judicialBefore = count("SELECT COUNT(*) FROM cases WHERE status IN ('OPEN','UNDER_INVESTIGATION','AWAITING_TRIAL','IN_TRIAL','AWAITING_VERDICT','GUILTY','AWAITING_SENTENCING','UNDER_REVIEW','APPEALED')");
         t.ap.core().mode.refresh().get();
         t.check("the open-work report agrees with the data (" + judicialBefore + " open cases)", t.ap.core().mode.report().openCases() == judicialBefore,

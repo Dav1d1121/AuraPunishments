@@ -18,7 +18,7 @@ The audit hash chain is **not** changed: `origin` and `op_id` are stored beside 
 
 ## The migration (v2 -> v3)
 
-Runs automatically at start, in one transaction, after a file backup to `plugins/AuraPunishments/backups/punishments.db.pre-v3-<timestamp>`:
+Runs automatically at start, in one transaction, after a file backup to `plugins/AuraPunishments/backups/punishments.db.pre-v<N>-<timestamp>` (N = 3, or 2 when upgrading straight from a 1.0.0 database, which migrates v1 -> v2 -> v3 in one start):
 1. adds the columns above and the unique-id indexes;
 2. rebuilds the `evidence` and `appeals` tables (copy rows with their ids, drop, rename) so `case_id` can be empty - **every row, id, relationship, voided flag, correction link, decision and reviewer is preserved** (verified by comparing counts and field values on a representative 1.2.x database in the tests);
 3. copies each case's Ticket Tool reference onto its appeal (`cases.appeal_ticket` is kept too);

@@ -157,6 +157,18 @@ final class Phase8 {
         return true;
     }
 
+    /** Send a real command packet; the vanilla server occasionally answers "Chat disabled in client options" to a protocol client, so it is sent once more in that case. */
+    private void cmd(McClient c, String text) throws Exception {
+        c.clear();
+        c.command(text);
+        Thread.sleep(900);
+        if (c.saw("Chat disabled")) {
+            c.clear();
+            c.command(text);
+            Thread.sleep(900);
+        }
+    }
+
     private boolean has(McClient c, String name) throws Exception {
         return slot(c, name) >= 0;
     }
@@ -258,7 +270,7 @@ final class Phase8 {
     // ------------------------------------------------------------------ 2. what the GUI offers
     private void screen() throws Exception {
         login(tMute, "aurapunishments.level.1");
-        staff.command("punish " + tMute);
+        cmd(staff, "punish " + tMute);
         t.check("/punish opened the target screen", waitTitle(staff, tMute, 8000), title(staff));
         for (String gone : List.of("Create Case", "View Cases", "Pretrial Detention", "Direct Punishment", "Judicial Review", "Submit Evidence")) {
             t.check("judicial option hidden: " + gone, !has(staff, gone), "");
@@ -267,8 +279,7 @@ final class Phase8 {
                 "Staff Notes", "Warnings", "Jail Status", "Appeals", "Release / Revoke")) {
             t.check("option available: " + there, has(staff, there), "");
         }
-        staff.command("ap help");
-        Thread.sleep(800);
+        cmd(staff, "ap help");
         t.check("/ap help does not list the judicial dashboard", !staff.saw("/ap judge"), "");
         t.check("/ap help lists jail, unjail, appeals and the judicial status command", staff.saw("/ap jail") && staff.saw("/ap unjail") && staff.saw("/ap appeals") && staff.saw("/ap judicial"), "");
     }
@@ -276,7 +287,7 @@ final class Phase8 {
     // ------------------------------------------------------------------ 3. a mute through the GUI with evidence and a note
     private void mute() throws Exception {
         McClient target = everyone.stream().filter(c -> c.name.equals(tMute)).findFirst().orElseThrow();
-        staff.command("punish " + tMute);
+        cmd(staff, "punish " + tMute);
         t.check("target screen", waitTitle(staff, tMute, 8000), title(staff));
         press(staff, "Issue Mute");
         press(staff, "Custom duration");
@@ -314,7 +325,7 @@ final class Phase8 {
     // ------------------------------------------------------------------ 4. a ban: the online target is removed at once and cannot return
     private void ban() throws Exception {
         McClient target = login(tBan, "aurapunishments.level.1");
-        staff.command("punish " + tBan);
+        cmd(staff, "punish " + tBan);
         t.check("target screen", waitTitle(staff, tBan, 8000), title(staff));
         press(staff, "Issue Ban");
         press(staff, "Custom duration");
@@ -353,7 +364,7 @@ final class Phase8 {
     // ------------------------------------------------------------------ 5. open the punishment: add evidence later, record an appeal, decide it
     private void appeal() throws Exception {
         Punishment ban = latest(tBan, PunishType.BAN);
-        staff.command("ap punishment " + ban.id());
+        cmd(staff, "ap punishment " + ban.id());
         t.check("/ap punishment opened the punishment screen", waitTitle(staff, "Punishment #" + ban.id(), 8000), title(staff));
         press(staff, "Evidence");
         t.check("evidence screen", waitTitle(staff, "evidence", 4000), title(staff));
@@ -368,7 +379,7 @@ final class Phase8 {
             }
         }, 6000), "");
         reset(staff);
-        staff.command("ap punishment " + ban.id());
+        cmd(staff, "ap punishment " + ban.id());
         t.check("punishment screen again", waitTitle(staff, "Punishment #" + ban.id(), 8000), title(staff));
         press(staff, "Appeals");
         answer(staff, "the appeal grounds", "The player says another account was used");
@@ -419,7 +430,7 @@ final class Phase8 {
     // ------------------------------------------------------------------ 6. jail through the GUI with the real JailReloaded
     private void jailGui() throws Exception {
         McClient target = login(tJail, "aurapunishments.level.1");
-        staff.command("punish " + tJail);
+        cmd(staff, "punish " + tJail);
         t.check("target screen", waitTitle(staff, tJail, 8000), title(staff));
         press(staff, "Issue Jail");
         t.check("jail screen", waitTitle(staff, "jail", 4000), title(staff));
@@ -446,19 +457,18 @@ final class Phase8 {
             var loc = Bukkit.getPlayer(uuidOf(tJail)).getLocation();
             return Math.abs(loc.getX()) <= 12 && Math.abs(loc.getZ()) <= 12;
         }), "");
-        staff.command("punish " + tJail);
+        cmd(staff, "punish " + tJail);
         waitTitle(staff, tJail, 6000);
         t.check("the target screen's Jail Status shows the jail punishment", slot(staff, "Jail Status") >= 0, "");
     }
 
     // ------------------------------------------------------------------ 7. the JailReloaded bypass is blocked; /ap unjail releases properly
     private void jailGuardAndUnjail() throws Exception {
-        guard.clear();
-        guard.command("jail unjail " + tJail);
-        Thread.sleep(1500);
+        cmd(guard, "jail unjail " + tJail);
+        Thread.sleep(600);
         t.check("another staff member cannot release the prisoner through JailReloaded's own command (guarded)", guard.saw("serving jail punishment"), guard.snapshot().toString());
         t.check("the prisoner is still held", t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(uuidOf(tJail))), "");
-        staff.command("ap unjail " + tJail + " Served enough, behaving well now");
+        cmd(staff, "ap unjail " + tJail + " Served enough, behaving well now");
         t.check("/ap unjail frees the prisoner in JailReloaded", waitFor(() -> {
             try {
                 return !t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(uuidOf(tJail)));
@@ -511,7 +521,7 @@ final class Phase8 {
         Punishment p = latest(tEmerg, PunishType.MUTE);
         t.check("it carries a review deadline and is waiting for senior review", p != null && p.reviewDeadline() != null && !p.reviewed(), String.valueOf(p));
         t.check("it also entered the owner review queue (review.include-emergency)", count("SELECT COUNT(*) FROM reviews WHERE punishment_id=" + p.id()) == 1, "");
-        staff.command("ap punishment " + p.id());
+        cmd(staff, "ap punishment " + p.id());
         t.check("punishment screen", waitTitle(staff, "Punishment #" + p.id(), 8000), title(staff));
         press(staff, "Review emergency action");
         press(staff, "Uphold");
@@ -530,7 +540,7 @@ final class Phase8 {
     private void ownerReview() throws Exception {
         t.check("the permanent-or-long bans/mutes created above are in the review queue while already in force",
                 count("SELECT COUNT(*) FROM reviews WHERE status IN ('PENDING_REVIEW','UNDER_REVIEW')") >= 1 && t.ap.punishments().muteFor(uuidOf(tMute)).isPresent(), "");
-        staff.command("ap review");
+        cmd(staff, "ap review");
         t.check("/ap review opens the queue", waitTitle(staff, "review", 6000), title(staff));
         reset(staff);
     }
@@ -576,7 +586,7 @@ final class Phase8 {
         t.ap.jails().reconcile().get();
         Punishment after = t.ap.core().db.txSync(cn -> Repo.Punishments.get(cn, jailId));
         t.check("the record now says HELD", "HELD".equals(after.jailState()), after.jailState());
-        s.command("ap unjail " + tOff + " Releasing after the restart check");
+        cmd(s, "ap unjail " + tOff + " Releasing after the restart check");
         t.check("an unjail after the restart works", waitFor(() -> {
             try {
                 return !t.onMain(() -> JailsAPI.getJailManager().isPlayerJailed(uuidOf(tOff)));
