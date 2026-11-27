@@ -164,3 +164,10 @@ player when a later sentence is recommended.
 | "This case was changed by someone else" | Reopen the case; your edit was not applied. |
 | "JailReloaded is not available..." | The jail plugin is down/incompatible; nothing was changed. Tell an admin. |
 | "Still working on your previous action" | Wait a moment; duplicate clicks are ignored on purpose. |
+
+
+---
+
+## 1.3.0: when your server has the judicial system switched off
+
+Punishments are final the moment you issue them, and you will not see Create Case, Pretrial Detention, Direct Punishment or Judicial Review. You can still add **evidence** and a **staff note** while issuing a punishment, and afterwards from the history screen (click the punishment). **Jail** is an ordinary punishment (`/punish <player>` -> Issue Jail, `/ap jail`, release with `/ap unjail`). **Appeals** come from Discord Ticket Tool: record them on the punishment and reference the ticket. Full guide: [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_NO_JUDICIAL.md), [JAIL.md](JAIL.md), [APPEALS.md](APPEALS.md).

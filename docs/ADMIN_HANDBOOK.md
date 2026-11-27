@@ -240,3 +240,27 @@ Requirements: a client version that supports dialogs (any client that can join a
 * Text from staff/players is inserted into messages as *plain text* (no MiniMessage/click injection), evidence links must be
   http(s), SQL is parameterised, Discord mentions disabled.
 * Failed external actions are never reported as successful.
+
+
+---
+
+## 1.3.0 additions for administrators
+
+| Setting (config.yml) | Default (new install / upgrade) | What it does |
+|---|---|---|
+| `judicial.enabled` | `false` / *missing = true* | The judicial switch. Read [JUDICIAL-MODE.md](JUDICIAL-MODE.md) before turning it off on a server with open cases. `/ap judicial` shows state and open work. |
+| `network.server-name` | blank (generated) | Name stamped on every record (`smp`, `towny`, `skyblock`, `lobby`). Choose once. [DATABASE.md](DATABASE.md) |
+| `punishments.jail.*` | blank / false | Jail and cell for jail punishments, mute while jailed. [JAIL.md](JAIL.md) |
+| `review.required-types` | `[MUTE, BAN, IPBAN]` | now may include `JAIL` |
+| `review.permanent-only-types` | `[]` | types reviewed only when permanent |
+| `review.include-emergency` | `true` | (judicial off) emergency actions also enter the owner review queue |
+| `appeals.require-ticket`, `appeals.min-reason-length` | `false`, `10` | appeals through Ticket Tool. [APPEALS.md](APPEALS.md) |
+| `discord.punishment-log.*`, `discord.public-log.*` | staff log on, public log off | which punishment notices go to Discord, with which fields. [DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md) |
+
+New permission: `aurapunishments.appeal.decide` (never automatic, not in `aurapunishments.*`). New punishment nodes: `punish.jail`, `punish.jail.permanent`. See [PERMISSIONS.md](PERMISSIONS.md) section 3c.
+
+`/ap status` now reports the server name, schema version and the judicial state (with open items during wind-down). `/ap judicial [status|recount]` is the dedicated view. When `judicial.enabled` is changed and reloaded, an audit entry `admin.judicial-switch` and a console warning are written.
+
+Scheduled work while the judicial system is off: custody deadline sweeps and custody reconciliation are idle; jail-punishment reconciliation (every `custody.reconcile-interval-seconds`), release retries, emergency-review alerts, owner-review reminders, notification expiry and the Discord outbox keep running.
+
+Daily workflow without the judicial system: [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_NO_JUDICIAL.md).

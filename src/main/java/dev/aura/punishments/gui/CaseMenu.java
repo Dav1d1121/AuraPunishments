@@ -157,7 +157,7 @@ final class CaseMenu extends Menu {
                             gui.success(p, "Appeal filed.");
                             reload();
                         }, this::open)));
-        action(32, can(Perms.JUDICIAL_OVERTURN) && c.status() == CaseStatus.APPEALED, Material.LECTERN, "<light_purple><b>Decide appeal",
+        action(32, (can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE)) && c.status() == CaseStatus.APPEALED, Material.LECTERN, "<light_purple><b>Decide appeal",
                 List.of("<gray>Uphold, overturn or modify"), (p, t) -> appealMenu());
         boolean canOverturn = c.status() == CaseStatus.SENTENCED || c.status() == CaseStatus.DIRECT_PUNISHMENT_ISSUED
                 || c.status() == CaseStatus.UNDER_REVIEW || c.status() == CaseStatus.APPEALED;
@@ -175,7 +175,7 @@ final class CaseMenu extends Menu {
                                 gui.success(p, "Saved " + ex.fileName() + " in the exports folder.")));
         action(36, can(Perms.COREPROTECT) && can(Perms.EVIDENCE_ADD) && gui.coreProtect != null && gui.coreProtect.available(), Material.COMPASS, "<green><b>CoreProtect lookup",
                 List.of("<gray>Read-only lookup of the accused's", "<gray>blocks, chat, commands or sessions", "<gray>Optionally saved as evidence"), (p, t) -> CoreProtectFlow.start(gui, p, this, c));
-        action(37, can(Perms.APPEAL_TICKET) || can(Perms.JUDICIAL_OVERTURN), Material.NAME_TAG, "<aqua><b>Appeal ticket",
+        action(37, can(Perms.APPEAL_TICKET) || can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE), Material.NAME_TAG, "<aqua><b>Appeal ticket",
                 List.of("<gray>Ticket Tool ticket: <white>" + (c.appealTicket() == null ? "none" : c.appealTicket()), "<gray>Click to link / replace"), (p, t) ->
                         gui.prompts().ask(p, "Type the Ticket Tool ticket number (e.g. 0042) or the ticket channel link.", 1, 200, text ->
                                 gui.call(p, gui.judicial.linkAppealTicket(gui.actor(p), c.id(), text), x -> {

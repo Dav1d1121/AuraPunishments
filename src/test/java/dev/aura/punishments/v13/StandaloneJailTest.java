@@ -113,10 +113,12 @@ class StandaloneJailTest {
     }
 
     @Test
-    void anAlreadyJailedPlayerIsRefusedAndNotDoubleRecorded() throws Exception {
+    void anAlreadyJailedPlayerIsRefusedUpFrontAndLeavesNoFailedRecord() throws Exception {
         jail(Durations.HOUR).orThrow();
         var second = jail(Durations.HOUR);
-        assertFalse(second.isOk());
+        assertEquals(Code.DUPLICATE, second.code());
+        assertTrue(second.message().contains("already serving jail punishment"));
+        assertEquals(1, fx.db.<List<Punishment>>txSync(c -> Repo.Punishments.forTarget(c, steve.uuid(), 10, 0)).size(), "no noise record for the refused attempt");
         assertEquals(1, fx.db.<List<Punishment>>txSync(c -> Repo.Punishments.liveStandaloneJail(c)).size());
     }
 

@@ -1,4 +1,4 @@
-# AuraPunishments 1.2.1 - Installation, Upgrade, Deployment and Rollback
+# AuraPunishments 1.3.0 - Installation, Upgrade, Deployment and Rollback
 
 ## Before you start
 
@@ -9,7 +9,7 @@
 ## Install
 
 1. Stop the server.
-2. Copy `AuraPunishments-1.2.1.jar` into `plugins/`. (SHA-256 is published next to the jar; see `release/`.)
+2. Copy `AuraPunishments-1.3.0.jar` into `plugins/`. (SHA-256 is published next to the jar; see `release/`.)
 3. Make sure JailReloaded has an enabled jail (see the Admin handbook, "Required JailReloaded setup").
 4. Start the server and read the startup summary (`JailReloaded: ... (compatible)`, `LuckPerms: connected`).
 5. Grant permissions with the LuckPerms commands from [PERMISSIONS.md](PERMISSIONS.md) section 3. At minimum for the
@@ -31,6 +31,18 @@ Do this on the live server with two staff accounts and one test player before an
 7. Ban the test player; confirm login is refused with the ban screen (no IP shown), then revoke the ban.
 8. `/ap status` and `/ap audit verify` report healthy.
 9. Restart the server; confirm bans/mutes/custody persisted and `/ap status` is clean.
+
+## Upgrade to 1.3.0 (from 1.2.x, 1.1.x or 1.0.0)
+
+1. Stop the server and **copy `plugins/AuraPunishments/`** (the plugin also makes its own backup, `backups/punishments.db.pre-v3-<time>`, before migrating).
+2. Replace the old jar with `AuraPunishments-1.3.0.jar` and start. The log shows `Database migrated to schema v3`.
+3. **Nothing changes by itself.** Your `config.yml` has no `judicial.enabled` line, so the judicial system stays **on** and everything behaves as in 1.2.x. `config.yml`, `messages.yml`, `offenses.yml` are never rewritten; the console prints how to see the new options (`config-1.3.0-reference.yml`).
+4. Optional, in your own time: give the server a name (`network.server-name`), decide whether to turn the judicial system off ([JUDICIAL-MODE.md](JUDICIAL-MODE.md) - read it first if you have open cases or detainees), grant `aurapunishments.appeal.decide` to appeal reviewers ([APPEALS.md](APPEALS.md)), grant `aurapunishments.punish.jail` for jail punishments ([JAIL.md](JAIL.md)), and look at the Discord punishment log options ([DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md)).
+5. Rollback: [ROLLBACK.md](ROLLBACK.md) - 1.2.x refuses to start on a v3 database, so restore the pre-migration backup with the old jar.
+
+### A brand-new install of 1.3.0
+
+The shipped `config.yml` has `judicial.enabled: false`: punishments are final and immediate, evidence and notes attach to punishments, jail is a punishment, appeals are recorded against punishments. Set `network.server-name` (for example `smp`) **before** first use if this server will ever join a network.
 
 ## Upgrade to 1.2.1 (from 1.2.0, 1.1.x or 1.0.0)
 

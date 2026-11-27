@@ -152,6 +152,7 @@ public final class PunishmentAppeals extends Svc {
 
     private CompletableFuture<Result<Appeal>> decideNow(Actor actor, long appealId, AppealStatus decision, String why, Long newDurationMs) {
         Result<Punishment>[] effect = new Result[1];
+        Punishment[] beforeBox = new Punishment[1];
         return db(c -> {
             Appeal a = Repo.Appeals.get(c, appealId);
             if (a == null || a.punishmentId() == null) return Result.<Appeal>fail(Code.NOT_FOUND, "Appeal " + appealId + " does not exist.");
@@ -160,6 +161,7 @@ public final class PunishmentAppeals extends Svc {
             if (p == null) return Result.<Appeal>fail(Code.NOT_FOUND, "The punishment for that appeal is missing.");
             long now = core.clock.now();
             Long newExpires = null;
+            beforeBox[0] = p;
             switch (decision) {
                 case OVERTURNED -> {
                     if (p.status() == PunishStatus.ACTIVE || p.status() == PunishStatus.COMPLETED) {
@@ -186,15 +188,16 @@ public final class PunishmentAppeals extends Svc {
             return Result.ok(Repo.Appeals.get(c, appealId));
         }).thenCompose(res -> {
             if (!res.isOk()) return done(res);
-            CompletableFuture<?> after = CompletableFuture.completedFuture(null);
+            CompletableFuture<String> note = CompletableFuture.completedFuture(null); // something the staff member must know (e.g. JailReloaded did not follow)
             if (effect[0] != null && effect[0].isOk()) {
                 Punishment changed = effect[0].value();
-                after = decision == AppealStatus.OVERTURNED ? punishments.afterRevoke(actor, effect[0], "Appeal overturned: " + Text.truncate(why, 150)).thenApply(x -> null)
-                        : CompletableFuture.runAsync(() -> punishments.afterModify(changed));
+                note = decision == AppealStatus.OVERTURNED
+                        ? punishments.afterRevoke(actor, effect[0], "Appeal overturned: " + Text.truncate(why, 150)).thenApply(rr -> rr.message())
+                        : punishments.afterModify(actor, beforeBox[0], changed).thenApply(rr -> rr.isOk() ? null : rr.message());
             }
-            return after.handle((x, ex) -> null).thenApply(v -> {
+            return note.handle((m, ex) -> ex == null ? m : null).thenApply(m -> {
                 emit(res.value(), actor, "Appeal " + decision.name().toLowerCase().replace("modified", "reduced"), "appeal-decided:" + appealId, why);
-                return res;
+                return m == null ? res : Result.okWith(res.value(), m);
             });
         });
     }

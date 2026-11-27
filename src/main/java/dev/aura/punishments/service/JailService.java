@@ -265,6 +265,39 @@ public final class JailService extends Svc {
         });
     }
 
+    // ------------------------------------------------------------------ changing the time of a held prisoner
+    /**
+     * A jail punishment was shortened or lengthened (appeal or owner review): move JailReloaded's remaining time by the same difference, so
+     * the prisoner is released when the modified sentence says. JailReloaded's own clock is kept (it only counts online time), which is why this
+     * is a difference applied to its remaining time rather than an absolute time.
+     */
+    CompletableFuture<Result<Void>> applyTimeChange(Actor actor, Punishment before, Punishment after) {
+        if (after.expiresAt() == null) return done(Result.fail(Code.INVALID, "A jail punishment cannot be made permanent by a modification."));
+        return core.main.call(() -> {
+            var st = core.jail.find(after.targetUuid());
+            if (st.isEmpty()) return Outcome.of(State.NOT_JAILED, "not held");
+            var s = st.get();
+            long now = core.clock.now();
+            long remaining = s.forever() || before.expiresAt() == null ? after.expiresAt() - now
+                    : s.remainingMs() + (after.expiresAt() - before.expiresAt());
+            return core.jail.setRemaining(after.targetUuid(), after.jailPrisonerId(), Math.max(1000L, remaining), actor.name());
+        }).thenCompose(out -> {
+            boolean ok = out.state() == State.UPDATED || out.state() == State.NOT_JAILED;
+            return db(c -> {
+                audit(c, actor, ok ? "jail.time" : "jail.time.failed", after.targetUuid(), null, "punishment=" + after.id() + " " + Text.truncate(String.valueOf(out.message()), 150), !ok);
+                if (!ok) Repo.Punishments.setJail(c, after.id(), after.jailState(), null, null, Text.truncate("Time change not applied: " + out.message(), 250));
+                return Result.ok(null);
+            }).thenApply(x -> {
+                if (ok) return Result.<Void>ok();
+                core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_ALERT).key("jail-time:" + after.id() + ":" + after.modifiedAt()).player(after.targetName()).actor("System")
+                        .summary("Jail punishment #" + after.id() + " was shortened or lengthened, but JailReloaded did not accept the new time (" + out.message()
+                                + "). The record and the jail now disagree: fix it with JailReloaded's /jail time command.").build());
+                return Result.<Void>fail(Code.EXTERNAL, "The punishment was changed, but JailReloaded did not accept the new time: " + out.message()
+                        + " Adjust it with JailReloaded's /jail time command.");
+            });
+        });
+    }
+
     // ------------------------------------------------------------------ JailReloaded events
     /** JailReloaded released this prisoner (timer, login completion or a direct command). */
     public CompletableFuture<Void> onPrisonerReleased(UUID uuid, String jailPrisonerId) {

@@ -1,4 +1,4 @@
-# AuraPunishments 1.1.0 - Discord webhook setup
+# AuraPunishments 1.3.0 - Discord webhook setup
 
 AuraPunishments logs to Discord **only through webhooks you create**. It never sends direct messages, never creates channels, and a Discord outage can never delay or block a punishment: messages are saved in the plugin's database first and sent in the background, with retries.
 
@@ -60,3 +60,31 @@ discord:
 ## 5. Testing your webhooks
 
 Check each channel after configuring: issue a warning to a test account, create and detain-then-acquit a test case, and look for the embeds. Test results from this development environment, which cannot reach discord.com, are in [TEST_REPORT.md](TEST_REPORT.md): routing, retries, rate limits, outages and de-duplication were verified against a local stand-in; **real Discord delivery must be confirmed on your server.**
+
+## 1.3.0 - punishment notifications: private staff log and optional public announcements
+
+Every punishment event can carry structured facts (type, expiry, issuing server, evidence count...). Two optional blocks in `config.yml` decide what is posted:
+
+```yaml
+discord:
+  enabled: true
+  punishment-log:                      # PRIVATE staff log (on by default - it is what the "punishment" channel already shows)
+    enabled: true
+    webhooks: []                       # empty = use channels.punishment routing; or list its own webhook(s)
+    types: [WARN, KICK, MUTE, BAN, IPBAN, JAIL]
+    events: [issued, modified, revoked, expired, appeal, judicial]
+    fields: [player, type, reason, duration, expires, issuer, punishment-id, server, evidence, source]   # also: network-status, case
+  public-log:                          # OPTIONAL public announcements (OFF by default)
+    enabled: false
+    webhooks: ["${env:AP_PUBLIC_HOOK}"]  # required when enabled; never falls back to the private webhooks
+    types: [BAN, IPBAN]
+    events: [issued]
+    fields: [player, type, duration]    # only these can ever appear: player, type, reason, duration, expires, server
+    show-reason: false
+```
+
+* `events`: `issued` (any punishment began: quick/standard, direct, emergency, sentence, jail), `modified` (owner review / appeal changed it), `revoked`, `expired` (the time ran out; *new in 1.3.0 - upgraded installs that still use the 1.0.0 layout do not receive it until opted in under `discord.events`*), `appeal` (filed / ticket linked / decided), `judicial` (cases, hearings, verdicts, sentences, custody; also governed by `channels.judicial` / `channels.custody`).
+* `fields` of the staff log: `player`, `type`, `reason`, `duration`, `expires` (a Discord timestamp), `issuer`, `punishment-id`, `server` (the originating server name), `evidence` (count), `source` (standard / quick / judicial / direct / emergency), `network-status` ("this server only" in 1.3.0; the network release reports enforcement status here), `case`. Fields the event carries beyond these (classification, justification, reasoning) are kept.
+* **The public log is sanitized by construction**: the renderer reads only player, type, duration/expiry, server and (if `show-reason`) the reason. It cannot show the issuing staff member, evidence, notes, internal ids, case numbers or addresses, and the config refuses `issuer`/`evidence`/`punishment-id`/... in its `fields`. No pings (`allowed_mentions` empty). IP addresses are scrubbed from every message anyway.
+* No duplicates: each fact is queued once per destination (a persisted key), whatever is retried or re-emitted; failed deliveries retry with back-off and honour Discord rate limits; a Discord outage never delays or blocks a punishment.
+* Judicial events are posted only while there are any (nothing is generated when the judicial system is off).

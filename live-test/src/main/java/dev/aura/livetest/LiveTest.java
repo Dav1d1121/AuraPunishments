@@ -103,6 +103,10 @@ public final class LiveTest extends JavaPlugin {
                 case "5" -> phase5();
                 case "6" -> new Phase6(this).run();
                 case "7" -> new Phase7(this).run();
+                case "8" -> new Phase8(this).run();
+                case "9" -> new Phase8(this).afterRestart();
+                case "10" -> new Phase10(this).run();
+                case "11" -> new Phase11(this).run();
                 default -> check("known phase", false, phase);
             }
         } catch (Throwable t) {

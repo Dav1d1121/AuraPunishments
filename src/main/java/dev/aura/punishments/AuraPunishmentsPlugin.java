@@ -485,6 +485,18 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         return punishments;
     }
 
+    public JailService jails() {
+        return jails;
+    }
+
+    public PunishmentAppeals appeals() {
+        return appeals;
+    }
+
+    public PunishmentRecords records() {
+        return records;
+    }
+
     @Override
     public String discordStatus() {
         return discord.status();

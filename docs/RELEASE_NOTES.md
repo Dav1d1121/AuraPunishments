@@ -1,3 +1,27 @@
+# AuraPunishments 1.3.0 - Release notes
+
+**One jar, one switch: the judicial system is now optional.** `judicial.enabled` turns cases, pretrial detention, hearings, verdicts and sentencing on or off. New installs ship with it **off** - a punishment is final the moment staff issue it - and an upgraded server keeps it **on** and behaves exactly as before. Everything else (the `/punish` GUI and its dialog windows, confirmation screens, warnings, kicks, mutes, bans, IP bans, emergency actions, owner review, history, revoke, offline players, hierarchy, rank limits, LuckPerms, Discord logging, audit log) works in both modes.
+
+## What is new
+
+* **The switch** and a safe way to use it: three states (enabled / disabled / wind-down), nothing is ever released, closed, deleted or resolved automatically, administrators are warned until open work is finished. [JUDICIAL-MODE.md](JUDICIAL-MODE.md)
+* **Evidence and staff notes on the punishment itself** (at issuance and afterwards from history), with the same evidence rules, types, void-never-delete and requirements for serious punishments. [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_NO_JUDICIAL.md)
+* **Jail as a punishment**: GUI + `/ap jail` / `/ap unjail`, JailReloaded-verified, automatic release at the end, guarded against bypass, crash-safe. [JAIL.md](JAIL.md)
+* **Appeals through Discord Ticket Tool**, recorded on the punishment: ticket reference, reviewer, uphold / reduce / overturn, rationale, history; new permission `aurapunishments.appeal.decide` (not granted automatically). [APPEALS.md](APPEALS.md)
+* **Emergency actions without cases**, reviewed by senior staff; **owner review rules** by type (permanent-only, jail, emergency) - review is oversight, never approval.
+* **Discord punishment notifications** you can configure: private staff log (types, events, fields incl. originating server, punishment id, expiry) and an optional, sanitized public log. [DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md)
+* **Network-ready storage foundation**: dialect layer, globally unique ids, originating server name, operation ids. Works standalone; the network release builds on it. [DATABASE.md](DATABASE.md)
+
+## Upgrade
+
+Replace the jar, restart. Schema v2 -> v3 happens automatically after a backup. No config, permission or behaviour change unless you make one. [INSTALLATION.md](INSTALLATION.md), [ROLLBACK.md](ROLLBACK.md), [CHANGELOG.md](CHANGELOG.md).
+
+## Known limitations
+
+See [TEST_REPORT.md](TEST_REPORT.md) section "Known limitations" and [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md). In short: no network-wide enforcement yet (that is the next release - this one is the foundation); real Discord delivery was verified against a local stand-in only; online-player jailing, release, timer expiry and restart recovery were verified live against JailReloaded 1.2.2.
+
+---
+
 # AuraPunishments 1.2.1 - Release notes
 
 Small update: the "enter the player's name" step before bans, IP bans and permanent punishments is now optional and **off by default** (`punishments.quick.type-name-to-confirm`). For direct punishments edit `direct.type-name-to-confirm` in your existing config to `[]`. Replace the jar and restart; no migration, no permission changes. Details: [CHANGELOG.md](CHANGELOG.md).

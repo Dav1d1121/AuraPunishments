@@ -317,6 +317,7 @@ public final class ReviewService extends Svc {
                 return done(Result.fail(Code.INVALID, "A reason of at least " + core.settings.cases.minReason() + " characters is required."));
             }
         }
+        Punishment[] beforeBox = new Punishment[1]; // a modified punishment as it was before (JailReloaded's time is moved by the difference)
         // Step 1: validate + (for reverse) take the punishment out of effect. Step 2: record the decision atomically.
         CompletableFuture<Result<Void>> effect;
         if (to == ReviewStatus.REVERSED) {
@@ -350,6 +351,12 @@ public final class ReviewService extends Svc {
                     Punishment p = r.punishmentId() == null ? null : Repo.Punishments.get(c, r.punishmentId());
                     if (p == null || p.status() != PunishStatus.ACTIVE) return Result.<Review>fail(Code.STATE, "That punishment is no longer active, so it cannot be modified. Reverse it or uphold the review.");
                     Long newExpires = newDuration == null ? p.expiresAt() : newDuration == Durations.PERMANENT ? null : p.issuedAt() + newDuration;
+                    if (p.type() == dev.aura.punishments.model.PunishType.JAIL && newDuration != null
+                            && (newExpires == null || !JailService.live(p.jailState()) || JailService.RELEASING.equals(p.jailState()))) {
+                        return Result.<Review>fail(Code.INVALID, newExpires == null ? "A jail punishment cannot be made permanent by a modification."
+                                : "That jail punishment is not being held right now, so its time cannot be changed.");
+                    }
+                    beforeBox[0] = p;
                     if (newDuration != null && newExpires != null && newExpires <= now) return Result.<Review>fail(Code.INVALID, "That duration would already have elapsed. Reverse the punishment instead.");
                     boolean lengthens = newExpires == null ? p.expiresAt() != null : p.expiresAt() != null && newExpires > p.expiresAt();
                     if (lengthens && !core.auth.checkDuration(actor, p.type(), newDuration, true).isOk()) {
@@ -375,9 +382,15 @@ public final class ReviewService extends Svc {
                 audit(c, actor, "review." + to.name().toLowerCase(), r.targetUuid(), r.caseId(), "review=" + id + " " + detail, to != ReviewStatus.UPHELD);
                 return Result.ok(Repo.Reviews.get(c, id));
             });
-        }).thenApply(res -> {
-            if (res.isOk()) afterDecision(actor, res.value(), why);
-            return res;
+        }).thenCompose(res -> {
+            if (!res.isOk()) return done(res);
+            afterDecision(actor, res.value(), why);
+            Punishment before = beforeBox[0];
+            if (to == ReviewStatus.MODIFIED && newDuration != null && before != null && before.type() == dev.aura.punishments.model.PunishType.JAIL) {
+                return core.db.tx(c -> Repo.Punishments.get(c, before.id())).thenCompose(after -> punishments.afterModify(actor, before, after))
+                        .handle((rr, ex) -> rr != null && !rr.isOk() ? Result.okWith(res.value(), rr.message()) : res);
+            }
+            return done(res);
         });
     }
 

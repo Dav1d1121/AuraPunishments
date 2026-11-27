@@ -129,6 +129,28 @@ class PunishmentAppealTest {
     }
 
     @Test
+    void anAppealDeciderCanAlsoWorkOnCaseAppealsThatWereStillOpenWhenTheSwitchWasTurnedOff() throws Exception {
+        Fx on = V13Support.fx(true);
+        try {
+            Actor owner = Fx.owner();
+            on.judges.add(owner.uuid());
+            var c = r(on.cases.create(owner, new CaseService.CreateRequest(steve, "other", dev.aura.punishments.model.Simple.Severity.MODERATE, "Griefing the spawn area repeatedly", null, List.of(Fx.ev())))).orThrow();
+            c = r(on.cases.transition(owner, c.id(), c.version(), dev.aura.punishments.model.CaseStatus.AWAITING_TRIAL, null)).orThrow();
+            c = r(on.cases.assignJudge(owner, c.id(), c.version(), new Target(owner.uuid(), owner.name(), true))).orThrow();
+            c = r(on.cases.transition(owner, c.id(), c.version(), dev.aura.punishments.model.CaseStatus.IN_TRIAL, null)).orThrow();
+            var g = r(on.judicial.enterVerdict(owner, c.id(), c.version(), dev.aura.punishments.model.Simple.Verdict.GUILTY, "Clear evidence of the griefing.")).orThrow().c();
+            var sentenced = r(on.judicial.sentence(owner, g.id(), g.version(), new JudicialService.SentenceSpec(PunishType.MUTE, Durations.DAY, "Muted for a day for the griefing", null))).orThrow().c();
+            r(on.judicial.fileAppeal(Fx.staff("Support", 20, Perms.APPEAL_FILE, Perms.CASE_VIEW_ALL), sentenced.id(), "The player says it was a mistake.")).orThrow();
+            c = sentenced;
+            Actor reviewer = Fx.staff("Reviewer", 60, Perms.CASE_VIEW_ALL, Perms.APPEAL_DECIDE);
+            assertTrue(r(on.judicial.takeAppeal(reviewer, c.id())).isOk(), "appeal.decide holders work on case appeals too");
+            assertTrue(r(on.judicial.decideAppeal(reviewer, c.id(), AppealStatus.UPHELD, "The verdict stands after the review.")).isOk());
+        } finally {
+            on.close();
+        }
+    }
+
+    @Test
     void upholdKeepsThePunishmentAndRecordsReviewerAndRationale() throws Exception {
         Appeal a = file("0042");
         r(fx.appeals.take(decider, a.id())).orThrow();

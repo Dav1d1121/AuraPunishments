@@ -146,6 +146,12 @@ public final class PunishmentService extends Svc {
                         Repo.Evidences.add(c, caseId, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
                     }
                 }
+                if (type == PunishType.JAIL) {
+                    Punishment held = Repo.Punishments.liveStandaloneJailFor(c, r.target().uuid());
+                    if (held != null) return Result.<Punishment>fail(Code.DUPLICATE, r.target().name() + " is already serving jail punishment #" + held.id() + ". Release them first if it should be replaced.");
+                    var cu = Repo.Custodies.liveForPlayer(c, r.target().uuid());
+                    if (cu != null) return Result.<Punishment>fail(Code.DUPLICATE, r.target().name() + " is held in pretrial custody (case " + CustodyService.tag(cu.caseId()) + ").");
+                }
                 Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, judicial ? Source.QUICK : Source.STANDARD, caseId, null, null, null, true);
                 if (!ins.isOk()) return ins;
                 Punishment pun = ins.value();
@@ -336,6 +342,10 @@ public final class PunishmentService extends Svc {
         if (p.status() != PunishStatus.ACTIVE) return Result.fail(Code.STATE, "Punishment #" + id + " is no longer active, so it cannot be modified.");
         long now = core.clock.now();
         if (newExpires != null && newExpires <= now) return Result.fail(Code.INVALID, "That duration would already have elapsed. Revoke the punishment instead.");
+        if (p.type() == PunishType.JAIL && (newExpires == null || !JailService.live(p.jailState()) || RELEASING_OR_PLACING.contains(p.jailState()))) {
+            return Result.fail(Code.INVALID, newExpires == null ? "A jail punishment cannot be made permanent by a modification. Issue a new one instead."
+                    : "That jail punishment is not being held right now, so its time cannot be changed.");
+        }
         if (!Repo.Punishments.modify(c, id, newExpires, newReason, actor.name(), now)) {
             return Result.fail(Code.CONFLICT, "That punishment changed while you were modifying it.");
         }
@@ -347,8 +357,21 @@ public final class PunishmentService extends Svc {
         return Result.ok(Repo.Punishments.get(c, id));
     }
 
-    void afterModify(Punishment p) {
-        cache.add(p); // replaces the cached copy (new expiry/reason)
+    private static final java.util.Set<String> RELEASING_OR_PLACING = java.util.Set.of(JailService.PLACING, JailService.RELEASING);
+
+    /**
+     * After a committed modification: refresh the enforcement cache and, for a jail punishment, move JailReloaded's remaining time by
+     * the same amount (JailReloaded keeps the clock). The result is a failure when JailReloaded could not be updated, so the caller can tell
+     * the staff member that the record and the jail now disagree.
+     *
+     * @param before the punishment as it was before the modification (may be null when unknown)
+     */
+    CompletableFuture<Result<Void>> afterModify(Actor actor, Punishment before, Punishment after) {
+        cache.add(after);
+        if (after.type() == PunishType.JAIL && jails != null && JailService.live(after.jailState()) && before != null) {
+            return jails.applyTimeChange(actor, before, after);
+        }
+        return done(Result.ok());
     }
 
     // ------------------------------------------------------------------ expiry & delivery

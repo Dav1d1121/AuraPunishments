@@ -129,6 +129,7 @@ public final class McClient {
             } else if (n.equals("onDisconnect")) {
                 c.disconnected = String.valueOf(pk);
             } else {
+                if (pk.getClass().getSimpleName().equals("ClientboundLoginDisconnectPacket")) c.disconnected = String.valueOf(pk); // the refusal text a banned player sees
                 c.packets.add(FakePlayer.describe(pk));
             }
         });

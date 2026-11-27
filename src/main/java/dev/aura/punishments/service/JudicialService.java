@@ -409,7 +409,7 @@ public final class JudicialService extends Svc {
 
     /** Attach (or replace) the Discord ticket used for this case's appeal. Routed to the appeal log channel. */
     public CompletableFuture<Result<Case>> linkAppealTicket(Actor actor, long caseId, String ticketRaw) {
-        Result<Void> perm = core.auth.requireAny(actor, "link appeal tickets", Perms.APPEAL_TICKET, Perms.JUDICIAL_OVERTURN);
+        Result<Void> perm = core.auth.requireAny(actor, "link appeal tickets", Perms.APPEAL_TICKET, Perms.JUDICIAL_OVERTURN, Perms.APPEAL_DECIDE);
         if (!perm.isOk()) return done(perm.cast());
         String ticket = cleanTicket(ticketRaw);
         if (ticket == null) return done(Result.fail(Code.INVALID, "Enter the Ticket Tool ticket number (for example 0042 or appeal-0042) or the ticket channel link (https://discord.com/channels/...)."));
@@ -433,7 +433,7 @@ public final class JudicialService extends Svc {
 
     /** A reviewer takes the pending appeal (status "Under Review"). */
     public CompletableFuture<Result<Case>> takeAppeal(Actor actor, long caseId) {
-        Result<Void> perm = core.auth.require(actor, Perms.JUDICIAL_OVERTURN, "review appeals");
+        Result<Void> perm = core.auth.requireAny(actor, "review appeals", Perms.JUDICIAL_OVERTURN, Perms.APPEAL_DECIDE);
         if (!perm.isOk()) return done(perm.cast());
         return db(c -> {
             Result<Case> lc = loadFor(c, actor, caseId);
@@ -453,7 +453,7 @@ public final class JudicialService extends Svc {
     }
 
     public CompletableFuture<Result<Case>> decideAppeal(Actor actor, long caseId, AppealStatus decision, String reasoning) {
-        Result<Void> perm = core.auth.require(actor, Perms.JUDICIAL_OVERTURN, "decide appeals");
+        Result<Void> perm = core.auth.requireAny(actor, "decide appeals", Perms.JUDICIAL_OVERTURN, Perms.APPEAL_DECIDE);
         if (!perm.isOk()) return done(perm.cast());
         if (decision == AppealStatus.PENDING || decision == AppealStatus.UNDER_REVIEW) return done(Result.fail(Code.INVALID, "Choose a decision."));
         String problem = reasonCheck(reasoning, core.settings.judicial.minVerdictReason());

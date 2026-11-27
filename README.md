@@ -1,11 +1,13 @@
 # AuraPunishments
 
-GUI-based moderation, judicial case management and punishment enforcement for the **Aurehaven Towny SMP**.
+GUI-based moderation, **optional** judicial case management and punishment enforcement for the **Aurehaven Towny SMP** and its network.
 Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), **LuckPerms** (authority),
 **AuraCommandFilter** (command visibility), EssentialsX/Towny/TownyChat (chat and command enforcement) and Discord webhooks.
 
 * Main command: **`/punish <player>`** - the player's complete disciplinary GUI. Also `/punishments`, `/ap help|case|cases|history|judge|reload|...`.
-* Standard path: **case -> pretrial detention (JailReloaded) -> Discord hearing -> verdict -> sentence** (owner is the judge).
+* **One jar, one switch (1.3.0): `judicial.enabled`.** Off (new installs): a punishment is final and immediate; evidence, notes, jail, appeals, emergency actions and owner review all work without cases. On (upgrades): the full judicial system, exactly as before. See [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md).
+* Judicial path (when on): **case -> pretrial detention (JailReloaded) -> Discord hearing -> verdict -> sentence** (owner is the judge).
+* **Jail is a punishment** (`/ap jail`, `/ap unjail`), **appeals** go through Discord Ticket Tool and are decided with `aurapunishments.appeal.decide`, and Discord punishment notifications are configurable (private log + optional sanitized public log).
 * Exception path: **direct punishment** for proven major offenses (evidence + justification) and **emergency actions**.
 * **No chat input (1.2.0):** all text entry is a native dialog window with Submit / Cancel; nothing is ever typed into chat.
 * Routine **warnings** (title + sound + chat, queued for offline players) and immediate **quick punishments** that also go to an **owner review** queue (never automatic, never reversed by a timer).
@@ -16,6 +18,9 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 
 | Document | For |
 |---|---|
+| [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md) | The `judicial.enabled` switch: states, switching on/off safely (1.3.0) |
+| [docs/WORKFLOW_NO_JUDICIAL.md](docs/WORKFLOW_NO_JUDICIAL.md) / [docs/JAIL.md](docs/JAIL.md) / [docs/APPEALS.md](docs/APPEALS.md) | Day-to-day with the judicial system off; jail punishments; appeals (1.3.0) |
+| [docs/DATABASE.md](docs/DATABASE.md) / [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) | Schema v3, network foundation; decisions, assumptions, limitations (1.3.0) |
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Install, controlled-deployment test, upgrade, **rollback** |
 | [docs/ADMIN_HANDBOOK.md](docs/ADMIN_HANDBOOK.md) | Configuration, database, integrations, Discord, maintenance, troubleshooting |
 | [docs/STAFF_HANDBOOK.md](docs/STAFF_HANDBOOK.md) | `/punish`, cases, evidence, detention, direct punishment, history |
@@ -27,7 +32,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 | [docs/INTEGRATION_REPORT.md](docs/INTEGRATION_REPORT.md) | What was inspected in each plugin, how it is integrated, what was verified |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test evidence, results, limitations, readiness assessment |
 | [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Features and **known limitations** |
-| [release/](release/) | `AuraPunishments-1.1.0.jar`, its SHA-256 and the exact source commit it was built from |
+| [release/](release/) | `AuraPunishments-1.3.0.jar`, its SHA-256 and the exact source commit it was built from |
 
 ## Build and test
 
@@ -49,7 +54,7 @@ src/main/java/dev/aura/punishments/
   listener/     login bans, chat mutes, command guards (mute / legacy / custody)
   command/      /punish, /punishments, /ap
   gui/          menus, GUI manager (click safety), dialog-window text entry
-src/test/       126 tests (services, MockBukkit GUI/listener flows, Discord failure handling)
+src/test/       services, MockBukkit GUI/listener flows, Discord failure handling, migrations, jail/appeal/judicial-mode suites
 live-test/      driver plugin run inside a real Paper 26.3 server with the real JailReloaded/LuckPerms/EssentialsX/Towny
 libs/           supplied custom jars (compile-only / test-only; not bundled)
 docs/           handbooks, reports, evidence

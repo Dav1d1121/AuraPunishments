@@ -253,7 +253,8 @@ public final class DirectService extends Svc {
                 }
                 lastReviewAlert.remove(punishmentId);
                 core.emit(DomainEvent.of(DomainEvent.Type.REVERSAL).player(res.value().targetName()).actor(actor.name()).key("emergency-reviewed:" + punishmentId)
-                        .summary("Emergency action reviewed: " + (decision == ReviewDecision.REVOKE_AND_DISMISS ? "revoked" : "upheld")).field("Reasoning", Text.truncate(why, 300)).build());
+                        .summary("Emergency action #" + punishmentId + " reviewed: " + (decision == ReviewDecision.REVOKE_AND_DISMISS ? "revoked" : "upheld"))
+                        .field("Reasoning", Text.truncate(why, 300)).build());
             }
             return res;
         });

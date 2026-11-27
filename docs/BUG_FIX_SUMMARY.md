@@ -1,3 +1,20 @@
+# 1.3.0 - defects found and fixed during this release
+
+| # | Defect | Found by | Fix |
+|---|---|---|---|
+| 1 | `docs/CHANGELOG.md` was an empty file since the 1.2.0 release commit (the release notes pointed at it) | review of the release package | rebuilt from the release notes and commit history for 1.0.0 - 1.3.0 |
+| 2 | Warning text told players "Further breaches may lead to a case against you." even on servers where no case can ever exist | review of player-facing wording with the judicial system off | neutral wording in the shipped `messages.yml` (existing files are never rewritten) |
+| 3 | In-game alerts for events with no case read "case -" (emergency, appeal, reversal) | self-review of every alert template against case-free events | alerts say `punishment #12` / `case AP-0012` through a new `<where>` placeholder |
+| 4 | Emergency GUI success message would have formatted a missing case id | self-review of case-dependent GUI strings | message adapted; test added |
+| 5 | A second jail request for an already-jailed player first created a punishment row, then let JailReloaded refuse it | unit test written for the jail saga | refused up front (`DUPLICATE`) without leaving a failed record |
+| 6 | `aurapunishments.punish.jail` was evaluated by the permission checks but not declared in `plugin.yml` (tab-completion/LuckPerms discovery) | permission audit | declared (with `.permanent`); `aurapunishments.appeal.decide` added |
+| 7 | A revoked jail punishment whose release did not complete showed a plain success | design review of the release saga | the staff member is told it is pending; retried automatically; recorded as `RELEASING` until JailReloaded confirms |
+| 8 | `appeal.decide` holders could not work on case appeals still open when the judicial system was switched off | scenario test (wind-down) | case-appeal take/decide/ticket accept `judicial.overturn` or `appeal.decide` |
+
+Earlier releases: see the sections below.
+
+---
+
 # AuraPunishments 1.1.0 - Bug review and fix summary
 
 ## A. Defects fixed from 1.0.0 (and kept as regression tests)

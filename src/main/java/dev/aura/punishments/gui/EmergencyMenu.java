@@ -72,7 +72,8 @@ final class EmergencyMenu extends Menu {
             new ConfirmMenu(gui, p, this, "EMERGENCY " + type.display() + " " + target.name(), List.of("Duration: " + Views.duration(duration),
                     "Reason: " + reason, "Senior staff are notified immediately.", "It expires on its own unless replaced."), null, () ->
                     gui.call(p, gui.direct.emergency(gui.actor(p), new DirectService.EmergencyRequest(target, type, duration, reason)), pun -> {
-                        gui.success(p, "Emergency " + type.display().toLowerCase() + " applied to " + target.name() + " (case AP-" + String.format("%04d", pun.caseId()) + ").");
+                        gui.success(p, "Emergency " + type.display().toLowerCase() + " applied to " + target.name()
+                                + (pun.caseId() == null ? " (punishment #" + pun.id() + ")." : " (case AP-" + String.format("%04d", pun.caseId()) + ")."));
                         if (parent != null) parent.open();
                         else p.closeInventory();
                     }, this::open)).open();

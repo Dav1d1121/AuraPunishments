@@ -45,7 +45,9 @@ public final class BukkitNotifier implements DomainEvent.Sink {
     private void inGame(DomainEvent e) {
         if (core.messages == null) return;
         String ref = e.caseId() == null ? "-" : "AP-" + String.format("%04d", e.caseId());
-        Component msg = core.messages.get("alert." + e.type().discordKey, "ref", ref, "player", e.player(), "actor", e.actor(),
+        // "case AP-0012", "punishment #12" (events about a punishment that has no case) or nothing
+        String where = e.caseId() != null ? "case " + ref : e.info() != null ? "punishment #" + e.info().id() : "a punishment";
+        Component msg = core.messages.get("alert." + e.type().discordKey, "ref", ref, "where", where, "player", e.player(), "actor", e.actor(),
                 "detail", humanize(e.summary()), "offense", e.fields().getOrDefault("Offense", ""),
                 "deadline", humanize(e.fields().getOrDefault("Review deadline", "")));
         plugin.getLogger().info(PlainTextComponentSerializer.plainText().serialize(msg));

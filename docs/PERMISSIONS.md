@@ -1,4 +1,4 @@
-# AuraPunishments 1.1.0 - Permission Matrix
+# AuraPunishments 1.3.0 - Permission Matrix
 
 Everything is **default-deny**, including for server operators, with one deliberate exception: `aurapunishments.command` (the bare `/ap` command, which only shows help and a list of the subcommands you separately hold) defaults to **op** so the server console can run `/ap`. The console is always trusted for `/ap` subcommands; players still need each node. Nothing in this plugin trusts a rank *name*;
 authority comes only from LuckPerms nodes, so your existing Trainee -> Owner groups keep working and you can
@@ -257,6 +257,36 @@ lp group owner permission set aurapunishments.* true
 
 To delegate only the review queue to one trusted person: `lp user <name> permission set aurapunishments.review.view true` and `...review.review true`.
 No rank names are hard-coded anywhere in the plugin.
+
+## 3c. New and changed in 1.3.0
+
+Everything is still default-deny. One new node, two new punishment nodes, and a few nodes whose meaning widened because evidence, notes and appeals are no longer tied to cases.
+
+| Node | Status | Meaning |
+|---|---|---|
+| `aurapunishments.appeal.decide` | **new** | Take and decide appeals against punishments (uphold / reduce / overturn). **Never granted automatically and not included in `aurapunishments.*`** - grant it deliberately. With the judicial system **on**, `judicial.overturn` is accepted as well; with it **off**, only this node decides. Hierarchy applies. |
+| `aurapunishments.punish.jail` | **new** (was used by the plugin but undeclared) | Issue a jail punishment (judicial system off). Also needs a `limit.jail.<tier>` for the duration. |
+| `aurapunishments.punish.jail.permanent` | **new** | Jail "until released" (no end time). |
+| `aurapunishments.case.evidence.add` / `.view` / `.void` | **widened** | now also cover evidence attached directly to a punishment (the issuer of a punishment may always add and see evidence on it) |
+| `aurapunishments.case.note.add` / `.view` / `.void`, `sensitive.notes` | **widened** | now also cover staff notes attached to a punishment |
+| `aurapunishments.case.appeal.file` | widened | record an appeal against a **punishment** (and, as before, against a sentenced case) |
+| `aurapunishments.case.appeal.ticket` | widened | link a Ticket Tool ticket to an appeal on a punishment or a case |
+| `aurapunishments.judicial.overturn` | unchanged | still decides case appeals; also decides punishment appeals while the judicial system is on |
+| `aurapunishments.custody.release`, `judicial.release` | widened | also release a prisoner serving a **jail punishment** (`/ap unjail`) |
+| `aurapunishments.custody.override` | widened | also bypasses the guard on JailReloaded commands for jail-punishment prisoners |
+| `aurapunishments.emergency.review` | widened | also reviews case-free emergency actions |
+| `aurapunishments.direct`, `.direct.<type>`, `custody.initiate`, `case.create`, `judicial.*` | unchanged | their features are unavailable (refused with a clear message) while the judicial system is off |
+
+**Deprecated:** none. No node was removed or renamed.
+
+```
+# Appeal reviewers (not part of aurapunishments.*):
+lp group admin permission set aurapunishments.appeal.decide true
+# Jail as a punishment, 1 h to 1 d, for moderators:
+lp group mod permission set aurapunishments.punish.jail true
+lp group mod permission set aurapunishments.limit.jail.long true
+lp group sradmin permission set aurapunishments.punish.jail.permanent true
+```
 
 ## 4. Stop staff using EssentialsX punishment commands
 

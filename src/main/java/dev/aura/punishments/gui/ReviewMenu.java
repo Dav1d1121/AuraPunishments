@@ -86,7 +86,7 @@ final class ReviewMenu extends Menu {
 
         boolean review = gui.can(viewer, Perms.REVIEW_REVIEW);
         // navigation to related records
-        if (r.caseId() != null) set(11, Items.item(Material.BOOK, "<aqua><b>Open case", "<gray>Evidence, timeline and notes"), (pl, t) -> CaseMenu.open(gui, pl, this, r.caseId()));
+        if (r.caseId() != null && gui.core().mode.judicialVisible()) set(11, Items.item(Material.BOOK, "<aqua><b>Open case", "<gray>Evidence, timeline and notes"), (pl, t) -> CaseMenu.open(gui, pl, this, r.caseId()));
         set(15, Items.item(Material.PLAYER_HEAD, "<green><b>Player profile", "<gray>Open the punishment screen"), (pl, t) ->
                 gui.resolve(pl, r.targetName(), tg -> TargetMenu.open(gui, pl, this, tg)));
 
@@ -120,7 +120,7 @@ final class ReviewMenu extends Menu {
                         gui.call(pl, gui.reviews.reverse(gui.actor(pl), r.id(), r.version(), n), x -> done(pl, "Punishment reversed."))).open()));
         action(31, decide && review, Material.ORANGE_CONCRETE, "<gold><b>Further investigation", List.of("<gray>Keep it open: more information needed"), (pl, t) -> note(pl, "What needs investigating?", n ->
                 gui.call(pl, gui.reviews.furtherInvestigation(gui.actor(pl), r.id(), r.version(), n), x -> done(pl, "Marked for further investigation."))));
-        action(32, decide && review && gui.can(viewer, Perms.CASE_CREATE), Material.ANVIL, "<light_purple><b>Refer to a judicial case", List.of("<gray>Opens a standard case for a full hearing", "<gray>(the punishment stays in force)"), (pl, t) ->
+        action(32, decide && review && gui.can(viewer, Perms.CASE_CREATE) && gui.core().mode.enabled(), Material.ANVIL, "<light_purple><b>Refer to a judicial case", List.of("<gray>Opens a standard case for a full hearing", "<gray>(the punishment stays in force)"), (pl, t) ->
                 note(pl, "Why does this need a full case?", n -> gui.call(pl, gui.reviews.refer(gui.actor(pl), r.id(), r.version(), n), caseId -> {
                     gui.success(pl, "Case AP-" + String.format("%04d", caseId) + " opened.");
                     CaseMenu.open(gui, pl, this, caseId);
