@@ -1,5 +1,17 @@
 # AuraPunishments 1.1.0 - Integration report
 
+## 1.3.0 addendum - JailReloaded as the engine behind jail *punishments*
+
+No new JailReloaded API is used: jail punishments go through the same `JailPort` (`jail`, `release`, `setRemaining`, `find`, `allPrisoners`) and the same adapter that pretrial custody uses, which calls only public classes of JailReloaded 1.2.2 (`JailsAPI`, `PrisonerManager`, `JailManager`, `PrePrisonerJailedEvent`, `PrisonerReleasedEvent`).
+
+* **Placing:** `JailRequest(caseId=0, tag="AP-J0012")`; the prisoner's JailReloaded reason is `[AP-J0012] <reason>`, which is how an interrupted placement is recognised at the next start. The returned prisoner id and jail name are stored on the punishment.
+* **Releasing early / revoking:** `release(uuid, expectedPrisonerId, actor)` touches only the record whose id was stored; a different record for the same player is reported as "not ours" and left alone.
+* **Shortening or lengthening** (appeal / owner review): `setRemaining(uuid, expectedPrisonerId, remaining, actor)` with *JailReloaded's current remaining time plus the difference* - JailReloaded keeps its own clock. Failure is reported to the staff member, alerted, and recorded on the punishment.
+* **End of sentence:** `PrisonerReleasedEvent` (MONITOR) -> served / ended-outside-AuraPunishments, de-duplicated against our own calls. Missed events are caught by reconciliation (`allPrisoners`) at start-up and every `custody.reconcile-interval-seconds`.
+* **Bypass guard:** `PlayerCommandPreprocessEvent` guard (unchanged mechanism) now also protects prisoners serving jail punishments.
+* **Verified live** against JailReloaded 1.2.2 with *online* protocol clients: placement inside the jail area, the prisoner tag, guarded `/jail unjail`, `/ap unjail`, timer end (20 s sentence -> SERVED), restart persistence and a login-time placement of an offline-jailed player. See [TEST_REPORT.md](TEST_REPORT.md).
+
+
 | Integration | Status | Evidence |
 |---|---|---|
 | **JailReloaded 1.2.2** (custody, same-record conversion, release, reconnect) | Re-validated live with connected players (custody, reconnect, acquittal release); phase 1-3 regression pass. No duplicate jail records; JailReloaded was not modified. | TEST_REPORT |

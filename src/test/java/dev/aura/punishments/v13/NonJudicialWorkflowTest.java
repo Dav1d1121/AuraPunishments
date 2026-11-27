@@ -261,6 +261,41 @@ class NonJudicialWorkflowTest {
                 "Spamming the chat again", null, List.of(Fx.ev())))).code());
     }
 
+    // ------------------------------------------------------------------ offline players, hierarchy, limits (unchanged by the switch)
+    @Test
+    void offlinePlayersAreCoveredByEveryPunishmentThatMakesSense() throws Exception {
+        fx.online.remove(steve.uuid());
+        fx.db.txSync(c -> { Repo.Profiles.upsert(c, steve.uuid(), "Steve", "10.5.5.5", 0, fx.now); return null; });
+        Punishment warn = issue(PunishType.WARN, 0, "Please keep chat friendly.", List.of(), null);
+        assertFalse(warn.delivered(), "an offline player sees the warning at next login");
+        assertEquals(Code.INVALID, r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.KICK, 0, "Kick them please", List.of()))).code(), "nobody to kick");
+        assertTrue(issue(PunishType.MUTE, Durations.HOUR, "Spamming the global channel.", List.of(), null).status() == PunishStatus.ACTIVE);
+        assertTrue(issue(PunishType.BAN, Durations.DAY, "Repeated griefing of builds.", List.of(Fx.ev()), null).status() == PunishStatus.ACTIVE);
+        assertTrue(fx.punishments.banFor(steve.uuid(), null).isPresent(), "enforced when they next try to log in");
+        r(fx.punishments.revoke(mod, fx.punishments.banFor(steve.uuid(), null).orElseThrow().id(), "Revoking the ban to test the offline jail."));
+        Punishment jail = r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.JAIL, Durations.HOUR, "Griefing the shared farm area.", List.of()))).orThrow();
+        assertEquals(PunishStatus.ACTIVE, jail.status());
+    }
+
+    @Test
+    void hierarchyImmunityAndRankLimitsStillApplyWithTheJudicialSystemOff() throws Exception {
+        fx.auth.put(steve.uuid(), new LevelResolver.TargetAuth(50, false));
+        var higher = r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.MUTE, Durations.HOUR, "Spamming the global channel.", List.of())));
+        assertEquals(Code.HIERARCHY, higher.code(), "a lower rank cannot punish a higher rank");
+        fx.auth.put(steve.uuid(), new LevelResolver.TargetAuth(0, true));
+        assertEquals(Code.HIERARCHY, r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.MUTE, Durations.HOUR, "Spamming the global channel.", List.of()))).code(),
+                "immune players cannot be punished");
+        fx.auth.put(steve.uuid(), new LevelResolver.TargetAuth(0, false));
+        Actor limited = Fx.staff("Limited", 20, Perms.PUNISH, Perms.PUNISH_OTHERS, Perms.punish(PunishType.MUTE), Perms.limit(PunishType.MUTE, "short"));
+        assertEquals(Code.LIMIT, r(fx.punishments.issueQuick(limited, new PunishmentService.Request(steve, PunishType.MUTE, 5 * Durations.HOUR, "Spamming the global channel.", List.of()))).code(),
+                "rank duration tiers apply");
+        assertEquals(Code.LIMIT, r(fx.punishments.issueQuick(limited, new PunishmentService.Request(steve, PunishType.MUTE, Durations.PERMANENT, "Spamming the global channel.", List.of()))).code(),
+                "permanent needs its own node");
+        assertEquals(Code.NO_PERMISSION, r(fx.punishments.issueQuick(limited, new PunishmentService.Request(steve, PunishType.BAN, Durations.HOUR, "Spamming the global channel.", List.of(Fx.ev())))).code());
+        Actor stranger = Fx.staff("Stranger", 20, Perms.PUNISH);
+        assertEquals(Code.NO_PERMISSION, r(fx.records.addNote(stranger, 1, "A note nobody may write.", false)).code());
+    }
+
     @Test
     void modificationsRevocationsAndExpiryAreRecordedAndAuditedWithoutAnyCase() throws Exception {
         Punishment mute = issue(PunishType.MUTE, Durations.DAY, "Spamming the global channel.", List.of(), null);

@@ -21,6 +21,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 | [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md) | The `judicial.enabled` switch: states, switching on/off safely (1.3.0) |
 | [docs/WORKFLOW_NO_JUDICIAL.md](docs/WORKFLOW_NO_JUDICIAL.md) / [docs/JAIL.md](docs/JAIL.md) / [docs/APPEALS.md](docs/APPEALS.md) | Day-to-day with the judicial system off; jail punishments; appeals (1.3.0) |
 | [docs/DATABASE.md](docs/DATABASE.md) / [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) | Schema v3, network foundation; decisions, assumptions, limitations (1.3.0) |
+| [docs/COMMANDS.md](docs/COMMANDS.md) | Every command, with what changes when the judicial system is off (1.3.0) |
 | [docs/INSTALLATION.md](docs/INSTALLATION.md) | Install, controlled-deployment test, upgrade, **rollback** |
 | [docs/ADMIN_HANDBOOK.md](docs/ADMIN_HANDBOOK.md) | Configuration, database, integrations, Discord, maintenance, troubleshooting |
 | [docs/STAFF_HANDBOOK.md](docs/STAFF_HANDBOOK.md) | `/punish`, cases, evidence, detention, direct punishment, history |
