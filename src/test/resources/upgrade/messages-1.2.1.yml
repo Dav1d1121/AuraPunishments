@@ -1,0 +1,162 @@
+# ============================================================================
+#  AuraPunishments 1.0.0 - messages.yml   (MiniMessage format)
+#  Placeholders look like <player>, <reason>. <prefix> inserts the prefix below.
+#  Text typed by staff/players is always inserted as plain text, never as formatting.
+#  Any key you delete falls back to the built-in default. /ap reload applies changes.
+#
+#  Note: short validation/refusal sentences produced by the case, custody and punishment
+#  engines (for example "You cannot act against a player of equal or higher authority")
+#  are fixed in code, so that security-relevant wording cannot be weakened by a config edit.
+# ============================================================================
+prefix: "<dark_gray>[<gradient:#c084fc:#60a5fa>AuraPunishments</gradient>]</dark_gray> "
+error: "<prefix><red><message>"
+info: "<prefix><gray><message>"
+success: "<prefix><green><message>"
+
+# ---------------------------------------------------------------------------
+#  What PLAYERS see when disciplined
+# ---------------------------------------------------------------------------
+screen:
+  ban:
+    - "<red><bold>You are banned from Aurehaven"
+    - ""
+    - "<gray>Reason: <white><reason>"
+    - "<gray>Expires: <white><expires>"
+    - "<gray>Reference: <white>#<id>"
+    - ""
+    - "<gray>If you believe this is a mistake, appeal in our Discord."
+  ipban:
+    - "<red><bold>Your connection is banned from Aurehaven"
+    - ""
+    - "<gray>Reason: <white><reason>"
+    - "<gray>Expires: <white><expires>"
+    - "<gray>Reference: <white>#<id>"
+    - ""
+    - "<gray>If you believe this is a mistake, appeal in our Discord."
+  kick:
+    - "<red><bold>You were kicked"
+    - ""
+    - "<gray>Reason: <white><reason>"
+  jailed-login: "<red>You are in custody pending a hearing."
+mute:
+  notice:
+    - "<prefix><red>You have been muted."
+    - "<prefix><gray>Reason: <white><reason>"
+    - "<prefix><gray>Expires: <white><expires>"
+  blocked: "<prefix><red>You are muted and cannot do that. <gray>(Expires: <expires>)"
+  expired: "<prefix><green>Your mute has expired. Please follow the rules."
+warning:
+  notice:
+    - "<prefix><gold><bold>OFFICIAL WARNING"
+    - "<prefix><gray>Reason: <white><reason>"
+    - "<prefix><gray>Warning on record in the last period: <white><count>"
+    - "<prefix><gray>Further breaches may lead to a case against you."
+  delivered-later: "<prefix><gold>You received a warning while you were away:"
+
+# ---------------------------------------------------------------------------
+#  Staff alerts (shown to players holding aurapunishments.notify.<event>)
+# ---------------------------------------------------------------------------
+alert:
+  case-created: "<prefix><aqua>Case <ref> opened against <white><player> <gray>(<offense>) by <actor>."
+  custody-started: "<prefix><gold>Pretrial custody: <white><player> <gray>detained for case <ref> by <actor>. Review by <deadline>."
+  custody-released: "<prefix><green>Custody ended: <white><player> <gray>(case <ref>) - <detail>"
+  trial-scheduled: "<prefix><light_purple>Trial for case <ref> (<player>) scheduled: <detail>"
+  verdict: "<prefix><yellow>Verdict in case <ref> (<player>): <white><detail>"
+  sentence: "<prefix><red>Sentence in case <ref> (<player>): <white><detail>"
+  direct-punishment: "<prefix><dark_red>DIRECT PUNISHMENT <white><player> <gray>- <detail> <gray>(case <ref>, by <actor>)"
+  emergency-action: "<prefix><red><bold>EMERGENCY ACTION <white><player> <gray>- <detail> <gray>(case <ref>, by <actor>). Senior review required."
+  appeal: "<prefix><aqua>Appeal on case <ref> (<player>): <white><detail>"
+  reversal: "<prefix><gray>Reversal on case <ref> (<player>): <white><detail>"
+  custody-alert: "<prefix><gold><bold>CUSTODY ALERT <white><player> <gray>(case <ref>): <detail>"
+  generic: "<prefix><aqua><title> <gray>(case <ref>, <player>): <white><detail>"
+  warning: "<prefix><gold>Warning issued to <white><player> <gray>by <actor>: <detail>"
+  quick-punishment: "<prefix><gold>Quick punishment: <white><player> <gray>- <detail> <gray>(by <actor>)"
+  review-created: "<prefix><aqua>Owner review <ref> requested for <white><player> <gray>- <detail>"
+  review-decision: "<prefix><aqua>Review decision for <white><player><gray>: <white><detail>"
+  review-evidence: "<prefix><aqua>Review evidence update for <white><player><gray>: <white><detail>"
+  review-reminder: "<prefix><yellow>Review reminder: <white><player> <gray>- <detail>"
+  review-overdue: "<prefix><red>Review overdue: <white><player> <gray>- <detail>"
+  custody-attempt: "<prefix><gold>Custody requested for <white><player> <gray>(case <ref>) - awaiting JailReloaded confirmation."
+  custody-failed: "<prefix><red><bold>CUSTODY FAILED <white><player> <gray>(case <ref>): <detail>"
+  case-status: "<prefix><aqua>Case <ref> (<player>): <white><detail>"
+  trial-postponed: "<prefix><light_purple>Trial for case <ref> (<player>) postponed: <detail>"
+  punishment-modified: "<prefix><gray>Punishment modified (<player>): <white><detail>"
+  appeal-ticket: "<prefix><aqua>Appeal ticket linked to case <ref> (<player>): <white><detail>"
+  admin-action: "<prefix><gray>Admin: <white><detail>"
+  export: "<prefix><gray>Case summary exported for <ref> by <actor>."
+  integration-error: "<prefix><red>Integration problem: <white><detail>"
+  security: "<prefix><red>Security: <white><detail>"
+
+# ---------------------------------------------------------------------------
+#  Notes to staff about reviews (queued, so they arrive even if the staff member was offline)
+# ---------------------------------------------------------------------------
+staffnote:
+  generic: "<prefix><aqua>Review <ref> (<player>): <white><detail>"
+  explanation-requested: "<prefix><yellow>Review <ref> (<player>) - <by> asks you to explain: <white><detail>"
+  decision: "<prefix><aqua>Review <ref> (<player>) decided - <white><detail> <gray>(by <by>)"
+  evidence-due: "<prefix><yellow>Review <ref> (<player>): <white><detail>"
+  evidence-overdue: "<prefix><red>Review <ref> (<player>): <white><detail>"
+
+# ---------------------------------------------------------------------------
+#  Defendant communication (sent to the accused; informational, never a finding of guilt unless it is a verdict)
+# ---------------------------------------------------------------------------
+defendant:
+  delivered-later: "<prefix><gold>You have an update on your case from while you were away:"
+  detention:
+    - "<prefix><gold><bold>You are being held pending a hearing."
+    - "<prefix><gray>Case: <white><ref>"
+    - "<prefix><gray>Alleged offense: <white><offense>"
+    - "<prefix><gray>Details: <white><reason>"
+    - "<prefix><gray>This is NOT a finding of guilt. The case will be heard by staff."
+    - "<prefix><gray><instructions>"
+  trial-scheduled:
+    - "<prefix><light_purple><bold>Your hearing has been scheduled."
+    - "<prefix><gray>Case: <white><ref> <gray>- <detail>"
+    - "<prefix><gray><instructions>"
+  trial-postponed:
+    - "<prefix><light_purple>Your hearing has been postponed."
+    - "<prefix><gray>Case: <white><ref> <gray>- <detail>"
+  status:
+    - "<prefix><aqua>Update on case <white><ref><gray>: <white><detail>"
+  verdict:
+    - "<prefix><yellow><bold>A verdict has been entered in case <ref>."
+    - "<prefix><gray>Verdict: <white><detail>"
+  sentence:
+    - "<prefix><red><bold>A sentence has been imposed in case <ref>."
+    - "<prefix><gray>Sentence: <white><detail>"
+  release:
+    - "<prefix><green><bold>You have been released from custody (case <ref>)."
+    - "<prefix><gray><detail>"
+  acquittal:
+    - "<prefix><green><bold>Case <ref> has ended in your favor."
+    - "<prefix><gray><detail>"
+
+# ---------------------------------------------------------------------------
+#  Chat prompts (reason / evidence / note entry)
+# ---------------------------------------------------------------------------
+prompt:
+  header: "<prefix><yellow>Fill in the window that opened, then press Submit. <gray>(<seconds>s)"
+  cancelled: "<prefix><gray>Cancelled."
+  timeout: "<prefix><gray>Timed out - nothing was changed."
+  too-short: "<prefix><red>Too short - at least <min> characters are needed."
+  too-long: "<prefix><red>Too long - at most <max> characters."
+  invalid: "<prefix><red><message>"
+
+# ---------------------------------------------------------------------------
+#  Commands
+# ---------------------------------------------------------------------------
+command:
+  no-permission: "<prefix><red>You do not have permission to do that."
+  players-only: "<prefix><red>This must be run in-game."
+  usage-punish: "<prefix><gray>Usage: <white>/punish <player>"
+  unknown-subcommand: "<prefix><red>Unknown subcommand. Use <white>/ap help<red>."
+  help-header: "<prefix><gradient:#c084fc:#60a5fa>AuraPunishments help</gradient> <gray>(only commands you can use)"
+  help-line: "<gray> <white><usage> <dark_gray>- <gray><description>"
+  reload-ok: "<prefix><green>Configuration reloaded and validated."
+  reload-failed: "<prefix><red>Reload failed - the previous settings stay active:"
+  reload-problem: "<prefix><red> - <problem>"
+  opening: "<prefix><gray>Loading <white><player><gray>..."
+  busy: "<prefix><gray>Still working on your previous action..."
+  legacy-blocked: "<prefix><red>Punishments are handled by AuraPunishments. Use <white>/punish <player></white> (or <white>/ap help</white>) instead of <white>/<command></white>."
+  custody-guard: "<prefix><red>That prisoner is held for case <white><ref></white>. Use <white>/punish <player></white> to release them through the case process."
+  self-target: "<prefix><red>You cannot open your own punishment screen."

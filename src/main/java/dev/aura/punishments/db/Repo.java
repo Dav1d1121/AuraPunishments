@@ -872,7 +872,8 @@ public final class Repo {
 
         static final RowMapper<Audit> MAP = rs -> new Audit(rs.getLong("id"), rs.getLong("ts"), uuid(rs, "actor_uuid"),
                 rs.getString("actor_name"), rs.getString("action"), uuid(rs, "target_uuid"), longOrNull(rs, "case_id"),
-                rs.getString("detail"), bool(rs, "elevated"), rs.getString("prev_hash"), rs.getString("hash"));
+                rs.getString("detail"), bool(rs, "elevated"), rs.getString("prev_hash"), rs.getString("hash"),
+                rs.getString("origin"), rs.getString("op_id"));
 
         static String digest(String prev, long ts, UUID actor, String actorName, String action, UUID target, Long caseId,
                              String detail, boolean elevated) {

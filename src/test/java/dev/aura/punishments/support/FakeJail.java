@@ -15,6 +15,8 @@ public final class FakeJail implements JailPort {
     public boolean available = true;
     public String failNext = null;          // message to fail the next mutating call with
     public boolean releasePendingOffline = false;
+    /** Players JailReloaded treats as offline: jailing registers them as pending placement. */
+    public final java.util.Set<UUID> offline = new java.util.HashSet<>();
     public final List<String> calls = new ArrayList<>();
     private int seq = 0;
 
@@ -27,9 +29,10 @@ public final class FakeJail implements JailPort {
         if (failNext != null) { String m = failNext; failNext = null; return Outcome.of(State.ERROR, m); }
         if (prisoners.containsKey(r.uuid())) return Outcome.of(State.ALREADY_JAILED, r.name() + " is already jailed");
         String id = "jid-" + (++seq);
-        prisoners.put(r.uuid(), new PrisonerState(r.uuid(), r.name(), id, "main", r.durationMs(), r.durationMs() < 0, false,
+        boolean off = offline.contains(r.uuid());
+        prisoners.put(r.uuid(), new PrisonerState(r.uuid(), r.name(), id, "main", r.durationMs(), r.durationMs() < 0, off,
                 "[" + r.tag() + "] " + r.reason(), r.jailer()));
-        return new Outcome(State.JAILED, id, "main", "ok");
+        return new Outcome(off ? State.JAILED_PENDING_PLACEMENT : State.JAILED, id, "main", "ok");
     }
 
     @Override

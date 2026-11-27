@@ -80,7 +80,7 @@ public final class Records {
 
     public record Audit(long id, long ts, UUID actorUuid, String actorName, String action,
                         UUID targetUuid, Long caseId, String detail, boolean elevated,
-                        String prevHash, String hash) {}
+                        String prevHash, String hash, String origin, String opId) {}
 
     public record PendingOp(long id, String kind, OpState state, Long caseId, Long custodyId, UUID uuid,
                             String payload, int attempts, long createdAt, long updatedAt, String lastError, Long punishmentId) {}
