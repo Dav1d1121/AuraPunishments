@@ -537,7 +537,7 @@ final class Phase8 {
 
     // ------------------------------------------------------------------ state for the restart phase
     private void prepareRestart() throws Exception {
-        String tOff = "LiveOfflineJail" + run;
+        String tOff = "LiveOffJ" + run;
         t.ap.gui().resolver.recordJoin(uuidOf(tOff), tOff, "10.8.9.10", 0).get();
         var res = t.ap.punishments().issueQuick(dev.aura.punishments.service.Actors.of(Bukkit.getPlayer(uuidOf(staff.name))),
                 new PunishmentService.Request(new Target(uuidOf(tOff), tOff, false), PunishType.JAIL, 6 * Durations.HOUR, "Jailing an offline player before the restart", List.of(), null)).get();

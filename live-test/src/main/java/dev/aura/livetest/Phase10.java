@@ -75,7 +75,7 @@ final class Phase10 {
         t.createJail();
         Actor god = LiveTest.god("LiveOwner10");
         McClient staff = login("LiveStaff10" + run, "aurapunishments.*", "aurapunishments.level.100", "aurapunishments.immunity.bypass");
-        String defendant = "LiveDefendant" + run;
+        String defendant = "LiveDef" + run;
         McClient def = login(defendant, "aurapunishments.level.1");
         t.check("the server runs with the judicial system ON (upgraded-install configuration)", t.ap.core().mode.enabled(), "");
 
