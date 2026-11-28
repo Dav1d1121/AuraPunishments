@@ -281,8 +281,7 @@ final class Phase13 {
 
     /** Open the wizard for this player, choose Harassment, describe it and add evidence (leaves the New case screen open). */
     private void draftCase(String player) throws Exception {
-        login(player, "aurapunishments.level.1");
-        cmd(staff, "punish " + player);
+        cmd(staff, "punish " + player); // the player is already connected: a second login would kick the first one
         t.check("target screen for " + player, waitTitle(staff, player, 8000), title(staff));
         press(staff, "Create Case");
         t.check("the New case screen opened", waitTitle(staff, "New case", 4000), title(staff));
@@ -352,6 +351,7 @@ final class Phase13 {
     }
 
     private void jailFromCreateCase() throws Exception {
+        login(tJail, "aurapunishments.level.1");
         draftCase(tJail);
         choose("Jail", "30m", "Griefing the shared farm area " + run);
         press(staff, "SUBMIT CASE");
