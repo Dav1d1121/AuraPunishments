@@ -61,7 +61,8 @@ public final class Settings {
      * @param maxClockSkewSeconds refuse to start when this server's clock and the database server's differ by more than this (0 = do not check)
      * @param allowDuplicateName  start even if another live server uses the same name (never for production)
      */
-    public record Network(String serverName, int syncIntervalMs, int heartbeatSeconds, int eventRetentionDays, int maxClockSkewSeconds, boolean allowDuplicateName) {}
+    public record Network(String serverName, int syncIntervalMs, int heartbeatSeconds, int eventRetentionDays, int maxClockSkewSeconds, boolean allowDuplicateName,
+                          boolean denyAllDuringOutage, boolean startWithoutDatabase, int outageRetrySeconds) {}
 
     /** Appeals filed against punishments (Discord Ticket Tool tickets are referenced, never created, by this plugin). */
     public record Appeals(boolean requireTicket, int minReason) {}
@@ -85,6 +86,28 @@ public final class Settings {
                             long reviewDeadline, long overdueRepeat) {}
 
     public record Quick(boolean requireReason, Set<PunishType> requireEvidence, boolean typeNameToConfirm) {}
+
+    /** Safeguards for IP bans; see config.yml punishments.ip-bans. */
+    public record IpBans(boolean refusePrivate, Set<String> exclude, int maxAccounts, long windowMs) {
+        public static final IpBans OFF = new IpBans(false, Set.of(), 0, 0);
+
+        /** True when this address must never carry an IP ban (checked when issuing and again when enforcing). */
+        public boolean protectedAddress(String ip) {
+            if (ip == null || ip.isBlank()) return false;
+            String a = ip.trim();
+            if (exclude.contains(a)) return true;
+            if (!refusePrivate) return false;
+            try {
+                java.net.InetAddress addr = java.net.InetAddress.getByName(a.matches("[0-9a-fA-F:.]+") ? a : "invalid.invalid");
+                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress() || addr.isAnyLocalAddress() || addr.isMulticastAddress()) return true;
+                byte[] b = addr.getAddress();
+                if (b.length == 4 && (b[0] & 0xFF) == 100 && (b[1] & 0xC0) == 64) return true;                // 100.64.0.0/10 carrier-grade NAT
+                return b.length == 16 && (b[0] & 0xFE) == 0xFC;                                               // fc00::/7 unique local
+            } catch (java.net.UnknownHostException e) {
+                return false;
+            }
+        }
+    }
 
     public record Protections(boolean enforceHierarchy, boolean blockSelf, String immunityNode) {}
 
@@ -147,6 +170,7 @@ public final class Settings {
     public final Direct direct;
     public final Emergency emergency;
     public final Quick quick;
+    public final IpBans ipBans;
     public final Map<PunishType, LinkedHashMap<String, Long>> limits;
     public final boolean warningDelivery;
     public final int kickDelayTicks;
@@ -250,7 +274,10 @@ public final class Settings {
         }
         this.network = new Network(srv, range(y, "network.sync-interval-ms", 1000, 250, 30_000, p), range(y, "network.heartbeat-seconds", 15, 5, 120, p),
                 range(y, "network.event-retention-days", 7, 1, 365, p), range(y, "network.max-clock-skew-seconds", 10, 0, 3600, p),
-                y.getBoolean("network.allow-duplicate-name", false));
+                y.getBoolean("network.allow-duplicate-name", false), "DENY_ALL".equalsIgnoreCase(y.getString("network.outage.policy", "ENFORCE_KNOWN")),
+                y.getBoolean("network.outage.start-without-database", true), range(y, "network.outage.retry-seconds", 15, 5, 600, p));
+        String policy = y.getString("network.outage.policy", "ENFORCE_KNOWN");
+        if (!policy.equalsIgnoreCase("ENFORCE_KNOWN") && !policy.equalsIgnoreCase("DENY_ALL")) p.add("network.outage.policy: must be ENFORCE_KNOWN or DENY_ALL (got '" + policy + "')");
         this.casework = new Casework(y.getBoolean("casework.enabled", false), types(y.getStringList("casework.require-case-for"), "casework.require-case-for", p));
         this.appeals = new Appeals(y.getBoolean("appeals.require-ticket", false), range(y, "appeals.min-reason-length", 10, 1, 500, p));
         this.jail = new JailCfg(y.getString("punishments.jail.jail-name", "").trim(), y.getString("punishments.jail.cell-name", "").trim(),
@@ -285,6 +312,14 @@ public final class Settings {
         this.emergency = new Emergency(y.getBoolean("emergency.enabled", true), emTypes, emDef, emMax, emReview,
                 dur(y, "emergency.overdue-repeat", "1h", false, p));
 
+        if (y.isConfigurationSection("punishments.ip-bans")) {
+            java.util.Set<String> ex = new java.util.HashSet<>();
+            for (String a : y.getStringList("punishments.ip-bans.exclude-addresses")) if (!a.isBlank()) ex.add(a.trim());
+            this.ipBans = new IpBans(y.getBoolean("punishments.ip-bans.refuse-private-addresses", true), java.util.Set.copyOf(ex),
+                    range(y, "punishments.ip-bans.max-accounts-per-address", 15, 0, 100_000, p), range(y, "punishments.ip-bans.window-days", 30, 1, 3650, p) * 86_400_000L);
+        } else {
+            this.ipBans = IpBans.OFF;
+        }
         this.quick = new Quick(y.getBoolean("punishments.quick.require-reason", true),
                 types(y.getStringList("punishments.quick.require-evidence"), "punishments.quick.require-evidence", p),
                 y.getBoolean("punishments.quick.type-name-to-confirm", false));

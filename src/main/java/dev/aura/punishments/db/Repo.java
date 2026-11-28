@@ -50,6 +50,11 @@ public final class Repo {
             one(c, "SELECT uuid FROM profiles WHERE uuid=? FOR UPDATE", rs -> rs.getString(1), id);
         }
 
+        /** How many different accounts last connected from this address since {@code since}. */
+        public static long countByIp(Connection c, String ip, long since) throws SQLException {
+            return count(c, "SELECT COUNT(*) FROM profiles WHERE last_ip=? AND last_seen>?", ip, since);
+        }
+
         public static void updateLevel(Connection c, UUID id, int level, long now) throws SQLException {
             update(c, "UPDATE profiles SET level=?, last_seen=? WHERE uuid=?", level, now, id);
         }
@@ -810,6 +815,17 @@ public final class Repo {
         public static boolean enqueue(Connection c, String dedupeKey, UUID uuid, String kind, String refType, Long refId, String payload, long now) throws SQLException {
             return update(c, Dialect.of(c).insertIgnore("player_notifications(dedupe_key,uuid,kind,ref_type,ref_id,payload,state,created_at) VALUES(?,?,?,?,?,?,'PENDING',?)"),
                     dedupeKey, uuid, kind, refType, refId, payload, now) == 1;
+        }
+
+        /** Take this notice for {@code leaseMs}: true for exactly one caller at a time (a crashed server's claim lapses). */
+        public static boolean claim(Connection c, long id, String owner, long now, long leaseMs) throws SQLException {
+            return update(c, "UPDATE player_notifications SET claimed_by=?, claimed_at=? WHERE id=? AND state='PENDING' AND (claimed_by IS NULL OR claimed_at<?)",
+                    owner, now, id, now - leaseMs) == 1;
+        }
+
+        /** Give a claimed notice back (the player went offline before it could be shown). */
+        public static void release(Connection c, long id, String owner) throws SQLException {
+            update(c, "UPDATE player_notifications SET claimed_by=NULL, claimed_at=NULL WHERE id=? AND claimed_by=? AND state='PENDING'", id, owner);
         }
 
         public static List<Notification> pendingFor(Connection c, UUID uuid) throws SQLException {

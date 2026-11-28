@@ -17,12 +17,29 @@ public final class PunishmentCache {
     private volatile ConcurrentHashMap<UUID, Punishment> bans = new ConcurrentHashMap<>();
     private volatile ConcurrentHashMap<UUID, Punishment> mutes = new ConcurrentHashMap<>();
     private volatile ConcurrentHashMap<String, Punishment> ipBans = new ConcurrentHashMap<>();
+    private volatile boolean dirty;
+
+    /** True once after every change; the snapshot writer uses it to save only when something changed. */
+    public boolean consumeDirty() {
+        boolean d = dirty;
+        dirty = false;
+        return d;
+    }
+
+    /** Every active ban, IP ban and mute known right now (one entry per punishment). */
+    public List<Punishment> activeAll() {
+        java.util.Map<Long, Punishment> byId = new java.util.LinkedHashMap<>();
+        for (Punishment p : bans.values()) byId.put(p.id(), p);
+        for (Punishment p : mutes.values()) byId.put(p.id(), p);
+        return new java.util.ArrayList<>(byId.values());
+    }
 
     public void load(List<Punishment> active) {
         bans.clear();
         mutes.clear();
         ipBans.clear();
         for (Punishment p : active) add(p);
+        dirty = true;
     }
 
     /**
@@ -48,6 +65,7 @@ public final class PunishmentCache {
         this.bans = b;
         this.mutes = m;
         this.ipBans = ip;
+        dirty = true;
     }
 
     /** Bring one player's entries in line with what the database says is active for them right now. */
@@ -55,10 +73,12 @@ public final class PunishmentCache {
         bans.remove(uuid);
         mutes.remove(uuid);
         for (Punishment p : activeForPlayer) add(p);
+        dirty = true;
     }
 
     public void add(Punishment p) {
         if (p.status() != dev.aura.punishments.model.Simple.PunishStatus.ACTIVE) return;
+        dirty = true;
         switch (p.type()) {
             case BAN -> bans.put(p.targetUuid(), p);
             case MUTE -> mutes.put(p.targetUuid(), p);
@@ -71,6 +91,7 @@ public final class PunishmentCache {
     }
 
     public void remove(Punishment p) {
+        dirty = true;
         switch (p.type()) {
             case BAN -> bans.computeIfPresent(p.targetUuid(), (k, v) -> v.id() == p.id() ? null : v);
             case MUTE -> mutes.computeIfPresent(p.targetUuid(), (k, v) -> v.id() == p.id() ? null : v);

@@ -33,6 +33,7 @@ import java.util.concurrent.CompletableFuture;
  */
 public final class PunishmentService extends Svc {
     private final PunishmentCache cache = new PunishmentCache();
+    private volatile long lastLoginWarning;
     private CustodyService custody;
     private JailService jails;
     private CaseService cases;
@@ -99,7 +100,7 @@ public final class PunishmentService extends Svc {
                 for (Punishment p : mine) {
                     if ((p.type() == PunishType.BAN || p.type() == PunishType.IPBAN) && p.activeAt(now)) return Optional.of(p);
                 }
-                if (ip != null && !ip.isBlank()) {
+                if (ip != null && !ip.isBlank() && !core.settings.ipBans.protectedAddress(ip)) {
                     Punishment byIp = Repo.Punishments.activeIpBan(c, ip);
                     if (byIp != null && byIp.activeAt(now)) {
                         cache.add(byIp);
@@ -109,7 +110,11 @@ public final class PunishmentService extends Svc {
                 return Optional.<Punishment>empty();
             });
         } catch (SQLException | RuntimeException e) {
-            core.log.warning("Login check could not reach the shared database (" + e.getMessage() + "); using the last known bans.");
+            long t = System.currentTimeMillis();
+            if (t - lastLoginWarning > 60_000L) {
+                lastLoginWarning = t;
+                core.log.warning("Login checks cannot reach the shared database (" + e.getMessage() + "); the last known bans are enforced until it answers.");
+            }
             return banFor(uuid, ip);
         }
     }
@@ -391,6 +396,18 @@ public final class PunishmentService extends Svc {
             if (ip == null || ip.isBlank()) {
                 return Result.fail(Code.INVALID, "No IP address is recorded for " + target.name() + " yet, so an IP ban is not possible.");
             }
+            Settings.IpBans guard = core.settings.ipBans;
+            if (guard.protectedAddress(ip)) {
+                return Result.fail(Code.INVALID, "The recorded address of " + target.name() + " (" + ip + ") is not a public player address (a proxy, a private network or an excluded address), so an IP ban "
+                        + "would lock out unrelated players. If you are behind a proxy, check its IP forwarding (docs/NETWORK_DEPLOYMENT.md); ban the account instead.");
+            }
+            if (guard.maxAccounts() > 0) {
+                long accounts = Repo.Profiles.countByIp(c, ip, now - guard.windowMs());
+                if (accounts > guard.maxAccounts()) {
+                    return Result.fail(Code.LIMIT, accounts + " different accounts connected from " + ip + " in the last " + guard.windowMs() / 86_400_000L + " days (limit "
+                            + guard.maxAccounts() + "): it looks like a shared or proxy address, so an IP ban is refused. Ban the accounts instead.");
+                }
+            }
         }
         Long expires = type.canBeTimed() && durationMs != Durations.PERMANENT ? now + durationMs : null;
         PunishStatus status = type.instant() ? PunishStatus.COMPLETED : PunishStatus.ACTIVE;
@@ -594,7 +611,8 @@ public final class PunishmentService extends Svc {
     public Optional<Punishment> banFor(UUID uuid, String ip) {
         long now = core.clock.now();
         Optional<Punishment> b = cache.ban(uuid, now);
-        return b.isPresent() ? b : cache.ipBan(ip, now);
+        if (b.isPresent()) return b;
+        return core.settings.ipBans.protectedAddress(ip) ? Optional.empty() : cache.ipBan(ip, now);
     }
 
     public Optional<Punishment> muteFor(UUID uuid) {

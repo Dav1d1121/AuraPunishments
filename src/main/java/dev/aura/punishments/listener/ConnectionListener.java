@@ -37,6 +37,12 @@ public final class ConnectionListener implements Listener {
         Optional<Punishment> ban = punishments.banForLogin(e.getUniqueId(), ip);
         if (ban.isPresent()) {
             e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, enforcement.banScreen(ban.get()));
+            return;
+        }
+        // outage policy DENY_ALL: while the shared database cannot be reached nobody new is let in (operators excepted)
+        if (core.settings.network.denyAllDuringOutage() && core.db.shared() && !core.db.healthy() && !org.bukkit.Bukkit.getOfflinePlayer(e.getUniqueId()).isOp()) {
+            e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, net.kyori.adventure.text.Component.text(
+                    "Moderation is temporarily unavailable, so new connections are paused. Please try again in a few minutes."));
         }
     }
 

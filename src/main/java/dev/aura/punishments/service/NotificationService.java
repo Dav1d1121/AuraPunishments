@@ -106,9 +106,19 @@ public final class NotificationService {
                 });
     }
 
+    /** How long one server holds a notice while it shows it (another server may take it over after that, e.g. when the first one crashed). */
+    private static final long CLAIM_MS = 30_000L;
+
     private CompletableFuture<Void> step(UUID uuid, List<Notification> list, int i) {
         if (i >= list.size()) return CompletableFuture.completedFuture(null);
         Notification n = list.get(i);
+        String me = core.db.origin();
+        // claim first: with several servers sharing one database, the player might be connecting to two of them at once
+        return core.db.tx(c -> Repo.Notifications.claim(c, n.id(), me, core.clock.now(), CLAIM_MS)).handle((ok, ex) -> ex == null && Boolean.TRUE.equals(ok))
+                .thenCompose(claimed -> claimed ? deliverClaimed(uuid, list, i, n, me) : step(uuid, list, i + 1));
+    }
+
+    private CompletableFuture<Void> deliverClaimed(UUID uuid, List<Notification> list, int i, Notification n, String me) {
         boolean late = core.clock.now() - n.createdAt() > 60_000;
         return core.main.call(() -> core.enforcement.deliverNotification(uuid, n, late)).handle((shown, ex) -> {
             if (ex != null) { // one bad notification must not block the player's whole queue
@@ -116,6 +126,7 @@ public final class NotificationService {
                 core.db.tx(c -> {
                     Repo.Notifications.noteAttempt(c, n.id());
                     if (n.attempts() + 1 >= 5 && !WARNING.equals(n.kind())) Repo.Notifications.expire(c, n.id());
+                    Repo.Notifications.release(c, n.id(), me);
                     return null;
                 });
                 return null;
@@ -123,7 +134,12 @@ public final class NotificationService {
             return shown;
         }).thenCompose(shown -> {
             if (shown == null) return step(uuid, list, i + 1);
-            if (!shown) return CompletableFuture.<Void>completedFuture(null); // went offline: stays queued for next login
+            if (!shown) { // went offline: stays queued for next login
+                return core.db.tx(c -> {
+                    Repo.Notifications.release(c, n.id(), me);
+                    return (Void) null;
+                }).handle((v, ex) -> (Void) null);
+            }
             return core.db.tx(c -> {
                 Repo.Notifications.markDelivered(c, n.id(), core.clock.now());
                 if (WARNING.equals(n.kind()) && n.refId() != null) Repo.Punishments.markDelivered(c, n.refId());

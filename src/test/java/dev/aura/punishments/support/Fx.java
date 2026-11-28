@@ -94,6 +94,7 @@ public final class Fx implements AutoCloseable {
         db.open();
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
         YamlConfiguration off = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/offenses.yml"), StandardCharsets.UTF_8));
+        cfg.set("punishments.ip-bans.refuse-private-addresses", false); // the shipped file refuses private addresses; most fixtures use 10.x test addresses
         cfg.set("review.enabled", true); // the shipped file has owner review off for fresh installs (1.3.2); the existing review tests exercise it
         cfg.set("judicial.enabled", true); // the shipped file is judicial-off for fresh installs; most fixtures exercise the judicial system
         m.set.forEach(cfg::set);

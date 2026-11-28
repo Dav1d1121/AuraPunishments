@@ -99,10 +99,21 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         try {
             db.open();
         } catch (java.sql.SQLException e) {
-            getLogger().severe("AuraPunishments cannot open its database (" + settings.storage + "): " + e.getMessage());
-            getLogger().severe("No punishment can be enforced without it, so the plugin is disabling itself. Existing data is untouched.");
-            Bukkit.getPluginManager().disablePlugin(this);
-            return;
+            // The shared database cannot be REACHED (not: a schema/version/config problem, which must still stop the plugin): keep enforcing what
+            // this server already knew from its local copy, refuse everything that cannot be saved, and keep trying to reconnect.
+            boolean outage = e instanceof Database.UnavailableException && settings.network.startWithoutDatabase();
+            if (outage && ActiveSnapshot.exists(getDataFolder())) {
+                degraded = true;
+                getLogger().severe("AuraPunishments cannot reach the shared database (" + settings.storage + "): " + e.getMessage());
+                getLogger().severe("STARTING IN DEGRADED MODE: every ban and mute from the last saved copy is enforced; staff actions are refused until the database is back "
+                        + "(retrying every " + settings.network.outageRetrySeconds() + " s).");
+            } else {
+                getLogger().severe("AuraPunishments cannot open its database (" + settings.storage + "): " + e.getMessage());
+                getLogger().severe(outage ? "No saved copy of the active punishments exists yet (this server has never reached the database), so nothing can be enforced: the plugin is disabling itself."
+                        : "No punishment can be enforced without it, so the plugin is disabling itself. Existing data is untouched.");
+                Bukkit.getPluginManager().disablePlugin(this);
+                return;
+            }
         }
 
         MainThread main = new MainThread() {
@@ -190,32 +201,10 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         }
         PlayerResolver resolver = new PlayerResolver(core);
 
-        // Network mode: join the registry and take the change-feed cursor BEFORE the in-memory index is loaded, so a change made in
-        // between is read from the feed instead of being lost.
-        if (db.shared()) {
-            NetworkService network = new NetworkService(core, punishments);
-            try {
-                var joined = network.start(getPluginMeta().getVersion(), false, settings.network.maxClockSkewSeconds() * 1000L, settings.network.allowDuplicateName()).get(30, TimeUnit.SECONDS);
-                if (!joined.isOk()) {
-                    getLogger().severe("AuraPunishments cannot join the network: " + joined.message());
-                    Bukkit.getPluginManager().disablePlugin(this);
-                    return;
-                }
-            } catch (Exception e) {
-                getLogger().severe("AuraPunishments cannot join the network: " + e.getMessage());
-                Bukkit.getPluginManager().disablePlugin(this);
-                return;
-            }
-            core.network = network;
-        }
-
-        try {
-            var loaded = punishments.loadCache().get(30, TimeUnit.SECONDS);
-            if (!loaded.isOk()) throw new IllegalStateException(loaded.message());
-            resolver.loadKnownNames().get(30, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            getLogger().severe("Could not load active punishments: " + e.getMessage() + ". Disabling so bans and mutes are never silently skipped.");
-            Bukkit.getPluginManager().disablePlugin(this);
+        if (degraded) {
+            punishments.cache().load(ActiveSnapshot.load(ActiveSnapshot.file(getDataFolder())));
+            getLogger().warning("Loaded " + punishments.cache().size() + " known ban/mute entries from the saved copy.");
+        } else if (!joinNetworkAndLoad(resolver)) {
             return;
         }
 
@@ -249,6 +238,53 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             });
         }
 
+        if (degraded) startOutageRecovery(resolver);
+        else startNormalOperation();
+        enabledOk = true;
+        logStartup(System.currentTimeMillis() - t0);
+    }
+
+    private volatile boolean degraded;
+    private BukkitTask recoveryTask;
+
+    /**
+     * Everything that needs the database, done once it is reachable: join the network registry (the change-feed cursor is taken BEFORE the
+     * in-memory index is loaded, so a change made in between is read from the feed instead of lost), load the index, load known names.
+     *
+     * @return false when the plugin disabled itself
+     */
+    private boolean joinNetworkAndLoad(PlayerResolver resolver) {
+        Settings settings = core.settings;
+        if (db.shared()) {
+            NetworkService network = new NetworkService(core, punishments);
+            try {
+                var joined = network.start(getPluginMeta().getVersion(), false, settings.network.maxClockSkewSeconds() * 1000L, settings.network.allowDuplicateName()).get(30, TimeUnit.SECONDS);
+                if (!joined.isOk()) {
+                    getLogger().severe("AuraPunishments cannot join the network: " + joined.message());
+                    Bukkit.getPluginManager().disablePlugin(this);
+                    return false;
+                }
+            } catch (Exception e) {
+                getLogger().severe("AuraPunishments cannot join the network: " + e.getMessage());
+                Bukkit.getPluginManager().disablePlugin(this);
+                return false;
+            }
+            core.network = network;
+        }
+        try {
+            var loaded = punishments.loadCache().get(30, TimeUnit.SECONDS);
+            if (!loaded.isOk()) throw new IllegalStateException(loaded.message());
+            resolver.loadKnownNames().get(30, TimeUnit.SECONDS);
+        } catch (Exception e) {
+            getLogger().severe("Could not load active punishments: " + e.getMessage() + ". Disabling so bans and mutes are never silently skipped.");
+            Bukkit.getPluginManager().disablePlugin(this);
+            return false;
+        }
+        saveSnapshotIfShared();
+        return true;
+    }
+
+    private void startNormalOperation() {
         startTasks();
         // Recover anything interrupted by a crash or restart.
         custody.reconcileOnStartup().thenCompose(r -> judicial.resumeOps()).thenCompose(v -> custody.refreshIndex())
@@ -256,12 +292,42 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             getLogger().warning("Startup recovery failed: " + t);
             return null;
         });
-        enabledOk = true;
-        logStartup(System.currentTimeMillis() - t0);
+    }
+
+    /** Keep trying to reach the database; when it answers, finish the start-up that was postponed and leave degraded mode. */
+    private void startOutageRecovery(PlayerResolver resolver) {
+        long ticks = core.settings.network.outageRetrySeconds() * 20L;
+        recoveryTask = Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+            try {
+                db.open();
+            } catch (java.sql.SQLException e) {
+                return; // still down; the next attempt is in retry-seconds
+            }
+            recoveryTask.cancel();
+            Bukkit.getScheduler().runTask(this, () -> {
+                if (!joinNetworkAndLoad(resolver)) return;
+                degraded = false;
+                startNormalOperation();
+                getLogger().info("The shared database is reachable again: full operation resumed, the index was reloaded from it.");
+            });
+        }, ticks, ticks);
+    }
+
+    /** A local copy of the active bans and mutes, so a server that restarts during a database outage still enforces them. */
+    private void saveSnapshotIfShared() {
+        if (db == null || !db.shared() || degraded || punishments == null) return;
+        File f = ActiveSnapshot.file(getDataFolder());
+        try {
+            ActiveSnapshot.save(f, punishments.cache().activeAll());
+        } catch (java.io.IOException e) {
+            getLogger().warning("Could not save the local copy of the active punishments: " + e.getMessage());
+        }
     }
 
     @Override
     public void onDisable() {
+        if (recoveryTask != null) recoveryTask.cancel();
+        saveSnapshotIfShared();
         enabledOk = false;
         for (BukkitTask t : tasks) t.cancel();
         tasks.clear();
@@ -351,6 +417,11 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             custody.refreshIndex();
             jails.refreshIndex();
         }, 100L, 200L));
+        if (db.shared()) {
+            tasks.add(Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+                if (punishments.cache().consumeDirty()) saveSnapshotIfShared();
+            }, 200L, 200L));
+        }
         if (network != null) {
             // what the other servers changed, applied here (a login never waits for this: it asks the database directly)
             long syncTicks = Math.max(5L, core.settings.network.syncIntervalMs() / 50L);
@@ -507,6 +578,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         l.add("Database: " + (db.healthy() ? "healthy" : "PROBLEM: " + db.lastError()));
         l.add("Active bans/mutes cached: " + punishments.cache().size());
         l.add("JailReloaded: " + core.jail.status());
+        if (degraded) l.add("*** DEGRADED: the shared database is unreachable - known bans/mutes are enforced from the saved copy, staff actions are refused (retrying) ***");
         l.add("Storage: " + (db.shared() ? "shared " + db.dialect().name() + " " + db.storage() : "standalone SQLite") + "; server name: " + db.origin()
                 + ", database schema v" + db.schemaVersion());
         l.add("Judicial system: " + core.mode.state() + (core.mode.state() == JudicialMode.State.WIND_DOWN ? " - " + String.join("; ", core.mode.report().lines())

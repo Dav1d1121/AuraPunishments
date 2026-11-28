@@ -40,6 +40,17 @@ network:
   max-clock-skew-seconds: 10
   # Start even if another running server uses the same server-name. Never turn this on in production.
   allow-duplicate-name: false
+  # What this server does while it cannot reach the shared database. Staff actions that cannot be saved are ALWAYS refused (never
+  # reported as done), and every ban and mute the server already knows keeps being enforced (a copy is kept in
+  # plugins/AuraPunishments/active-punishments.yml, also across a restart). When the database is back, everything is reloaded from it.
+  outage:
+    # ENFORCE_KNOWN - keep enforcing the known bans and mutes; other players may still connect (the default: a database blip must not
+    #                 empty your network).
+    # DENY_ALL      - refuse new connections (operators excepted) until the database is back.
+    policy: ENFORCE_KNOWN
+    # Start with the saved copy when the database is unreachable at start-up (instead of disabling the plugin) and keep retrying.
+    start-without-database: true
+    retry-seconds: 15
 
 # ---------------------------------------------------------------------------
 #  Database  [RESTART]
@@ -256,6 +267,18 @@ punishments:
     cell-name: ""
     # Mute the prisoner in JailReloaded while jailed.
     mute-while-jailed: false
+  # IP bans (1.4.0): protection against banning an address that many unrelated players share. Behind a proxy (Velocity/BungeeCord) whose IP
+  # forwarding is not set up correctly EVERY player appears to connect from the proxy's own address, and one IP ban would lock out the
+  # whole network. A missing section keeps the old behaviour (no checks); the values below are what a new install gets.
+  ip-bans:
+    # Refuse to IP-ban (and ignore an existing IP ban on) loopback, private-network, link-local and carrier-grade-NAT addresses: they are
+    # never one player's own address on the public internet. Turn off only on a LAN-only test server.
+    refuse-private-addresses: true
+    # Addresses that must never be IP-banned (for example your proxy's address, if it is public).
+    exclude-addresses: []
+    # Refuse an IP ban when more than this many different accounts last connected from the address within the window (0 = no check).
+    max-accounts-per-address: 15
+    window-days: 30
   quick:
     require-reason: true
     require-evidence: [IPBAN, BAN]

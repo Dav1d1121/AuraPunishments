@@ -28,6 +28,13 @@ import java.util.logging.Logger;
  * keys and version columns, because several servers write to it at once.
  */
 public final class Database implements AutoCloseable {
+    /** The database server cannot be reached (down, wrong address, refused): the situation the outage policy is about. Not a schema or version problem. */
+    public static final class UnavailableException extends SQLException {
+        public UnavailableException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+
     private final String jdbcUrl;
     private final Path file;
     private final Logger log;
@@ -72,17 +79,25 @@ public final class Database implements AutoCloseable {
         });
     }
 
-    /** Open the database, back up before migrating, and migrate to the latest schema. */
+    /** Open the database, back up before migrating, and migrate to the latest schema. May be called again after an {@link UnavailableException}. */
     public void open() throws SQLException {
         try {
             exec.submit(() -> {
+                if (pool != null) {
+                    pool.close(); // a previous attempt got as far as a pool but not as far as a usable schema
+                    pool = null;
+                }
                 connect();
                 migrate();
+                lastError.set(null);
                 return null;
             }).get();
         } catch (java.util.concurrent.ExecutionException e) {
             Throwable c = e.getCause();
-            if (c instanceof SQLException se) throw se;
+            if (c instanceof SQLException se) {
+                lastError.set(se.getMessage());
+                throw se;
+            }
             throw new SQLException(c);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -143,7 +158,7 @@ public final class Database implements AutoCloseable {
         } catch (RuntimeException e) {
             Throwable root = e;
             while (root.getCause() != null) root = root.getCause();
-            throw new SQLException("Cannot connect to the shared database " + storage + ": " + root.getMessage(), e);
+            throw new UnavailableException("Cannot connect to the shared database " + storage + ": " + root.getMessage(), e);
         }
     }
 
@@ -314,7 +329,10 @@ public final class Database implements AutoCloseable {
     }
 
     private Connection ensure() throws SQLException {
-        if (storage.shared()) return pool.getConnection();
+        if (storage.shared()) {
+            if (pool == null) throw new UnavailableException("The shared database is not connected", null);
+            return pool.getConnection();
+        }
         if (conn != null) {
             try {
                 if (!conn.isClosed() && conn.isValid(2)) return conn;
@@ -463,14 +481,19 @@ public final class Database implements AutoCloseable {
 
     @Override
     public void close() {
-        exec.execute(() -> {
-            try {
-                if (conn != null) conn.close();
-                if (pool != null) pool.close();
-            } catch (SQLException ignored) {
-                // ignore
-            }
-        });
+        if (exec.isShutdown()) return; // already closed (a failed start, a recovery that never happened, a second onDisable)
+        try {
+            exec.execute(() -> {
+                try {
+                    if (conn != null) conn.close();
+                    if (pool != null) pool.close();
+                } catch (SQLException ignored) {
+                    // ignore
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            return;
+        }
         exec.shutdown();
         try {
             exec.awaitTermination(10, java.util.concurrent.TimeUnit.SECONDS);

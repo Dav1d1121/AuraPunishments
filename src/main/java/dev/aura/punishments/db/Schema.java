@@ -517,6 +517,10 @@ public final class Schema {
                   owner TEXT NOT NULL,
                   lease_until INTEGER NOT NULL
                 )"""));
+        // a queued player notice (a warning for someone who was offline) is CLAIMED by one server for a short lease before it is shown,
+        // so a player who connects to two servers in quick succession is not shown it twice
+        steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_by TEXT"));
+        steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_at INTEGER"));
         // the row every audit append locks, so that servers writing the hash chain at the same moment take turns
         steps.add((c, ctx) -> {
             try (Statement st = c.createStatement()) {
