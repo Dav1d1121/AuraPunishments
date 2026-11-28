@@ -159,6 +159,7 @@ class CaseworkGuiTest {
         assertNotEquals(Material.NAME_TAG, at(22), "no hearing reference");
         assertNotEquals(Material.BELL, at(28), "no verdict");
         assertNotEquals(Material.NETHERITE_AXE, at(29), "no sentencing");
+        for (int s : new int[]{28, 29, 31, 32, 33}) assertNotEquals(Material.GRAY_DYE, at(s), "no locked court button either (slot " + s + ")");
         assertNotEquals(Material.NAME_TAG, at(37), "no case-level appeal ticket");
     }
 

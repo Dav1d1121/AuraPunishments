@@ -161,24 +161,28 @@ final class CaseMenu extends Menu {
         action(24, can(Perms.CASE_MANAGE), Material.PLAYER_HEAD, casework ? "<yellow><b>Reassign case owner" : "<yellow><b>Reassign prosecutor",
                 List.of((casework ? "<gray>Owner: <white>" : "<gray>Prosecutor: <white>") + esc(String.valueOf(c.prosecutorName()))), (p, t) -> prosecutorClick(p));
 
-        // ---- judicial row
+        // ---- judicial row (in the case workflow only a case that still carries court state from before shows it: there is no court to offer)
+        boolean courtCase = !casework || c.verdict() != null || c.judgeName() != null || c.trialAt() != null || switch (c.status()) {
+            case IN_TRIAL, AWAITING_VERDICT, GUILTY, AWAITING_SENTENCING, SENTENCED, DIRECT_PUNISHMENT_ISSUED, APPEALED, NOT_GUILTY, DISMISSED -> true;
+            default -> false;
+        };
         boolean awaitingVerdict = c.status() == CaseStatus.IN_TRIAL || c.status() == CaseStatus.AWAITING_VERDICT;
-        action(28, can(Perms.JUDICIAL_VERDICT) && awaitingVerdict, Material.BELL, "<gold><b>Enter verdict",
+        if (courtCase) action(28, can(Perms.JUDICIAL_VERDICT) && awaitingVerdict, Material.BELL, "<gold><b>Enter verdict",
                 List.of("<gray>Guilty, not guilty, dismissed", "<gray>or continued / pending review"), (p, t) -> verdictMenu());
         boolean awaitingSentence = c.status() == CaseStatus.GUILTY || c.status() == CaseStatus.AWAITING_SENTENCING;
-        action(29, can(Perms.JUDICIAL_SENTENCE) && awaitingSentence, Material.NETHERITE_AXE, "<red><b>Impose sentence",
+        if (courtCase) action(29, can(Perms.JUDICIAL_SENTENCE) && awaitingSentence, Material.NETHERITE_AXE, "<red><b>Impose sentence",
                 List.of("<gray>Warning, mute, ban, jail sentence", "<gray>with time-served credit"), (p, t) -> SentenceMenu.open(gui, p, this, d));
-        action(31, can(Perms.APPEAL_FILE) && (c.status() == CaseStatus.SENTENCED || c.status() == CaseStatus.DIRECT_PUNISHMENT_ISSUED), Material.WRITABLE_BOOK, "<aqua><b>File appeal",
+        if (courtCase) action(31, can(Perms.APPEAL_FILE) && (c.status() == CaseStatus.SENTENCED || c.status() == CaseStatus.DIRECT_PUNISHMENT_ISSUED), Material.WRITABLE_BOOK, "<aqua><b>File appeal",
                 List.of("<gray>Record an appeal against the outcome"), (p, t) -> reason("State the grounds for the appeal.", gui.settings().cases.minReason(), r ->
                         gui.call(p, gui.judicial.fileAppeal(gui.actor(p), c.id(), r), x -> {
                             gui.success(p, "Appeal filed.");
                             reload();
                         }, this::open)));
-        action(32, (can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE)) && c.status() == CaseStatus.APPEALED, Material.LECTERN, "<light_purple><b>Decide appeal",
+        if (courtCase) action(32, (can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE)) && c.status() == CaseStatus.APPEALED, Material.LECTERN, "<light_purple><b>Decide appeal",
                 List.of("<gray>Uphold, overturn or modify"), (p, t) -> appealMenu());
         boolean canOverturn = c.status() == CaseStatus.SENTENCED || c.status() == CaseStatus.DIRECT_PUNISHMENT_ISSUED
                 || c.status() == CaseStatus.UNDER_REVIEW || c.status() == CaseStatus.APPEALED;
-        action(33, can(Perms.JUDICIAL_OVERTURN) && canOverturn, Material.TNT, "<dark_red><b>Overturn findings",
+        if (courtCase) action(33, can(Perms.JUDICIAL_OVERTURN) && canOverturn, Material.TNT, "<dark_red><b>Overturn findings",
                 List.of("<gray>Revokes all punishments of this case,", "<gray>releases custody and excludes it from", "<gray>future escalation. Recorded permanently."), (p, t) ->
                         reason("Why are the findings being overturned?", gui.settings().judicial.minVerdictReason(), r ->
                                 new ConfirmMenu(gui, p, this, "Overturn " + c.ref(), List.of("All punishments of the case are revoked.", "Reason: " + r), null, () ->
