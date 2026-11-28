@@ -89,6 +89,23 @@ public final class LiveTest extends JavaPlugin {
             phase = "1";
         }
         final String ph = phase;
+        // Test-world hygiene: real protocol clients stand in a real world, so hostile mobs and night time kill them and close their menus.
+        // Peaceful difficulty, a fixed daytime and clear weather make every phase independent of the time of day the server happens to start.
+        for (org.bukkit.World w : Bukkit.getWorlds()) {
+            w.setDifficulty(org.bukkit.Difficulty.PEACEFUL);
+            w.setTime(1000L);
+            w.setStorm(false);
+            w.setThundering(false);
+            for (String rule : new String[]{"advance_time", "doDaylightCycle", "advance_weather", "doWeatherCycle", "spawn_mobs", "doMobSpawning"}) {
+                try {
+                    @SuppressWarnings({"unchecked", "rawtypes"}) org.bukkit.GameRule gr = org.bukkit.GameRule.getByName(rule);
+                    if (gr != null) w.setGameRule(gr, false);
+                } catch (Throwable ignored) {
+                    // a rule that does not exist in this Minecraft version
+                }
+            }
+            for (org.bukkit.entity.Entity e : w.getEntities()) if (e instanceof org.bukkit.entity.Monster) e.remove();
+        }
         Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.getScheduler().runTaskAsynchronously(this, () -> run(ph)), 60L);
     }
 
