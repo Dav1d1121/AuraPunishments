@@ -20,6 +20,8 @@ import net.minecraft.network.protocol.game.ClientboundContainerSetContentPacket;
 import net.minecraft.network.protocol.game.ClientboundContainerSetSlotPacket;
 import net.minecraft.network.protocol.game.ClientboundOpenScreenPacket;
 import net.minecraft.network.protocol.game.ClientboundPlayerPositionPacket;
+import net.minecraft.network.protocol.game.ClientboundStartConfigurationPacket;
+import net.minecraft.network.protocol.game.ServerboundConfigurationAcknowledgedPacket;
 import net.minecraft.network.protocol.game.GameProtocols;
 import net.minecraft.network.protocol.game.ServerboundAcceptTeleportationPacket;
 import net.minecraft.network.protocol.game.ServerboundChatCommandPacket;
@@ -62,6 +64,8 @@ public final class McClient {
     public volatile int containerId;
     public volatile int stateId;
     public volatile boolean playing;
+    /** How many times a proxy moved this client to another backend (it re-enters the configuration phase each time). */
+    public volatile int switches;
     public volatile String disconnected;
     /** The text dialog the server last opened (null when none is open). */
     private volatile Dialog dialog;
@@ -114,6 +118,11 @@ public final class McClient {
 
     /** Connect and log in; returns once the client is in the play phase (or throws). */
     public static McClient connect(String name, UUID uuid, int port) throws Exception {
+        return connect(name, uuid, "127.0.0.1", port);
+    }
+
+    /** @param host what the handshake says the client connected to (a proxy routes on it: forced hosts) */
+    public static McClient connect(String name, UUID uuid, String host, int port) throws Exception {
         McClient c = new McClient(name, uuid);
         MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();
         c.conn = Connection.connectToServer(new InetSocketAddress("127.0.0.1", port), EventLoopGroupHolder.remote(false), null);
@@ -129,7 +138,7 @@ public final class McClient {
             } else if (n.equals("onDisconnect")) {
                 c.disconnected = String.valueOf(pk);
             } else {
-                if (pk.getClass().getSimpleName().equals("ClientboundLoginDisconnectPacket")) c.disconnected = String.valueOf(pk); // the refusal text a banned player sees
+                if (pk.getClass().getSimpleName().equals("ClientboundLoginDisconnectPacket")) { c.disconnected = String.valueOf(pk); c.inGame.countDown(); } // the refusal text a banned player sees
                 c.packets.add(FakePlayer.describe(pk));
             }
         });
@@ -137,13 +146,20 @@ public final class McClient {
         c.conn.channel.pipeline().addLast("mcclient-debug", new io.netty.channel.ChannelInboundHandlerAdapter() {
             @Override public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) { Bukkit.getLogger().severe("[McClient] pipeline exception: " + cause); cause.printStackTrace(); ctx.fireExceptionCaught(cause); }
         });
-        c.conn.initiateServerboundPlayConnection("127.0.0.1", port, login);
+        c.conn.initiateServerboundPlayConnection(host, port, login);
         c.conn.send(new ServerboundHelloPacket(name, uuid));
-        if (!c.inGame.await(40, TimeUnit.SECONDS)) throw new IllegalStateException("login did not reach the play phase: " + c.disconnected + " " + c.packets);
+        if (!c.inGame.await(40, TimeUnit.SECONDS) || !c.playing) throw new IllegalStateException("login did not reach the play phase: " + c.disconnected + " " + c.packets);
         return c;
     }
 
     private void config(MinecraftServer server, Object pk) {
+        String kind = pk.getClass().getSimpleName();
+        if (kind.equals("ClientboundDisconnectPacket") || kind.contains("DisconnectionDetails")) {
+            // refused while a proxy was still setting the connection up (a banned player sees this text): record it and stop waiting
+            disconnected = FakePlayer.describe(pk) + " " + pk;
+            inGame.countDown();
+            return;
+        }
         if (pk instanceof ClientboundSelectKnownPacks) {
             conn.send(new ServerboundSelectKnownPacks(List.of()));
         } else if (pk instanceof ClientboundKeepAlivePacket k) {
@@ -167,6 +183,17 @@ public final class McClient {
     private void play(Object pk, String method) {
         if (method.equals("onDisconnect")) {
             disconnected = String.valueOf(pk);
+            return;
+        }
+        if (pk instanceof ClientboundStartConfigurationPacket) {
+            // a proxy is moving this player to another backend: leave the play phase and go through configuration again, exactly as the vanilla client does
+            switches++;
+            playing = false;
+            MinecraftServer server = ((CraftServer) Bukkit.getServer()).getServer();
+            ClientConfigurationPacketListener cfg = proxy(ClientConfigurationPacketListener.class, (n2, a2) -> config(server, a2[0]));
+            conn.setupInboundProtocol(ConfigurationProtocols.CLIENTBOUND, cfg);
+            conn.send(ServerboundConfigurationAcknowledgedPacket.INSTANCE);
+            conn.setupOutboundProtocol(ConfigurationProtocols.SERVERBOUND);
             return;
         }
         if (pk instanceof ClientboundKeepAlivePacket k) {

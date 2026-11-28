@@ -89,6 +89,10 @@ public final class LiveTest extends JavaPlugin {
             phase = "1";
         }
         final String ph = phase;
+        if (ph.equals("net")) { // the multi-server lab: stay up and take orders from the orchestrator (console command "netlab")
+            new NetLab(this).start();
+            return;
+        }
         // Test-world hygiene: real protocol clients stand in a real world, so hostile mobs and night time kill them and close their menus.
         // Peaceful difficulty, a fixed daytime and clear weather make every phase independent of the time of day the server happens to start.
         for (org.bukkit.World w : Bukkit.getWorlds()) {
