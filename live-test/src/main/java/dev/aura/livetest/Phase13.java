@@ -249,9 +249,9 @@ final class Phase13 {
 
     void run() throws Exception {
         t.createJail();
-        tMute = "LiveMuter" + run;
-        tJail = "LiveJailer" + run;
-        tBan = "LiveBanner" + run;
+        tMute = "LiveAlpha" + run;
+        tJail = "LiveBravo" + run;
+        tBan = "LiveCharlie" + run;
         try {
             staff = login("LiveStaff13" + run, STAFF);
         } catch (Throwable e) {
