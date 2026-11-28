@@ -1,0 +1,94 @@
+== phase 7 ==
+PASS real TCP clients are in the play phase (handshake, login, configuration)
+PASS control: an ordinary line in the TOWN channel reaches the other town member through TownyChat  -- staff: [TownyChat] You are now talking in town | watcher: -
+PASS /punish (real command packet) opened the target screen  -- Punish: LiveTargetW47023
+PASS warning screen open  -- Warning: LiveTargetW47023
+PASS a line typed in CHAT while the dialog is open is ordinary chat (chat is not an input channel) and the dialog stays
+PASS an invalid (too short) answer is refused, explained, and the prompt stays active  -- []
+PASS prompt is waiting for the warning reason  -- screen: 
+PASS answer accepted: the warning screen is shown again with the reason  -- Warning: LiveTargetW47023
+PASS the reason never reached the other player's screen
+PASS confirmation screen  -- Confirm: Warning LiveTargetW47023
+PASS the warning was recorded with exactly the typed reason, issued by the staff member  -- S1-47023 spamming the chat repeatedly warning
+PASS the target's own client received the warning title and the reason in chat  -- [ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundEntityEventPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundRotateHeadPacket, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSystemChatPacket|[AuraPunishments] OFFICIAL WARNING, ClientboundSystemChatPacket|[AuraPunishments] Reason: S1-47023 spamming the chat repeatedly warning, ClientboundSystemChatPacket|[AuraPunishments] Warning on record in the last period: 1, ClientboundSystemChatPacket|[AuraPunishments] Further breaches may lead to further action against you., ClientboundSoundPacket|minecraft:block.note_block.pling vol=0.8 pitch=1.0, ClientboundRotateHeadPacket, Pos, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundEntityEventPacket, ClientboundLevelParticlesPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundBlockUpdatePacket, ClientboundSetEntityMotionPacket, Pos]
+PASS no review was created for a routine warning
+PASS pressing Cancel in the dialog aborts the prompt, tells the player and returns to the screen  -- Warning: LiveTargetC47023
+PASS the word 'cancel' was not broadcast
+PASS an unanswered prompt times out, tells the player and returns to the screen  -- Warning: LiveTargetC47023
+PASS running another command cancels the prompt
+PASS once no prompt is active the same player's chat is ordinary public chat again
+PASS no warning was recorded by any of this
+PASS an invalid duration is rejected with an explanation and the GUI returns
+PASS a duration answer ('2h') is captured, never broadcast
+PASS prompt is waiting for the mute reason  -- screen: 
+PASS mute recorded with the typed reason and a 2 hour duration  -- S2-47023 global chat spam mute reason
+PASS the mute created an owner review (immediate punishment, reviewed after)
+PASS prompt is waiting for the ban reason  -- screen: 
+PASS evidence type picker shown  -- Evidence type
+PASS prompt is waiting for the evidence reference  -- screen: 
+PASS setting OFF (default): no name dialog - Confirm applies the ban  -- Punish: LiveTargetB47023
+PASS ban recorded with the typed reason (no name entry)  -- last message to staff: LiveTargetB47023 left the game | screen: Punish: LiveTargetB47023
+PASS the evidence answer was stored on the case
+PASS the banned target's client was disconnected
+PASS prompt is waiting for the ban reason  -- screen: 
+PASS evidence type picker shown  -- Evidence type
+PASS prompt is waiting for the evidence reference  -- screen: 
+PASS setting ON: the confirmation asks for the player's name in a dialog
+PASS setting ON: a wrong name applies nothing  -- [AuraPunishments] The name did not match. Nothing was changed.
+PASS prompt is waiting for the player's name (confirmation)  -- screen: 
+PASS ban recorded with the typed reason (name entered)  -- last message to staff: LiveTargetN47023 left the game | screen: Punish: LiveTargetN47023
+PASS the evidence answer was stored on the case
+PASS the banned target's client was disconnected
+PASS case wizard open  -- New case: LiveTargetK47023
+PASS prompt is waiting for the incident description  -- screen: 
+PASS prompt is waiting for the contextual notes  -- screen: 
+PASS the wizard shows the captured description and notes (not lost)  -- S5-47023 repeated offensive behaviour to|wards other players|Click to edit|S6-47023 private context about the incid|ent for the judge|Click to edit|
+PASS neither answer reached the other player
+PASS /ap case opened the case screen  -- Case AP-0003
+PASS prompt is waiting for a staff note  -- screen: 
+PASS the staff note was saved exactly as typed  -- S7-47023 private staff note about this case
+PASS prompt is waiting for the judge's name  -- screen: 
+PASS the judge was assigned from the typed name
+PASS prompt is waiting for the trial time  -- screen: 
+PASS the trial time answer was applied  -- [AuraPunishments] Trial scheduled for 2026-11-30 02:21 UTC.
+PASS prompt is waiting for the hearing reference  -- screen: 
+PASS hearing reference saved
+PASS prompt is waiting for the verdict reasoning  -- screen: 
+PASS verdict recorded with the typed reasoning  -- last: [AuraPunishments] Verdict recorded: Guilty. | Case AP-0003
+PASS prompt is waiting for the sentence duration  -- screen: 
+PASS prompt is waiting for the sentencing reasoning  -- screen: 
+PASS sentence recorded with the typed reasoning and a 3 day duration  -- last: [AuraPunishments] Sentence imposed: Ban 3d. | screen: Case AP-0003 | S10-47023 three day ban for sustained harassment of other players
+PASS none of the judicial answers reached the other player
+PASS quick mute by the issuer client's account
+PASS the review screen opened  -- Review RV-0004 - LiveTargetR47023
+PASS prompt is waiting for a private reviewer note  -- screen: 
+PASS private note stored
+PASS prompt is waiting for the question for the issuer  -- screen: 
+PASS the issuer's own client received the question in game  -- [ClientboundSystemChatPacket|LiveIssuer47023 joined the game, ClientboundSystemChatPacket|[TownyChat] You are now talking in general, ClientboundSystemChatPacket|[AuraPunishments] Review RV-0004 (LiveTargetR47023) - LiveStaffA47023 asks you to explain: S12-47023 please explain why this mute was needed]
+PASS prompt is waiting for the decision note  -- screen: 
+PASS the decision was recorded with the typed note  -- S13-47023 the evidence supports this mute decision
+PASS no review answer reached the other player
+PASS /punishments dashboard opened  -- Punishments dashboard
+PASS the typed player name opened that player's screen  -- Punish: LiveTargetK47023
+PASS the typed name was not broadcast
+PASS both staff members have independent active prompts
+PASS B's answer completed only B's session
+PASS both warning screens are shown again after their answers  -- Warning: LiveTargetX47023 / Warning: LiveTargetY47023
+PASS A's text became A's warning on A's target
+PASS B's text became B's warning on B's target
+PASS no cross-over between the two sessions
+PASS a configuration reload by someone else does not break an open prompt
+PASS prompt is waiting for a reason after a reload  -- screen: 
+PASS the answer after the reload was still captured and not broadcast
+PASS warning screen shown again after the post-reload answer  -- Warning: LiveTargetZ47023
+PASS revoking the permission closed the open GUI (integrations.luckperms.close-guis-on-permission-change) or left it for the service to refuse  -- gui closed=true
+PASS the service refuses the same warning after the permission was revoked  -- You do not have permission to issue warnings.
+PASS a permission revoked after typing: nothing was recorded
+PASS a prompt is active before the disconnect
+PASS the prompt session was cleaned up when the player disconnected
+PASS after reconnecting there is no stale prompt
+PASS chat after reconnecting is ordinary chat, not swallowed by a stale session
+PASS across 18 prompt answers: no bystander screen and no chat relay/logger (legacy or modern, MONITOR) ever received one  -- []
+PASS CoreProtect's chat log holds none of the prompt answers (log-cancelled-chat: false)  -- []
+INFO answers typed this run: [S1-47023, S2-47023, S3-47023, https://example.com/proof-LiveTargetB47023, S4-47023, https://example.com/proof-LiveTargetN47023, S5-47023, S6-47023, S7-47023, S8-47023, S9-47023, S10-47023, S11-47023, S12-47023, S13-47023, S-B-47023, S-A-47023, S14-47023]
+== phase 7: 91 passed, 0 failed ==

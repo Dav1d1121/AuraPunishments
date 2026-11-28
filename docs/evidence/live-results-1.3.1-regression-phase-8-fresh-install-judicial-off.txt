@@ -1,0 +1,112 @@
+== phase 8 ==
+PASS real TCP clients are in the play phase
+PASS a fresh install starts with the judicial system OFF
+PASS config.yml on disk contains the explicit 'enabled: false' line
+PASS schema is v3 with this server's name recorded  -- srv-196b855b
+PASS no judicial work is open
+PASS JailReloaded is detected and compatible  -- JailReloaded 1.2.2 (compatible)
+PASS /punish opened the target screen  -- Punish: LiveTgtM27102
+PASS judicial option hidden: Create Case
+PASS judicial option hidden: View Cases
+PASS judicial option hidden: Pretrial Detention
+PASS judicial option hidden: Direct Punishment
+PASS judicial option hidden: Judicial Review
+PASS judicial option hidden: Submit Evidence
+PASS option available: Issue Warning
+PASS option available: Issue Kick
+PASS option available: Issue Mute
+PASS option available: Issue Ban
+PASS option available: Issue IP Ban
+PASS option available: Issue Jail
+PASS option available: Emergency Action
+PASS option available: Punishment History
+PASS option available: Staff Notes
+PASS option available: Warnings
+PASS option available: Jail Status
+PASS option available: Appeals
+PASS option available: Release / Revoke
+PASS /ap help does not list the judicial dashboard
+PASS /ap help lists jail, unjail, appeals and the judicial status command
+PASS target screen  -- Punish: LiveTgtM27102
+PASS dialog is waiting for the mute duration  -- screen: 
+PASS dialog is waiting for the mute reason  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS dialog is waiting for the staff note  -- screen: 
+PASS confirmation screen  -- Confirm: Mute LiveTgtM27102
+PASS the mute was recorded
+PASS it is a final, immediately active punishment (ACTIVE, source STANDARD, no case)  -- Punishment[id=1, type=MUTE, status=ACTIVE, targetUuid=b30c4830-e75e-3b77-9eca-d0faad714cce, targetName=LiveTgtM27102, ip=null, reason=Spamming the global channel repeatedly, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832153552, expiresAt=1795835753552, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=c9e9006e-3205-41b1-aec6-4f7bc41de84c, origin=srv-196b855b, opId=c035ca28-31ab-478a-aca3-9e330d0e02cd, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS the evidence is attached to the punishment, not to a case
+PASS the staff note is attached to the punishment
+PASS no case exists anywhere
+PASS the punishment carries a unique id and this server's name  -- c9e9006e-3205-41b1-aec6-4f7bc41de84c / srv-196b855b
+PASS the muted player cannot chat and is told so  -- [ClientboundSystemChatPacket|[AuraPunishments] You are muted and cannot do that. (Expires: 2026-11-28 03:15 UTC (59m left)), ClientboundSetEntityMotionPacket, Pos]
+PASS the punishment is in the owner review queue (mute is a reviewed type)
+PASS target screen  -- Punish: LiveTgtB27102
+PASS dialog is waiting for the ban duration  -- screen: 
+PASS dialog is waiting for the ban reason  -- screen: 
+PASS without evidence the screen stays (incomplete)  -- Ban: LiveTgtB27102
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the ban was recorded
+PASS the online player was disconnected with the ban screen  -- ClientboundDisconnectPacket ClientboundDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated griefing of the spawn builds}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-05 02:16 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#2}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]]
+PASS the banned player cannot log back in (checked at login, no restart needed)  -- login did not reach the play phase: ClientboundLoginDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated griefing of the spawn builds}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-05 02:16 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#2}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]] [ClientboundLoginDisconnectPacket]
+PASS /ap punishment opened the punishment screen  -- Punishment #2 (Ban)
+PASS evidence screen  -- Evidence - #2 Ban
+PASS dialog is waiting for the later evidence link  -- screen: 
+PASS evidence added AFTER the fact is attached to the punishment
+PASS punishment screen again  -- Punishment #2 (Ban)
+PASS dialog is waiting for the appeal grounds  -- screen: 
+PASS dialog is waiting for the ticket reference  -- screen: 
+PASS the appeal is recorded with the Ticket Tool reference and nothing is lifted
+PASS an appeal never suspends the punishment
+PASS the appeal is listed in the appeals queue
+PASS decision choices  -- Appeal #1
+PASS dialog is waiting for the decision reasoning  -- screen: 
+PASS confirmation  -- Confirm: Appeal overturned
+PASS overturning revokes the ban
+PASS the appeal records reviewer, decision and rationale  -- Appeal[id=1, caseId=null, punishmentId=2, filedByName=LiveStaff827102, filedAt=1795832224698, reason=The player says another account was used, status=OVERTURNED, decidedByName=LiveStaff827102, decisionReason=New evidence shows the wrong account was banned, decidedAt=1795832232002, assignedName=LiveStaff827102, ticket=0042, newExpiresAt=null, uid=b6879651-73ee-431d-b2f8-4dba15021e74, origin=srv-196b855b]
+PASS the player can log in again after the appeal was upheld
+PASS target screen  -- Punish: LiveTgtJ27102
+PASS jail screen  -- Jail Sentence: LiveTgtJ27102
+PASS dialog is waiting for the jail duration  -- screen: 
+PASS dialog is waiting for the jail reason  -- screen: 
+PASS confirmation screen mentions JailReloaded and that it is final  -- Confirm: Jail Sentence LiveTgtJ27102
+PASS the jail punishment is recorded as HELD  -- Punishment[id=3, type=JAIL, status=ACTIVE, targetUuid=ff290b69-5446-3307-a746-0e5fc59e5ebd, targetName=LiveTgtJ27102, ip=null, reason=Griefing the shared farm area, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832245048, expiresAt=1795834045048, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=f1cec0eb-cc68-49d2-8f04-0fc2801395f0, origin=srv-196b855b, opId=97e3e071-2bdd-48d5-8db7-9a4cfd07d21c, jailPrisonerId=b5f612d6-fa26-4eb2-b462-d2bc60e7b8f6, jailName=testjail, jailState=HELD, jailError=null]
+PASS JailReloaded really holds the player (its own API says so)
+PASS the prisoner record carries our tag so it is recognisable after a crash
+PASS no case and no pretrial custody exist for it
+PASS the player is actually inside the jail area
+PASS the target screen's Jail Status shows the jail punishment
+PASS another staff member cannot release the prisoner through JailReloaded's own command (guarded)  -- [ClientboundSetEntityMotionPacket, ClientboundSystemChatPacket|[AuraPunishments] That prisoner is serving jail punishment AP-J0003. Release them with /ap unjail <player> <reason> (or the history screen) so it is recorded properly., ClientboundLevelParticlesPacket, ClientboundSetEntityDataPacket, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundDamageEventPacket, ClientboundRotateHeadPacket, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, Pos, ClientboundSetEntityDataPacket, ClientboundLevelParticlesPacket, ClientboundRotateHeadPacket, Pos, ClientboundDamageEventPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket]
+PASS the prisoner is still held
+PASS /ap unjail frees the prisoner in JailReloaded
+PASS the punishment is revoked, with the staff member and reason recorded  -- Punishment[id=3, type=JAIL, status=REVOKED, targetUuid=ff290b69-5446-3307-a746-0e5fc59e5ebd, targetName=LiveTgtJ27102, ip=null, reason=Griefing the shared farm area, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832245048, expiresAt=1795834045048, endedAt=1795832249399, endedBy=LiveStaff827102, endReason=Served enough, behaving well now, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=f1cec0eb-cc68-49d2-8f04-0fc2801395f0, origin=srv-196b855b, opId=97e3e071-2bdd-48d5-8db7-9a4cfd07d21c, jailPrisonerId=b5f612d6-fa26-4eb2-b462-d2bc60e7b8f6, jailName=testjail, jailState=RELEASED, jailError=null]
+PASS the release was our own, so no 'ended outside AuraPunishments' alert was raised
+PASS audit chain is intact
+PASS a 20-second jail punishment is accepted
+PASS held by JailReloaded  -- Punishment[id=4, type=JAIL, status=ACTIVE, targetUuid=ffbc20ec-3ac8-3160-aec1-b2ef0df1c628, targetName=LiveTgtX27102, ip=null, reason=Short test sentence for the timer, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832252647, expiresAt=1795832272647, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=32b67d6c-7572-42c2-b3dd-9a476cf15206, origin=srv-196b855b, opId=b92e2c5e-f9aa-400d-b85f-5bd517bcb466, jailPrisonerId=742249e9-6755-4c25-9995-422066a2fcc5, jailName=testjail, jailState=HELD, jailError=null]
+PASS when JailReloaded's timer ends the sentence, the punishment becomes SERVED automatically  -- Punishment[id=4, type=JAIL, status=SERVED, targetUuid=ffbc20ec-3ac8-3160-aec1-b2ef0df1c628, targetName=LiveTgtX27102, ip=null, reason=Short test sentence for the timer, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832252647, expiresAt=1795832272647, endedAt=1795832265201, endedBy=System, endReason=Sentence served, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=32b67d6c-7572-42c2-b3dd-9a476cf15206, origin=srv-196b855b, opId=b92e2c5e-f9aa-400d-b85f-5bd517bcb466, jailPrisonerId=742249e9-6755-4c25-9995-422066a2fcc5, jailName=testjail, jailState=RELEASED, jailError=null]
+PASS and the player is out of JailReloaded
+PASS the end was recorded as a served sentence, not as an outside release  -- Sentence served
+PASS an emergency action is accepted with no case
+PASS it carries a review deadline and is waiting for senior review  -- Punishment[id=5, type=MUTE, status=ACTIVE, targetUuid=e8498f7b-b407-3109-b4e3-824ea7320e8e, targetName=LiveTgtE27102, ip=null, reason=Temporary protective action: Raiding the voice chat with slurs right now, issuerUuid=543f984e-95f3-31d7-aca2-6e7c99be846c, issuerName=LiveStaff827102, issuedAt=1795832265299, expiresAt=1795835865299, endedAt=null, endedBy=null, endReason=null, caseId=null, source=EMERGENCY, offenseKey=other, delivered=true, reviewDeadline=1795875465299, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=75d64f3b-8b35-4d68-b107-825af3cfb9a6, origin=srv-196b855b, opId=8c80404f-7acc-41dd-b324-330739167079, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS it also entered the owner review queue (review.include-emergency)
+PASS punishment screen  -- Punishment #5 (Mute)
+PASS dialog is waiting for the review reasoning  -- screen: 
+PASS upholding settles the emergency review and the owner review together
+PASS the action is still in force until it expires
+PASS the permanent-or-long bans/mutes created above are in the review queue while already in force
+PASS /ap review opens the queue  -- Owner review: Open (needs a decision)
+PASS an OFFLINE player can be jailed (registered, placed at next login)
+== phase 8: 98 passed, 0 failed ==

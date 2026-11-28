@@ -1,3 +1,45 @@
+# AuraPunishments 1.3.1 - Test report
+
+1.3.1 adds the **case workflow** (open a case, punish from it, no court) on top of 1.3.0. The 1.3.0 report follows below unchanged; this section covers what 1.3.1 changed and the full re-run on the 1.3.1 jar.
+
+## 1.3.1 summary
+
+| Category | Result |
+|---|---|
+| **A/B. Automated tests** (real services over a real SQLite database, fake JailReloaded, MockBukkit GUI/command/lifecycle) | **366 tests, 0 failures** (335 from 1.3.0, all still asserting what they asserted: only the fixtures that mean "judicial off" now also say `casework.enabled: false`, which is what 1.3.0 meant; plus 31 new: `CaseworkTest` 24, `CaseworkGuiTest` 6, one upgrade test) |
+| **C. Live server, real protocol clients** (Paper 26.3, real JailReloaded 1.2.2, LuckPerms, Towny, TownyChat, EssentialsX, CoreProtect, AuraCommandFilter, DiscordSRV not connected) | **473/473 checks pass** in 9 live phases: **new phase 12 (case workflow) 115/115**; 1.3.0 behaviour unchanged with the workflow off: phases 8/9/10 = 98/11/22; regression phases 7/6/1/2/3 = 91/65/54/9/8 |
+| **D. Real-data upgrade** (data folders written by 1.0.0 and 1.x, booted with the 1.3.1 jar, compared row-by-row with the originals) | **26/26 runtime checks**, 204 and 492 original rows across 12 and 16 tables: **all identical** |
+| **E. Not tested** | official game client rendering of dialogs; real Discord delivery; Velocity / multi-server (not part of this release); live phases 4 and 5 (incompatible JailReloaded jar, version drift - unchanged code path); load/soak testing |
+
+The plugin jar tested live is the jar that is delivered: SHA-256 `13cdffe27c56094d60b775b00613c1384ff27111be7d0883c1584c84f5c18284`. The live-test **driver** (a separate jar, not shipped) was changed twice during the run, never the plugin: a peaceful, daytime test world and a version-aware file name in one upgrade check (see "How the live run went").
+
+### What the new tests cover
+
+* `v13.CaseworkTest` (24): the shipped file gives a fresh install the workflow; a missing section means off; the four states; plain-off mode still refuses cases exactly as 1.3.0; judicial-on is unchanged; every court step (custody, direct punishment, trial status, judge, trial date, hearing reference) refused and leaves the case untouched; investigate / close / reopen; no hearing notices; a punishment from a case is final, immediate, linked, recorded on the timeline, and the case stays open; evidence and notes supplied while punishing land on the case and are not duplicated; every type (warn, mute, jail with the fake JailReloaded, kick, IP ban); the offense's allowed types and maximum duration; target/case mismatch; closed case refused until reopened; evidence already on the case counts toward the requirement; permissions, hierarchy, duration tiers; who cannot see the case cannot punish from it; quick buttons without a case; `require-case-for`; owner review created and linked to the case; appeals against the punishment; closing a case never lifts what was issued; leftover pretrial custody reported and never released by a configuration change.
+* `gui.CaseworkGuiTest` (6): the player screen (Create Case first, quick buttons kept, no court buttons), the wizard through to Punish -> Mute -> confirm with the punishment linked and the case still open, the case screen without court buttons (not even locked ones), the status chooser, the dashboard.
+* `v13.UpgradeV13Test` (+1): a 1.3.0 config (no `casework` section) is left byte-for-byte untouched, the workflow stays off, and a reference file showing the new section is written.
+
+### What live phase 12 proves on the real server (115 checks)
+
+A fresh install as shipped is in the CASEWORK state; the real GUI offers Create Case first and hides every court button; a case is opened through the real wizard with real dialog windows; **Punish -> Ban** from the case disconnects the online player with the ban screen, refuses their next login, links the ban to the case, leaves the case open and records it on the timeline; **Punish -> Jail** puts a real player in the real JailReloaded jail (linked to the case, not pretrial custody) and `/ap unjail` releases them with the case untouched; every court tool is refused; quick `/ap warn` / `/ap mute` work without inventing a case; `casework.require-case-for` refuses a quick ban with an explanation and still allows a kick; an appeal is recorded against the punishment with its ticket and overturning it revokes the ban and lets the player back in; a case is closed, refused punishing until reopened, then punished from again; then the judicial system is switched ON, a real player is held in real pretrial detention, it is switched OFF with the workflow on: state CASEWORK, the detainee counted and **not released**, released by the normal tool, the leftover case closed, and the court screens disappear; the audit chain stays intact, every record carries its uid and origin, nothing is orphaned or left pending.
+
+### How the live run went (nothing hidden)
+
+* The first live pass of phase 12 found one real defect: a locked, greyed "Enter verdict" button was still drawn on case screens in the workflow. **Fixed** (the judicial row appears only for cases that carry court state from before) with a unit assertion added.
+* A second full run then failed in 40+ places for a reason unrelated to the plugin: the shared test world was at night and zombies, skeletons and a creeper killed the protocol clients, which closed their menus. The driver now sets peaceful difficulty and daytime in every world at start, and a world-clock error in the nether is ignored. The whole suite was then re-run from the beginning on the unchanged plugin jar.
+* The upgrade phase expected the reference file to be called `config-1.3.0-reference.yml`; the plugin correctly writes `config-<its version>-reference.yml`. The check now asks the running plugin for its version, and the upgrade phase was re-run (13/13 on both data sets, rows identical).
+* One more product change came from review, not from a failing test: a server upgraded from 1.3.0 (which already has `judicial.enabled`) would never have been told that the new `casework` section exists. It now gets the one-time reference file and a console hint, covered by a new test.
+
+### Known limitations of 1.3.1
+
+* Case-level appeals do not exist in the workflow (there is no verdict to appeal): appeals are filed against the punishment.
+* A punishment from a case has no "sentence" semantics: it does not count as a guilty finding for escalation recommendations (`priorFindings`), because no court found anything.
+* The case list cards still label the case owner "Prosecutor"; the case screen and creation wizard say "Opened by" / "owner".
+* Evidence/notes added later to a punishment whose case has since been closed attach to the punishment, not the case.
+* Everything listed under "Not tested" above, and every limitation in the 1.3.0 report below, still applies.
+
+---
+
 # AuraPunishments 1.3.0 - Test report
 
 Results are grouped by how they were obtained, because they do not all prove the same thing. Nothing below is claimed beyond what the category shows.

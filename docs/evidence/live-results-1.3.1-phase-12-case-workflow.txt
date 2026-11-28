@@ -1,0 +1,129 @@
+== phase 12 ==
+PASS a real TCP client is in the play phase
+PASS judicial.enabled is false on a fresh install
+PASS the case workflow is on: state CASEWORK  -- CASEWORK
+PASS config.yml on disk contains the shipped 'casework: enabled: true' section
+PASS schema v3 and a server name are recorded
+PASS JailReloaded is detected and compatible  -- JailReloaded 1.2.2 (compatible)
+PASS no court work is open
+PASS /punish opened the target screen  -- Punish: LiveAlpha84052
+PASS option available: Create Case
+PASS option available: View Cases
+PASS option available: Submit Evidence
+PASS option available: Issue Warning
+PASS option available: Issue Kick
+PASS option available: Issue Mute
+PASS option available: Issue Ban
+PASS option available: Issue IP Ban
+PASS option available: Issue Jail
+PASS option available: Emergency Action
+PASS option available: Punishment History
+PASS option available: Staff Notes
+PASS option available: Warnings
+PASS option available: Jail Status
+PASS option available: Appeals
+PASS option available: Release / Revoke
+PASS court option hidden: Pretrial Detention
+PASS court option hidden: Direct Punishment
+PASS court option hidden: Judicial Review
+PASS court option hidden: In Custody
+PASS Create Case comes first (the main path), before the quick buttons
+PASS /ap help lists the case commands but not the judicial dashboard  -- [PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSystemChatPacket|[AuraPunishments] AuraPunishments help (only commands you can use), ClientboundSystemChatPacket| /ap help - Show the commands you can use, ClientboundSystemChatPacket| /ap case <id> - Open a case, ClientboundSystemChatPacket| /ap cases [all|open|trial|verdict|sentence|appeals|mine] - Browse cases, ClientboundSystemChatPacket| /ap history <player> - View a player's disciplinary history, ClientboundSystemChatPacket| /ap punishment <id> - Open one punishment: evidence, notes, appeals, actions, ClientboundSystemChatPacket| /ap appeals - Open appeals against punishments, ClientboundSystemChatPacket| /ap appeal <punishment id> [-t <ticket>] <grounds> - Record an appeal (Discord ticket reference optional), ClientboundSystemChatPacket| /ap warn <player> <reason> - Issue a warning, ClientboundSystemChatPacket| /ap kick <player> <reason> - Kick a player, ClientboundSystemChatPacket| /ap mute <player> <duration> <reason> [-e <evidence>] - Mute a player, ClientboundSystemChatPacket| /ap ban <player> <duration> <reason> [-e <evidence>] - Ban a player, ClientboundSystemChatPacket| /ap ipban <player> <duration> <reason> [-e <evidence>] - IP-ban a player, ClientboundSystemChatPacket| /ap jail <player> <duration|permanent> <reason> [-e <evidence>] - Jail a player (judicial system off), ClientboundSystemChatPacket| /ap unjail <player> <reason> - Release a jailed player early, ClientboundSystemChatPacket| /ap unmute <player> <reason> - Revoke an active mute, ClientboundSystemChatPacket| /ap unban <player> <reason> - Revoke an active ban, ClientboundSystemChatPacket| /ap review [mine|<id>] - Owner review queue / your punishments under review, ClientboundSystemChatPacket| /ap queue - Open the prioritised work queue, ClientboundSystemChatPacket| /ap export <case> [md|txt] - Export a case summary to the exports folder, ClientboundSystemChatPacket| /ap warnings <player> - A player's warnings and repeat indicator, ClientboundSystemChatPacket| /ap discord [status|retry] - Discord delivery status / re-queue failed messages, ClientboundSystemChatPacket| /ap admin - Open the administration screen, ClientboundSystemChatPacket| /ap judicial [status|recount] - Judicial system switch and any open work still to finish, ClientboundSystemChatPacket| /ap status - Show system status and integrations, ClientboundSystemChatPacket| /ap audit [verify] - Verify the audit log integrity, ClientboundSystemChatPacket| /ap reload - Reload and validate the configuration, ClientboundSystemChatPacket| /punish <player> - Open a player's punishment screen, ClientboundSystemChatPacket| /punishments - Open the staff dashboard, ClientboundLevelParticlesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, Pos, PosRot, ClientboundRotateHeadPacket]
+PASS /ap judicial reports the case workflow  -- [PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSystemChatPacket|[AuraPunishments] Judicial system: CASEWORK (judicial.enabled: false, casework.enabled: true), ClientboundSystemChatPacket|[AuraPunishments] Case workflow: cases are opened, investigated, punished from and closed - there is no court. Punishments are final immediately., PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundRemoveEntitiesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, Pos, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket, PosRot, ClientboundRotateHeadPacket]
+PASS target screen  -- Punish: LiveAlpha84052
+PASS the case wizard opened  -- New case: LiveAlpha84052
+PASS dialog is waiting for the incident description  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the new case opened on screen  -- Case AP-0001
+PASS exactly one case exists
+PASS it is OPEN, about the right player, with the evidence attached  -- Case[id=1, status=OPEN, kind=STANDARD, accusedUuid=ee0a12d7-6d57-32d5-a7dc-2486a0c056a2, accusedName=LiveAlpha84052, offenseKey=harassment, severity=MODERATE, description=Repeatedly harassed other players in the global chat 84052, context=null, prosecutorUuid=6ffc425f-7ae8-30f9-9433-e9657fe124ba, prosecutorName=LiveStaff1284052, judgeUuid=null, judgeName=null, trialAt=null, hearingRef=null, verdict=null, verdictReason=null, verdictByName=null, verdictAt=null, overturned=false, createdAt=1795832005800, updatedAt=1795832005800, closedAt=null, version=0, appealTicket=null, uid=8af58908-cac3-439b-8a7f-aeab9a1405a5, origin=srv-416c9009]
+PASS the case screen has a Punish button and no court buttons
+PASS the punishment chooser opened for the case  -- Punish from AP-0001
+PASS the ban screen opened with the case as context  -- Ban from AP-0001
+PASS dialog is waiting for the ban duration  -- screen: 
+PASS dialog is waiting for the ban reason  -- screen: 
+PASS confirmation screen says the case stays open  -- Confirm: Ban LiveAlpha84052
+PASS the ban was recorded
+PASS it is final and immediate: ACTIVE, source STANDARD (no court), linked to the case, offense recorded  -- Punishment[id=1, type=BAN, status=ACTIVE, targetUuid=ee0a12d7-6d57-32d5-a7dc-2486a0c056a2, targetName=LiveAlpha84052, ip=null, reason=Repeated harassment of other players 84052, issuerUuid=6ffc425f-7ae8-30f9-9433-e9657fe124ba, issuerName=LiveStaff1284052, issuedAt=1795832019100, expiresAt=1796436819100, endedAt=null, endedBy=null, endReason=null, caseId=1, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=6c2de6a1-c6f7-40b7-a151-697a11727d54, origin=srv-416c9009, opId=66159a09-b4e8-4053-a386-d07374471d2a, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS the online player was disconnected with the ban screen  -- ClientboundDisconnectPacket ClientboundDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated harassment of other players 84052}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-05 02:13 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#1}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]]
+PASS the banned player cannot log back in  -- login did not reach the play phase: ClientboundLoginDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated harassment of other players 84052}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-05 02:13 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#1}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]] [ClientboundLoginDisconnectPacket]
+PASS the case is STILL OPEN  -- OPEN
+PASS the case timeline records the punishment
+PASS the screen returned to the case, which now lists the punishment  -- Case AP-0001
+PASS no judicial rows were created: no custody, no verdict, no sentence
+PASS evidence supplied earlier stays on the case, nothing is duplicated onto the punishment
+PASS /ap case opened the case  -- Case AP-0002
+PASS the jail screen has the case as context  -- Jail Sentence from AP-0002
+PASS dialog is waiting for the jail duration  -- screen: 
+PASS dialog is waiting for the jail reason  -- screen: 
+PASS the jail punishment is recorded as HELD  -- Punishment[id=2, type=JAIL, status=ACTIVE, targetUuid=5d03e79f-5d7d-3c05-a264-3cc30a7eb0cd, targetName=LiveBravo84052, ip=null, reason=Harassing the shop owners 84052, issuerUuid=6ffc425f-7ae8-30f9-9433-e9657fe124ba, issuerName=LiveStaff1284052, issuedAt=1795832073547, expiresAt=1795833873547, endedAt=null, endedBy=null, endReason=null, caseId=2, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=934ab7f9-5250-41f4-9f66-10bb469726cb, origin=srv-416c9009, opId=bb09327e-8a99-4d80-b98f-4d493beda7aa, jailPrisonerId=c01284c2-7601-4788-a7c6-fcb46971d7a4, jailName=testjail, jailState=HELD, jailError=null]
+PASS JailReloaded really holds the player (its own API says so)
+PASS it is a jail punishment linked to the case, not pretrial custody  -- Punishment[id=2, type=JAIL, status=ACTIVE, targetUuid=5d03e79f-5d7d-3c05-a264-3cc30a7eb0cd, targetName=LiveBravo84052, ip=null, reason=Harassing the shop owners 84052, issuerUuid=6ffc425f-7ae8-30f9-9433-e9657fe124ba, issuerName=LiveStaff1284052, issuedAt=1795832073547, expiresAt=1795833873547, endedAt=null, endedBy=null, endReason=null, caseId=2, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=934ab7f9-5250-41f4-9f66-10bb469726cb, origin=srv-416c9009, opId=bb09327e-8a99-4d80-b98f-4d493beda7aa, jailPrisonerId=c01284c2-7601-4788-a7c6-fcb46971d7a4, jailName=testjail, jailState=HELD, jailError=null]
+PASS the case is still open
+PASS /ap unjail releases the player through JailReloaded  -- [ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSystemChatPacket|[AuraPunishments] Reversal on case AP-0002 (LiveBravo84052): Jail Sentence #2 revoked: Released early during the live test 84052, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundSetEquipmentPacket, ClientboundLevelParticlesPacket, ClientboundSystemChatPacket|[AuraPunishments] Custody ended: LiveBravo84052 (case -) - Released from jail, ClientboundSystemChatPacket|[AuraPunishments] LiveBravo84052 released from jail (punishment #2)., ClientboundSetEntityDataPacket, ClientboundUpdateAttributesPacket, ClientboundSetEntityMotionPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundTrackedWaypointPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundEntityPositionSyncPacket, ClientboundDamageEventPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket]
+PASS the case timeline records the revocation and the case is still open
+PASS pretrial detention is refused
+PASS a direct punishment is refused
+PASS moving a case to a trial status is refused
+PASS assigning a judge and scheduling a trial are refused
+PASS the status chooser opened  -- Change status: AP-0002
+PASS it offers investigation, review and closing only
+PASS the accused received no hearing notices (there are none)
+PASS a quick warning is recorded  -- [ClientboundLevelParticlesPacket, ClientboundSystemChatPacket|[AuraPunishments] Warning issued to LiveCharlie84052 by LiveStaff1284052: Warning: Warning, ClientboundSystemChatPacket|[AuraPunishments] Warning issued to LiveCharlie84052 (#3), ClientboundSetTimePacket, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, Pos, ClientboundSetEntityDataPacket, ClientboundLevelParticlesPacket, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos]
+PASS it is a plain punishment with no case, and no hidden case was invented  -- Punishment[id=3, type=WARN, status=COMPLETED, targetUuid=b59d832b-a5eb-3224-93d9-e205682a221f, targetName=LiveCharlie84052, ip=null, reason=Please keep the global chat friendly 84052, issuerUuid=6ffc425f-7ae8-30f9-9433-e9657fe124ba, issuerName=LiveStaff1284052, issuedAt=1795832081195, expiresAt=null, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=ae9c056d-55e1-42fe-87e9-c60cf6fb302d, origin=srv-416c9009, opId=4c5764e4-3ecb-4fb7-b9ef-3cd1b2b7026b, jailPrisonerId=null, jailName=null, jailState=null, jailError=null]
+PASS a quick mute is enforced at once  -- [ClientboundDamageEventPacket, ClientboundSystemChatPacket|[AuraPunishments] Quick punishment: LiveCharlie84052 - Punishment: Mute (1h) (by LiveStaff1284052), ClientboundSystemChatPacket|[AuraPunishments] Mute issued to LiveCharlie84052 (#4), ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundSystemChatPacket|[AuraPunishments] Owner review - requested for LiveCharlie84052 - RV-0002: Mute awaiting owner review, Pos, ClientboundEntityEventPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundRotateHeadPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityDataPacket]
+PASS still no extra case
+PASS config.yml contains the text to change: require-case-for: []
+PASS the new setting is loaded
+PASS a quick ban is refused with an explanation that names the case  -- [ClientboundLevelParticlesPacket, ClientboundSystemChatPacket|[AuraPunishments] Bans must be issued from a case on this server (casework.require-case-for): open a case with the evidence, then punish from it., ClientboundRotateHeadPacket, ClientboundDamageEventPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundEntityEventPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundSetEntityMotionPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket]
+PASS nothing was banned
+PASS a quick kick is still allowed (types not listed stay quick)
+PASS config.yml contains the text to change: require-case-for: [BAN, JAIL]
+PASS restored
+PASS the punishment screen opened  -- Punishment #1 (Ban)
+PASS it shows the case it was issued from
+PASS dialog is waiting for the appeal grounds  -- screen: 
+PASS dialog is waiting for the ticket reference  -- screen: 
+PASS the appeal is recorded against the PUNISHMENT with the ticket reference
+PASS filing an appeal lifts nothing
+PASS dialog is waiting for the decision reasoning  -- screen: 
+PASS overturning revokes the ban
+PASS the case records the revocation and is still open
+PASS the player can log in again
+PASS case screen  -- Case AP-0001
+PASS dialog is waiting for the closing reason  -- screen: 
+PASS the case is CLOSED
+PASS a closed case cannot be punished from until it is reopened  -- AP-0001 is closed. Reopen it before punishing from it.
+PASS the case workflow can reopen a closed case  -- null / null
+PASS punishing from the reopened case works again
+PASS config.yml contains the judicial switch line to edit
+PASS the judicial system is switched ON again
+PASS with the judicial system ON a REAL online player is held in pretrial detention by the real JailReloaded
+PASS config.yml contains the judicial switch line to edit
+PASS switched OFF: the state is CASEWORK (not WIND_DOWN: the case workflow is on)  -- CASEWORK
+PASS the leftover pretrial detainee is counted  -- Report[known=true, openCases=3, awaitingVerdict=0, awaitingSentencing=0, pretrialDetainees=1, caseAppeals=0, openEmergencyCases=0, judicialPunishmentsInForce=0]
+PASS the court screens are visible again only to finish the leftovers
+PASS NOTHING was released by the switch: the detainee is still held by JailReloaded
+PASS /ap judicial reports the case workflow and the leftover detainee  -- [ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundSystemChatPacket|[AuraPunishments] Judicial system: CASEWORK (judicial.enabled: false, casework.enabled: true), ClientboundSystemChatPacket|[AuraPunishments] Case workflow: cases are opened, investigated, punished from and closed - there is no court. Punishments are final immediately., ClientboundSystemChatPacket|[AuraPunishments] Court work from before is still open. Nothing is released, closed or deleted automatically:, ClientboundSystemChatPacket|[AuraPunishments]  - 1 player(s) still held in pretrial detention - release or sentence them (/ap custody), ClientboundLevelParticlesPacket]
+PASS new pretrial detention is refused
+PASS the detainee is released through the normal custody tool
+PASS the leftover case can be closed
+PASS with nothing left, the court screens disappear again  -- Report[known=true, openCases=2, awaitingVerdict=0, awaitingSentencing=0, pretrialDetainees=0, caseAppeals=0, openEmergencyCases=0, judicialPunishmentsInForce=0]
+PASS and new cases still open under the case workflow
+PASS the audit chain is intact
+PASS every case and punishment carries a unique id and this server's name
+PASS no punishment is linked to a case that does not exist
+PASS no pending operation is left over
+== phase 12: 115 passed, 0 failed ==
