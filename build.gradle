@@ -6,6 +6,7 @@ group = 'dev.aura'
 version = '1.3.1'
 
 java {
+    // Built with JDK 25, but the bytecode targets Java 21 (options.release below) so that ONE jar runs on Paper 1.21.11 (Java 21+) and Paper 26.3 (Java 25).
     toolchain { languageVersion = JavaLanguageVersion.of(25) }
 }
 
@@ -14,7 +15,14 @@ repositories {
     maven { url = 'https://repo.papermc.io/repository/maven-public/' }
 }
 
-def paperVersion = '26.3.build.256-stable'
+// The plugin is compiled against the OLDEST supported API (Paper 1.21.11, pinned to one snapshot so the build is reproducible).
+// Everything that compiles there also exists on 26.3; that is verified by running the tests and the live server on both.
+def paperVersion = '1.21.11-R0.1-20260511.115010-91'
+
+configurations {
+    // the same test classes, run on the 1.21.11 API with MockBukkit for 1.21 (task test121)
+    test121Runtime
+}
 
 dependencies {
     compileOnly "io.papermc.paper:paper-api:${paperVersion}"
@@ -32,12 +40,28 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.12.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    test121Runtime "io.papermc.paper:paper-api:${paperVersion}"
+    test121Runtime 'org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.116.3'
+    test121Runtime 'net.luckperms:api:5.5'
+    test121Runtime files('libs/JailReloaded-1.2.2.jar')
+    test121Runtime files('libs/CoreProtect-25.1.jar')
+    test121Runtime 'org.xerial:sqlite-jdbc:3.49.1.0'
+    test121Runtime platform('org.junit:junit-bom:5.12.2')
+    test121Runtime 'org.junit.jupiter:junit-jupiter'
+    test121Runtime 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 25
+    options.release = 21
     options.compilerArgs += ['-Xlint:all,-serial,-processing', '-parameters']
+}
+
+// The tests run on JDK 25 against the 26.3 API (and MockBukkit v26.3), so only they need Java 25 class files; the plugin itself stays Java 21.
+tasks.named('compileTestJava') { options.release = 25 }
+configurations.matching { it.name.startsWith('test') && it.name != 'test121Runtime' }.configureEach {
+    attributes.attribute(org.gradle.api.attributes.java.TargetJvmVersion.TARGET_JVM_VERSION_ATTRIBUTE, 25)
 }
 
 processResources {
@@ -47,6 +71,16 @@ processResources {
 
 tasks.test {
     useJUnitPlatform()
+    testLogging { events 'failed', 'skipped'; exceptionFormat = 'full'; showStandardStreams = false }
+}
+
+// The same tests on the Paper 1.21.11 API + MockBukkit v1.21 (the default `test` runs them on 26.3 + MockBukkit v26.3).
+tasks.register('test121', Test) {
+    group = 'verification'
+    description = 'Runs the unit tests against the Paper 1.21.11 API'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.test121Runtime
     testLogging { events 'failed', 'skipped'; exceptionFormat = 'full'; showStandardStreams = false }
 }
 

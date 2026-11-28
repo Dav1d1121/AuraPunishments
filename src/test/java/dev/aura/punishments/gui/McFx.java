@@ -77,6 +77,10 @@ public final class McFx implements AutoCloseable {
                     patched = patched.replace("\n  enabled: false\n  # May the staff member", "\n  enabled: true\n  # May the staff member");
                     if (patched.equals(text)) throw new IllegalStateException("shipped config.yml has no judicial.enabled line to switch on");
                 }
+                // the 1.3.0 / 1.2 style fixtures keep owner review on (the shipped file of 1.3.2 has it off for fresh installs)
+                String reviewOn = patched.replace("\n  enabled: false\n  # Which punishment types", "\n  enabled: true\n  # Which punishment types");
+                if (reviewOn.equals(patched)) throw new IllegalStateException("shipped config.yml has no review.enabled line");
+                patched = reviewOn;
                 String before = patched;
                 patched = patched.replace("\ncasework:\n  enabled: true\n", "\ncasework:\n  enabled: false\n");
                 if (patched.equals(before)) throw new IllegalStateException("shipped config.yml has no casework.enabled line");

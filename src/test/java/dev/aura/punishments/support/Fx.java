@@ -56,6 +56,7 @@ public final class Fx implements AutoCloseable {
         db.open();
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
         YamlConfiguration off = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/offenses.yml"), StandardCharsets.UTF_8));
+        cfg.set("review.enabled", true); // the shipped file has owner review off for fresh installs (1.3.2); the existing review tests exercise it
         cfg.set("judicial.enabled", true); // the shipped file is judicial-off for fresh installs; most fixtures exercise the judicial system
         m.set.forEach(cfg::set);
         Settings s = Settings.parse(cfg);
@@ -82,6 +83,7 @@ public final class Fx implements AutoCloseable {
         jails = new JailService(core, punishments);
         punishments.bind(jails);
         cases = new CaseService(core, custody);
+        punishments.bind(cases);
         records = new PunishmentRecords(core, cases);
         appeals = new PunishmentAppeals(core, punishments);
         judicial = new JudicialService(core, custody, punishments);

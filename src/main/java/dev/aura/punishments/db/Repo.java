@@ -469,6 +469,16 @@ public final class Repo {
             return count(c, "SELECT COUNT(*) FROM punishments WHERE target_uuid=?", target);
         }
 
+        /**
+         * "Strikes" in the case workflow: punishments issued from a case (not kicks) that were not revoked, optionally for one offense
+         * category, not counting the given case.
+         */
+        public static long countCasePunishments(Connection c, UUID target, String offenseKey, long excludeCase) throws SQLException {
+            String sql = "SELECT COUNT(*) FROM punishments WHERE target_uuid=? AND case_id IS NOT NULL AND case_id<>? AND source='STANDARD' AND type<>'KICK' AND status<>'REVOKED'"
+                    + (offenseKey == null ? "" : " AND offense_key=?");
+            return offenseKey == null ? count(c, sql, target, excludeCase) : count(c, sql, target, excludeCase, offenseKey);
+        }
+
         public static List<Punishment> forCase(Connection c, long caseId) throws SQLException {
             return query(c, "SELECT * FROM punishments WHERE case_id=? ORDER BY id ASC", MAP, caseId);
         }

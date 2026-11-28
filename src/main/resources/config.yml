@@ -386,7 +386,14 @@ warnings:
 #  because it is still unreviewed; timed punishments still expire normally.
 # ---------------------------------------------------------------------------
 review:
-  enabled: true
+  # OWNER REVIEW master switch (changed in 1.3.2).
+  #   false (default for new installs) - no review records are created and the review screens stay out of the way. Without the
+  #     judicial system the owner team usually does not need a second look at every punishment; they are still logged, can be
+  #     revoked and appealed. Emergency actions keep their own senior-staff review (see the emergency section).
+  #   true  - the behaviour of 1.1.0 - 1.3.1 (what an upgraded config keeps: a missing line counts as true, so upgrading changes
+  #     nothing by itself). Reviews that already exist stay readable and can be finished either way.
+  # Takes effect on /ap reload.
+  enabled: false
   # Which punishment types are automatically submitted for owner review (never WARN or KICK). JAIL is available
   # when the judicial system is off. Review is a QUEUE for oversight, never an approval step: the punishment is
   # already in force and stays in force until the owner upholds, modifies or reverses it.

@@ -54,75 +54,89 @@ public final class CaseService extends Svc {
     }
 
     // ------------------------------------------------------------------ create
-    public CompletableFuture<Result<Case>> create(Actor actor, CreateRequest r) {
-        Result<Case> off0 = core.mode.refuseNewCase();
-        if (off0 != null) return done(off0);
+    /** A case request that passed every check that does not need the database; the same checks serve "open a case" and "open a case and punish". */
+    record Prepared(Offense offense, CaseKind kind, String description, String context, List<EvidenceValidator.Input> evidence) {}
+
+    Result<Prepared> prepare(Actor actor, CreateRequest r) {
+        Result<Prepared> off0 = core.mode.refuseNewCase();
+        if (off0 != null) return off0;
         Settings s = core.settings;
         boolean full = core.auth.has(actor, Perms.CASE_CREATE);
         boolean report = core.auth.has(actor, Perms.REPORT);
-        if (!full && !report) return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to create cases or reports."));
+        if (!full && !report) return Result.fail(Code.NO_PERMISSION, "You do not have permission to create cases or reports.");
         Result<Void> access = targetAccess(actor);
-        if (!access.isOk()) return done(access.cast());
+        if (!access.isOk()) return access.cast();
         Optional<Offense> off = core.offenses.get(r.offenseKey());
-        if (off.isEmpty()) return done(Result.fail(Code.INVALID, "Unknown offense category."));
+        if (off.isEmpty()) return Result.fail(Code.INVALID, "Unknown offense category.");
         Offense offense = off.get();
         if (!offense.permission().isBlank() && !core.auth.has(actor, offense.permission())) {
-            return done(Result.fail(Code.NO_PERMISSION, "You do not have permission to charge '" + offense.display() + "'."));
+            return Result.fail(Code.NO_PERMISSION, "You do not have permission to charge '" + offense.display() + "'.");
         }
-        if (r.severity() == null) return done(Result.fail(Code.INVALID, "Choose a severity."));
+        if (r.severity() == null) return Result.fail(Code.INVALID, "Choose a severity.");
         String desc = Text.clean(r.description());
         if (desc.length() < s.cases.minDescription()) {
-            return done(Result.fail(Code.INVALID, "The incident description must be at least " + s.cases.minDescription() + " characters."));
+            return Result.fail(Code.INVALID, "The incident description must be at least " + s.cases.minDescription() + " characters.");
         }
         if (desc.length() > s.cases.maxDescription()) {
-            return done(Result.fail(Code.INVALID, "The incident description is too long (max " + s.cases.maxDescription() + ")."));
+            return Result.fail(Code.INVALID, "The incident description is too long (max " + s.cases.maxDescription() + ").");
         }
         String context = Text.truncate(Text.clean(r.context()), s.cases.maxNote());
         List<EvidenceValidator.Input> evidence = new ArrayList<>();
         for (EvidenceValidator.Input in : r.evidence() == null ? List.<EvidenceValidator.Input>of() : r.evidence()) {
             Result<EvidenceValidator.Input> v = EvidenceValidator.validate(s, in);
-            if (!v.isOk()) return done(v.cast());
+            if (!v.isOk()) return v.cast();
             evidence.add(v.value());
         }
         int need = Math.max(offense.minEvidenceCase(), s.cases.requireEvidenceOnCreate() ? 1 : 0);
         if (evidence.size() < need) {
-            return done(Result.fail(Code.EVIDENCE, "'" + offense.display() + "' needs at least " + need + " evidence reference(s) to open a case."));
+            return Result.fail(Code.EVIDENCE, "'" + offense.display() + "' needs at least " + need + " evidence reference(s) to open a case.");
         }
-        if (evidence.size() > s.cases.maxEvidence()) return done(Result.fail(Code.EVIDENCE, "Too many evidence items."));
-        CaseKind kind = full ? CaseKind.STANDARD : CaseKind.REPORT;
+        if (evidence.size() > s.cases.maxEvidence()) return Result.fail(Code.EVIDENCE, "Too many evidence items.");
+        return Result.ok(new Prepared(offense, full ? CaseKind.STANDARD : CaseKind.REPORT, desc, context, evidence));
+    }
 
+    /** The database half of opening a case; runs inside the caller's transaction (so a punishment can be issued in the same one). */
+    Result<Case> insertTx(Connection c, Actor actor, CreateRequest r, Prepared p) throws SQLException {
+        Settings s = core.settings;
+        Offense offense = p.offense();
+        long now = core.clock.now();
+        Long dup = Sql.one(c, "SELECT id FROM cases WHERE accused_uuid=? AND offense_key=? AND created_at>? AND status IN ('OPEN','UNDER_INVESTIGATION','AWAITING_TRIAL','IN_TRIAL','AWAITING_VERDICT') ORDER BY id DESC LIMIT 1",
+                rs -> rs.getLong(1), r.target().uuid(), offense.key(), now - s.cases.duplicateWindow());
+        if (dup != null) {
+            return Result.<Case>fail(Code.DUPLICATE, "An open case for the same player and offense already exists (" + "AP-" + String.format("%04d", dup)
+                    + "). Add evidence or notes to it, or punish from it, instead.");
+        }
+        long id = Repo.Cases.insert(c, CaseStatus.OPEN, p.kind(), r.target().uuid(), r.target().name(), offense.key(),
+                r.severity(), p.description(), p.context().isEmpty() ? null : p.context(), actor.dbUuid(), actor.name(), now);
+        Repo.Events.add(c, id, now, actor.dbUuid(), actor.name(), "CREATED", null, CaseStatus.OPEN,
+                offense.display() + " / " + r.severity());
+        for (EvidenceValidator.Input in : p.evidence()) {
+            Repo.Evidences.add(c, id, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
+        }
+        audit(c, actor, "case.create", r.target().uuid(), id, offense.key() + " " + r.severity() + " evidence=" + p.evidence().size(), false);
+        return Result.ok(Repo.Cases.get(c, id));
+    }
+
+    /** Discord / staff event for a newly opened case. */
+    void emitCreated(Actor actor, Case cs, Offense offense) {
+        core.emit(DomainEvent.of(DomainEvent.Type.CASE_CREATED).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
+                .summary(offense.display()).field("Offense", offense.display()).field("Severity", cs.severity().name())
+                .field("Description", Text.truncate(cs.description(), 300)).build());
+    }
+
+    public CompletableFuture<Result<Case>> create(Actor actor, CreateRequest r) {
+        Result<Prepared> prep = prepare(actor, r);
+        if (!prep.isOk()) return done(prep.cast());
+        Prepared p = prep.value();
         return checkTarget(actor, r.target().uuid()).thenCompose(tc -> {
             if (!tc.isOk()) return done(tc.<Case>cast());
-            return db(c -> {
-                long now = core.clock.now();
-                Long dup = Sql.one(c, "SELECT id FROM cases WHERE accused_uuid=? AND offense_key=? AND created_at>? AND status IN ('OPEN','UNDER_INVESTIGATION','AWAITING_TRIAL','IN_TRIAL','AWAITING_VERDICT') ORDER BY id DESC LIMIT 1",
-                        rs -> rs.getLong(1), r.target().uuid(), offense.key(), now - s.cases.duplicateWindow());
-                if (dup != null) {
-                    return Result.<Case>fail(Code.DUPLICATE, "An open case for the same player and offense already exists (" + "AP-" + String.format("%04d", dup)
-                            + "). Add evidence or notes to it instead.");
-                }
-                long id = Repo.Cases.insert(c, CaseStatus.OPEN, kind, r.target().uuid(), r.target().name(), offense.key(),
-                        r.severity(), desc, context.isEmpty() ? null : context, actor.dbUuid(), actor.name(), now);
-                Repo.Events.add(c, id, now, actor.dbUuid(), actor.name(), "CREATED", null, CaseStatus.OPEN,
-                        offense.display() + " / " + r.severity());
-                for (EvidenceValidator.Input in : evidence) {
-                    Repo.Evidences.add(c, id, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);
-                }
-                audit(c, actor, "case.create", r.target().uuid(), id, offense.key() + " " + r.severity() + " evidence=" + evidence.size(), false);
-                return Result.ok(Repo.Cases.get(c, id));
-            });
+            return db(c -> insertTx(c, actor, r, p));
         }).thenApply(res -> {
-            if (res.isOk()) {
-                Case cs = res.value();
-                core.emit(DomainEvent.of(DomainEvent.Type.CASE_CREATED).caseId(cs.id()).player(cs.accusedName()).actor(actor.name())
-                        .summary(offense.display()).field("Offense", offense.display()).field("Severity", cs.severity().name())
-                        .field("Description", Text.truncate(cs.description(), 300)).build());
-            }
+            if (res.isOk()) emitCreated(actor, res.value(), p.offense());
             return res;
         });
     }
 
-    // ------------------------------------------------------------------ reads
     private Result<Case> loadVisible(Connection c, Actor actor, long id) throws SQLException {
         Case cs = Repo.Cases.get(c, id);
         if (cs == null) return Result.fail(Code.NOT_FOUND, "Case " + id + " does not exist.");
@@ -245,9 +259,14 @@ public final class CaseService extends Svc {
         });
     }
 
+    /**
+     * How many earlier "strikes" the player has, for the offense recommendation. With the judicial system a strike is a guilty finding;
+     * in the case workflow there are no findings, so it is a punishment that was issued from a case and not revoked (kicks do not count).
+     */
     public CompletableFuture<Result<Long>> priors(UUID accused, String offenseKey, long excludeCase) {
-        return db(c -> Result.ok(Repo.Cases.priorFindings(c, accused,
-                core.settings.escalation.categoryScope() ? offenseKey : null, excludeCase, core.settings.escalation.countDirect())));
+        String scope = core.settings.escalation.categoryScope() ? offenseKey : null;
+        if (core.mode.casework()) return db(c -> Result.ok(Repo.Punishments.countCasePunishments(c, accused, scope, excludeCase)));
+        return db(c -> Result.ok(Repo.Cases.priorFindings(c, accused, scope, excludeCase, core.settings.escalation.countDirect())));
     }
 
     public CompletableFuture<Result<List<Note>>> profileNotes(Actor actor, UUID uuid) {

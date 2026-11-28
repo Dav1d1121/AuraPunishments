@@ -40,6 +40,16 @@ public final class Items {
         return it;
     }
 
+    /** Give an item the enchanted shimmer (marks the selected choice in a menu). Cosmetic only, so any failure is ignored. */
+    public static ItemStack glow(ItemStack it) {
+        try {
+            it.editMeta(m -> m.setEnchantmentGlintOverride(true));
+        } catch (Throwable ignored) {
+            // cosmetic
+        }
+        return it;
+    }
+
     public static ItemStack item(Material m, String name, String... lore) {
         List<Component> l = new ArrayList<>();
         for (String s : lore) l.add(t(s));

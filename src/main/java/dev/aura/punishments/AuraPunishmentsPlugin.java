@@ -171,6 +171,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         punishments.bind(jails);
         reviews = new ReviewService(core, punishments);
         cases = new CaseService(core, custody);
+        punishments.bind(cases);
         records = new PunishmentRecords(core, cases);
         appeals = new PunishmentAppeals(core, punishments);
         judicial = new JudicialService(core, custody, punishments);

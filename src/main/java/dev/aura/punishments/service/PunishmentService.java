@@ -35,6 +35,7 @@ public final class PunishmentService extends Svc {
     private final PunishmentCache cache = new PunishmentCache();
     private CustodyService custody;
     private JailService jails;
+    private CaseService cases;
 
     /** @param note optional staff note stored with the punishment (judicial system off) or on the player's profile (on) */
     public record Request(Target target, PunishType type, long durationMs, String reason,
@@ -54,6 +55,10 @@ public final class PunishmentService extends Svc {
 
     public void bind(JailService jails) {
         this.jails = jails;
+    }
+
+    public void bind(CaseService cases) {
+        this.cases = cases;
     }
 
     public PunishmentCache cache() {
@@ -89,11 +94,51 @@ public final class PunishmentService extends Svc {
         return issue(actor, r, caseId);
     }
 
+    /** A case opened and its punishment issued in ONE transaction (case workflow): either both exist afterwards or neither does. */
+    public record OpenedCase(Case opened, Punishment punishment) {}
+
+    /** The case to open inside the punishment's transaction. */
+    private record NewCase(CaseService.CreateRequest request, CaseService.Prepared prepared) {}
+
+    /**
+     * Case workflow: open a case (offense, severity, description, evidence) AND punish from it in one step - what the Create Case screen's
+     * Submit does when a punishment was chosen. Every rule of {@link #openCase} and {@link #issueForCase} applies; a refusal of either half
+     * (an active ban already exists, JailReloaded missing, a limit, an offense rule ...) leaves nothing behind, so the staff member can
+     * correct the draft and submit again.
+     */
+    public CompletableFuture<Result<OpenedCase>> openCaseAndPunish(Actor actor, CaseService.CreateRequest cr, Request r) {
+        if (!core.mode.casework() || cases == null) {
+            return done(Result.fail(Code.UNAVAILABLE, "Opening a case together with its punishment needs the case workflow (casework.enabled: true while judicial.enabled is false)."));
+        }
+        if (!core.auth.has(actor, Perms.CASE_CREATE)) {
+            return done(Result.fail(Code.NO_PERMISSION, "You need permission to create cases to open a case with a punishment (reports cannot punish)."));
+        }
+        if (!cr.target().uuid().equals(r.target().uuid())) {
+            return done(Result.fail(Code.INVALID, "The punishment must be for the player the case is about."));
+        }
+        Result<CaseService.Prepared> prep = cases.prepare(actor, cr);
+        if (!prep.isOk()) return done(prep.cast());
+        return issue(actor, r, null, new NewCase(cr, prep.value())).thenCompose(res -> {
+            if (!res.isOk()) return done(res.<OpenedCase>cast());
+            Punishment pun = res.value();
+            return core.db.tx(c -> Repo.Cases.get(c, pun.caseId())).thenApply(cs -> {
+                cases.emitCreated(actor, cs, prep.value().offense());
+                OpenedCase both = new OpenedCase(cs, pun);
+                return res.message() == null || res.message().isBlank() ? Result.ok(both) : Result.okWith(both, res.message());
+            });
+        });
+    }
+
     private CompletableFuture<Result<Punishment>> issue(Actor actor, Request r, Long linkedCaseId) {
+        return issue(actor, r, linkedCaseId, null);
+    }
+
+    private CompletableFuture<Result<Punishment>> issue(Actor actor, Request r, Long linkedCaseId, NewCase newCase) {
         Settings s = core.settings;
         PunishType type = r.type();
         final boolean judicial = core.mode.enabled();
-        if (linkedCaseId == null && core.mode.casework() && s.casework.requireCaseFor().contains(type)) {
+        final boolean linked = linkedCaseId != null || newCase != null;
+        if (!linked && core.mode.casework() && s.casework.requireCaseFor().contains(type)) {
             return done(Result.fail(Code.INVALID, type.display() + "s must be issued from a case on this server "
                     + "(casework.require-case-for): open a case with the evidence, then punish from it."));
         }
@@ -133,7 +178,7 @@ public final class PunishmentService extends Svc {
             if (!v.isOk()) return done(v.cast());
             evidence.add(v.value());
         }
-        if (linkedCaseId == null && s.quick.requireEvidence().contains(type) && evidence.isEmpty()) {
+        if (!linked && s.quick.requireEvidence().contains(type) && evidence.isEmpty()) {
             return done(Result.fail(Code.EVIDENCE, type.display() + "s require at least one evidence reference."));
         }
         if (evidence.size() > s.cases.maxEvidence()) {
@@ -157,12 +202,18 @@ public final class PunishmentService extends Svc {
         }).thenCompose(tc -> {
             if (!tc.isOk()) return done(tc.<Punishment>cast());
             return db(c -> {
-                Long caseId = linkedCaseId;
+                Long lid = linkedCaseId;
+                if (newCase != null) {
+                    Result<Case> opened = cases.insertTx(c, actor, newCase.request(), newCase.prepared());
+                    if (!opened.isOk()) return opened.<Punishment>cast();
+                    lid = opened.value().id();
+                }
+                Long caseId = lid;
                 String offenseKey = null;
                 long now0 = core.clock.now();
-                if (linkedCaseId != null) {
-                    Case cs = Repo.Cases.get(c, linkedCaseId);
-                    if (cs == null) return Result.<Punishment>fail(Code.NOT_FOUND, "Case " + linkedCaseId + " does not exist.");
+                if (lid != null) {
+                    Case cs = Repo.Cases.get(c, lid);
+                    if (cs == null) return Result.<Punishment>fail(Code.NOT_FOUND, "Case " + lid + " does not exist.");
                     if (!core.auth.canViewCase(actor, cs)) return Result.<Punishment>fail(Code.NO_PERMISSION, "You do not have permission to view that case.");
                     if (!cs.status().isOpenForWork()) {
                         return Result.<Punishment>fail(Code.STATE, cs.ref() + " is " + cs.status().display().toLowerCase() + ". Reopen it before punishing from it.");
@@ -184,7 +235,7 @@ public final class PunishmentService extends Svc {
                             return Result.<Punishment>fail(Code.LIMIT, o.display() + " cannot be punished permanently (maximum " + Durations.format(o.maxDuration()) + ").");
                         }
                     }
-                    long onCase = Repo.Evidences.countActive(c, linkedCaseId);
+                    long onCase = Repo.Evidences.countActive(c, lid);
                     if (s.quick.requireEvidence().contains(type) && onCase + evidence.size() == 0) {
                         return Result.<Punishment>fail(Code.EVIDENCE, type.display() + "s require at least one evidence reference - add evidence to " + cs.ref() + " first.");
                     }
@@ -211,13 +262,13 @@ public final class PunishmentService extends Svc {
                 Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, judicial ? Source.QUICK : Source.STANDARD, caseId, offenseKey, null, null, true);
                 if (!ins.isOk()) return ins;
                 Punishment pun = ins.value();
-                if (linkedCaseId != null) {
+                if (lid != null) {
                     // Everything the issuer supplied belongs to the case; the punishment is linked to it and the case stays open.
                     for (EvidenceValidator.Input in : evidence) {
-                        Repo.Evidences.add(c, linkedCaseId, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now0, null);
+                        Repo.Evidences.add(c, lid, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now0, null);
                     }
-                    if (note != null) Repo.Notes.add(c, linkedCaseId, null, actor.dbUuid(), actor.name(), note, false, now0);
-                    Repo.Events.add(c, linkedCaseId, now0, actor.dbUuid(), actor.name(), "PUNISHMENT_ISSUED", null, null,
+                    if (note != null) Repo.Notes.add(c, lid, null, actor.dbUuid(), actor.name(), note, false, now0);
+                    Repo.Events.add(c, lid, now0, actor.dbUuid(), actor.name(), "PUNISHMENT_ISSUED", null, null,
                             "#" + pun.id() + " " + type.display() + (type.canBeTimed() ? " (" + (pun.expiresAt() == null ? "permanent" : Durations.format(dur2)) + ")" : "")
                             + ": " + clip(cleanReason, 150));
                 } else if (!judicial) {

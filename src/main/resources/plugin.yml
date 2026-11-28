@@ -1,7 +1,7 @@
 name: AuraPunishments
 version: '${version}'
 main: dev.aura.punishments.AuraPunishmentsPlugin
-api-version: '26.3'
+api-version: '1.21.11'
 description: GUI-based moderation, judicial case management and punishment system for Aurehaven.
 authors: [Aurehaven]
 load: POSTWORLD
