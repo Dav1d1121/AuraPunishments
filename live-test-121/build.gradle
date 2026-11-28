@@ -1,0 +1,37 @@
+plugins { id 'java' }
+
+java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://repo.papermc.io/repository/maven-public/' }
+}
+
+// The live driver for a Paper 1.21.11 server. It shares every phase with ../live-test; only the two classes that touch the server's
+// internals (McClient: a real protocol client, FakePlayer) differ, because Mojang renamed some of those classes between 1.21.11 and 26.x.
+def sharedSrc = layout.buildDirectory.dir('shared-src')
+tasks.register('syncShared', Sync) {
+    from('../live-test/src/main/java') { exclude '**/McClient.java', '**/FakePlayer.java' }
+    into sharedSrc
+}
+sourceSets.main.java.srcDir(sharedSrc)
+tasks.named('compileJava') { dependsOn 'syncShared' }
+
+dependencies {
+    compileOnly 'io.papermc.paper:paper-api:1.21.11-R0.1-20260511.115010-91'
+    compileOnly 'net.luckperms:api:5.5'
+    compileOnly project(':')
+    compileOnly files('../libs/JailReloaded-1.2.2.jar')
+    compileOnly files('../libs/CoreProtect-25.1.jar')
+}
+
+def serverDir = findProperty('serverDir121') ?: '/tmp/claude-0/run121'
+if (file("$serverDir/versions/1.21.11/paper-1.21.11.jar").exists()) {
+    dependencies {
+        compileOnly files("$serverDir/versions/1.21.11/paper-1.21.11.jar")
+        compileOnly fileTree(dir: "$serverDir/libraries", include: '**/*.jar')
+    }
+}
+
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
+jar { archiveBaseName = 'APLiveTest121' }

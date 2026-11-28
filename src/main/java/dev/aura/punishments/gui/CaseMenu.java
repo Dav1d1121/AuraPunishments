@@ -227,26 +227,8 @@ final class CaseMenu extends Menu {
     private void punishClick(Player p) {
         Case c = d.c();
         long caseEvidence = d.evidence().stream().filter(e -> !e.voided()).count();
-        List<ChoiceMenu.Choice> choices = new ArrayList<>();
-        for (PunishType t : new PunishType[]{PunishType.WARN, PunishType.KICK, PunishType.MUTE, PunishType.BAN, PunishType.IPBAN, PunishType.JAIL}) {
-            boolean allowed = can(Perms.punish(t));
-            Optional<Offense> off = gui.core().offenses.get(c.offenseKey());
-            String why = "<gray>Click to continue";
-            if (!allowed) {
-                why = "<red>You may not issue this";
-            } else if (t == PunishType.JAIL && !gui.core().jail.available()) {
-                allowed = false;
-                why = "<red>JailReloaded is not available";
-            } else if (t != PunishType.KICK && off.isPresent() && !off.get().allows(t)) {
-                allowed = false;
-                why = "<red>" + esc(off.get().display()) + " cannot result in this (offenses.yml)";
-            }
-            final PunishType type = t;
-            choices.add(new ChoiceMenu.Choice(Views.punishIcon(t), "<white><b>" + t.display(), List.of(why), allowed, () ->
-                    QuickPunishMenu.openForCase(gui, p, this, new Target(c.accusedUuid(), c.accusedName(), false), type, c, caseEvidence, this::reload)));
-        }
-        new ChoiceMenu(gui, viewer, this, "Punish from " + c.ref(), Items.item(Material.NETHERITE_SWORD, Items.t("<white><b><v>", "v", c.accusedName()),
-                List.of(Items.t("<gray>Takes effect immediately and is final."), Items.t("<gray>" + c.ref() + " stays open."))), choices).open();
+        PunishChooser.open(gui, p, this, "Punish from " + c.ref(), c.accusedName(), gui.core().offenses.get(c.offenseKey()), null, type ->
+                QuickPunishMenu.openForCase(gui, p, this, new Target(c.accusedUuid(), c.accusedName(), false), type, c, caseEvidence, this::reload));
     }
 
     private void custodyClick(Player p, org.bukkit.event.inventory.ClickType t, Custody cu, boolean live) {

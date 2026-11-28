@@ -349,16 +349,106 @@ class CaseworkTest {
     }
 
     @Test
-    void anOwnerReviewIsCreatedForACaseBanAndLinkedToTheCase() throws Exception {
+    void aPunishmentFromACaseNeverCreatesAnOwnerReviewEvenWhenReviewIsOn() throws Exception {
+        assertTrue(fx.core.settings.review.enabled(), "the fixture has owner review on, as an upgraded server could");
         Case ch = r(fx.cases.create(mod, new CaseService.CreateRequest(steve, "cheating", Severity.SEVERE, "Using a fly hack to raid bases", null, List.of(Fx.ev())))).orThrow();
         Punishment ban = punish(ch, PunishType.BAN, Durations.PERMANENT).orThrow();
-        var rv = fx.db.txSync(c -> Repo.Reviews.byPunishment(c, ban.id()));
-        assertNotNull(rv, "a permanent ban is reviewed by the owner exactly as a quick one is");
-        assertEquals(ReviewStatus.PENDING_REVIEW, rv.status());
-        assertEquals(ch.id(), rv.caseId(), "the review points at the case");
-        // evidence added through the review lands on the case
-        Evidence added = r(fx.reviews.submitEvidence(mod, rv.id(), Fx.ev("https://example.com/review.png"))).orThrow();
-        assertEquals(ch.id(), added.caseId());
+        assertEquals(PunishStatus.ACTIVE, ban.status(), "it is in force at once");
+        assertNull(fx.db.txSync(c -> Repo.Reviews.byPunishment(c, ban.id())), "final: no review record, nothing waits for or asks for an owner's second look");
+        Punishment jail = r(fx.punishments.issueForCase(mod, open("harassment").id(), new PunishmentService.Request(steve, PunishType.JAIL, Durations.HOUR, "Griefing the shared farm area.", List.of()))).orThrow();
+        assertNull(fx.db.txSync(c -> Repo.Reviews.byPunishment(c, jail.id())));
+        // the same permanent ban WITHOUT a case still follows the review setting
+        fx.punishments.revoke(Fx.owner(), ban.id(), "Resetting before the quick ban check").get();
+        Punishment quick = r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.BAN, Durations.PERMANENT, "Repeated cheating on the survival server.", List.of(Fx.ev())))).orThrow();
+        assertNotNull(fx.db.txSync(c -> Repo.Reviews.byPunishment(c, quick.id())), "a quick ban is still reviewed when review is on");
+    }
+
+    // ------------------------------------------------------------------ open a case and punish in ONE step
+    CaseService.CreateRequest req(String offense, List<EvidenceValidator.Input> ev) {
+        return new CaseService.CreateRequest(steve, offense, Severity.MODERATE, "Griefing the shared farm area repeatedly", null, ev);
+    }
+
+    PunishmentService.Request preq(PunishType t, long dur) {
+        return new PunishmentService.Request(steve, t, dur, "Griefing the shared farm area.", List.of());
+    }
+
+    long caseCount() throws Exception {
+        return fx.db.<Long>txSync(c -> Sql.count(c, "SELECT COUNT(*) FROM cases"));
+    }
+
+    @Test
+    void openingACaseAndPunishingIsOneAtomicStep() throws Exception {
+        var both = r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.MUTE, Durations.DAY))).orThrow();
+        assertEquals(CaseStatus.OPEN, both.opened().status(), "the case is open");
+        assertEquals(both.opened().id(), both.punishment().caseId(), "the punishment is linked to the new case");
+        assertEquals(Source.STANDARD, both.punishment().source());
+        assertEquals("harassment", both.punishment().offenseKey());
+        assertTrue(fx.punishments.muteFor(steve.uuid()).isPresent(), "enforceable at once");
+        assertEquals(1, fx.db.<Long>txSync(c -> Repo.Evidences.countActive(c, both.opened().id())).intValue(), "the evidence is on the case");
+        List<CaseEvent> events = fx.db.txSync(c -> Repo.Events.forCase(c, both.opened().id()));
+        assertTrue(events.stream().anyMatch(e -> e.type().equals("CREATED")) && events.stream().anyMatch(e -> e.type().equals("PUNISHMENT_ISSUED")), "the timeline shows both");
+        assertNull(fx.db.txSync(c -> Repo.Reviews.byPunishment(c, both.punishment().id())), "no owner review");
+    }
+
+    @Test
+    void aBanNeedsEvidenceAndTheCasesEvidenceCounts() throws Exception {
+        var both = r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.BAN, Durations.DAY))).orThrow();
+        assertEquals(PunishType.BAN, both.punishment().type(), "bans need evidence by default; the new case brought some");
+    }
+
+    @Test
+    void whenThePunishmentIsRefusedNoCaseIsLeftBehind() throws Exception {
+        assertEquals(Code.LIMIT, r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.BAN, 60 * Durations.DAY))).code(), "longer than the offense allows");
+        assertEquals(Code.INVALID, r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.IPBAN, Durations.DAY))).code(), "the offense does not allow an IP ban");
+        assertEquals(0, caseCount(), "nothing was left behind, so the draft can be corrected and submitted again");
+        // an active ban already exists: the second ban is refused and no second case appears
+        r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.BAN, Durations.DAY, "Repeated griefing of builds.", List.of(Fx.ev())))).orThrow();
+        var dup = r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.BAN, Durations.DAY)));
+        assertEquals(Code.DUPLICATE, dup.code());
+        assertEquals(0, caseCount());
+        assertEquals(0L, (long) fx.db.<Long>txSync(c -> Sql.count(c, "SELECT COUNT(*) FROM cases c JOIN punishments p ON p.case_id=c.id")));
+    }
+
+    @Test
+    void aJailThatCannotBePlacedLeavesNoCaseWhenJailReloadedIsMissing() throws Exception {
+        fx.jail.available = false;
+        var res = r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), preq(PunishType.JAIL, Durations.HOUR)));
+        assertEquals(Code.UNAVAILABLE, res.code());
+        assertEquals(0, caseCount());
+    }
+
+    @Test
+    void openingAndPunishingNeedsTheRightToCreateCasesAndTheSamePlayer() throws Exception {
+        Actor reporter = Fx.staff("Reporter", 20, Fx.concat(V13Support.punisher(), Perms.REPORT, Perms.CASE_VIEW_OWN));
+        assertEquals(Code.NO_PERMISSION, r(fx.punishments.openCaseAndPunish(reporter, req("harassment", List.of(Fx.ev())), preq(PunishType.MUTE, Durations.HOUR))).code(), "a report cannot punish");
+        var other = new PunishmentService.Request(Fx.target("Alex"), PunishType.WARN, 0, "Wrong player entirely here.", List.of());
+        assertEquals(Code.INVALID, r(fx.punishments.openCaseAndPunish(mod, req("harassment", List.of(Fx.ev())), other)).code());
+        assertEquals(0, caseCount());
+    }
+
+    @Test
+    void withTheJudicialSystemOnOpeningAndPunishingIsNotAvailable() throws Exception {
+        Fx full = fx(true);
+        try {
+            var res = r(full.punishments.openCaseAndPunish(Fx.owner(), req("harassment", List.of(Fx.ev())), preq(PunishType.WARN, 0)));
+            assertEquals(Code.UNAVAILABLE, res.code());
+        } finally {
+            full.close();
+        }
+    }
+
+    @Test
+    void strikesForTheRecommendationCountCasePunishmentsThatWereNotRevoked() throws Exception {
+        assertEquals(0L, (long) r(fx.cases.priors(steve.uuid(), "harassment", 0)).orThrow());
+        Case a = open("harassment");
+        Punishment first = punish(a, PunishType.MUTE, Durations.HOUR).orThrow();
+        assertEquals(1L, (long) r(fx.cases.priors(steve.uuid(), "harassment", 0)).orThrow(), "a punishment issued from a case is a strike");
+        punish(a, PunishType.KICK, 0).orThrow();
+        assertEquals(1L, (long) r(fx.cases.priors(steve.uuid(), "harassment", 0)).orThrow(), "a kick is not");
+        r(fx.punishments.issueQuick(mod, new PunishmentService.Request(steve, PunishType.WARN, 0, "A quick warning without a case.", List.of()))).orThrow();
+        assertEquals(1L, (long) r(fx.cases.priors(steve.uuid(), "harassment", 0)).orThrow(), "nor is a quick punishment without a case");
+        fx.punishments.revoke(Fx.owner(), first.id(), "Overturned on appeal, so it must not count").get();
+        assertEquals(0L, (long) r(fx.cases.priors(steve.uuid(), "harassment", 0)).orThrow(), "a revoked punishment does not count");
     }
 
     @Test

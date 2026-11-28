@@ -147,6 +147,88 @@ class CaseworkGuiTest {
         assertTrue(fx.awaitMenu(owner, CaseMenu.class), "back on the case, which now lists the punishment");
     }
 
+    private void fillTheCaseDraft() throws Exception {
+        click(11);                                         // offense
+        assertTrue(fx.awaitMenu(owner, OffenseSelectMenu.class));
+        click(11);                                         // harassment
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+        click(13);                                         // description
+        answerDialog("Repeatedly harassed other players in the global chat.");
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+        click(15);                                         // evidence
+        assertTrue(fx.awaitMenu(owner, EvidenceTypeMenu.class));
+        click(16);
+        answerDialog("https://example.com/proof.png");
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+    }
+
+    @Test
+    void thePunishmentIsChosenInsideTheCreateCaseMenuWithTheUsualScreensAndIssuedOnSubmit() throws Exception {
+        Menus.openTarget(fx.gui, owner, target);
+        assertTrue(fx.awaitMenu(owner, TargetMenu.class));
+        click(10);                                         // Create Case
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+        assertEquals(Material.GOLDEN_SWORD, at(22), "the Punishment button sits under the steps");
+        click(22);                                         // no offense yet: nothing opens
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class), "choose the offense first");
+        fillTheCaseDraft();
+        click(22);                                         // Punishment
+        assertTrue(fx.awaitMenu(owner, ChoiceMenu.class), "the usual list of punishments");
+        assertNotEquals(Material.GRAY_DYE, at(10), "a warning is possible for harassment");
+        assertEquals(Material.GRAY_DYE, at(14), "an IP ban is not (offenses.yml: harassment allows warn, mute, ban, jail)");
+        click(12);                                         // Mute
+        assertTrue(fx.awaitMenu(owner, QuickPunishMenu.class), "the usual punishment screen");
+        assertTrue(fx.title(owner).contains("for the new case"), fx.title(owner));
+        click(10);                                         // custom duration
+        answerDialog("1h");
+        assertTrue(fx.awaitMenu(owner, QuickPunishMenu.class));
+        click(12);                                         // reason
+        answerDialog("Harassing other players in global chat");
+        assertTrue(fx.awaitMenu(owner, QuickPunishMenu.class));
+        assertEquals(0L, (long) fx.plugin.core().db.<Long>txSync(c -> dev.aura.punishments.db.Sql.count(c, "SELECT COUNT(*) FROM cases")), "nothing is saved yet");
+        click(40);                                         // use this punishment
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class), "back on the case draft");
+        assertEquals(Views.punishIcon(PunishType.MUTE), at(22), "the chosen punishment is shown");
+        assertEquals(0L, (long) fx.plugin.core().db.<Long>txSync(c -> dev.aura.punishments.db.Sql.count(c, "SELECT COUNT(*) FROM punishments")), "still nothing issued");
+        click(31);                                         // submit
+        assertTrue(fx.awaitMenu(owner, ConfirmMenu.class), "one confirmation for case + punishment");
+        click(11);
+        assertTrue(fx.awaitMenu(owner, CaseMenu.class), "the new case opens");
+        Case cs = fx.plugin.core().db.<List<Case>>txSync(c -> Repo.Cases.all(c, 5, 0)).get(0);
+        assertEquals(CaseStatus.OPEN, cs.status(), "the case stays open");
+        Punishment mute = punishments().get(0);
+        assertEquals(PunishType.MUTE, mute.type());
+        assertEquals(PunishStatus.ACTIVE, mute.status());
+        assertEquals(cs.id(), mute.caseId(), "linked to the case it was created with");
+        assertTrue(fx.plugin.punishments().muteFor(victim).isPresent(), "enforceable at once");
+        assertNull(fx.plugin.core().db.txSync(c -> Repo.Reviews.byPunishment(c, mute.id())), "no owner review");
+    }
+
+    @Test
+    void theChosenPunishmentCanBeRemovedAgainAndTheCaseIsThenOpenedAlone() throws Exception {
+        Menus.openTarget(fx.gui, owner, target);
+        assertTrue(fx.awaitMenu(owner, TargetMenu.class));
+        click(10);
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+        fillTheCaseDraft();
+        click(22);
+        assertTrue(fx.awaitMenu(owner, ChoiceMenu.class));
+        click(10);                                         // Warning
+        assertTrue(fx.awaitMenu(owner, QuickPunishMenu.class));
+        click(12);
+        answerDialog("Please keep the global chat friendly");
+        assertTrue(fx.awaitMenu(owner, QuickPunishMenu.class));
+        click(40);
+        assertTrue(fx.awaitMenu(owner, CaseCreateMenu.class));
+        Thread.sleep(fx.gui.settings().gui.clickCooldownMs() + 30L);
+        fx.click(owner, 22, ClickType.SHIFT_LEFT);         // remove
+        Thread.sleep(150);
+        assertEquals(Material.GOLDEN_SWORD, at(22), "no punishment chosen any more");
+        click(31);
+        assertTrue(fx.awaitMenu(owner, CaseMenu.class), "the case alone, no confirmation needed");
+        assertEquals(0L, (long) fx.plugin.core().db.<Long>txSync(c -> dev.aura.punishments.db.Sql.count(c, "SELECT COUNT(*) FROM punishments")));
+    }
+
     @Test
     void theCaseScreenHasNoCourtButtons() throws Exception {
         Case cs = newCase();

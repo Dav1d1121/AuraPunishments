@@ -31,32 +31,63 @@ final class QuickPunishMenu extends Menu {
     private final Case linked;
     private final long caseEvidence;
     private final Runnable afterIssue;
+    /** Create Case screen: the choice is kept for the case being drafted instead of being issued here. */
+    private final java.util.function.Consumer<Draft> onDraft;
+    /** The offense of the case being drafted: its longest duration limits the choices. */
+    private final dev.aura.punishments.config.Offense draftOffense;
 
-    private QuickPunishMenu(Gui gui, Player viewer, Menu parent, Target target, PunishType type, Case linked, long caseEvidence, Runnable afterIssue) {
+    /** A punishment chosen on the Create Case screen; issued together with the case when it is submitted. */
+    record Draft(PunishType type, long duration, String reason, String note) {}
+
+    private QuickPunishMenu(Gui gui, Player viewer, Menu parent, Target target, PunishType type, Case linked, long caseEvidence, Runnable afterIssue,
+                            java.util.function.Consumer<Draft> onDraft, dev.aura.punishments.config.Offense draftOffense, Draft initial) {
         super(gui, viewer, parent);
         this.target = target;
         this.type = type;
         this.linked = linked;
         this.caseEvidence = caseEvidence;
         this.afterIssue = afterIssue;
+        this.onDraft = onDraft;
+        this.draftOffense = draftOffense;
+        if (initial != null && initial.type() == type) {
+            this.duration = initial.duration();
+            this.reason = initial.reason() == null ? "" : initial.reason();
+            this.note = initial.note() == null ? "" : initial.note();
+            if (onDraft != null && duration != 0 && !allowed(duration)) duration = 0; // a suggestion above the offense's or the staff member's limit is not applied
+        }
     }
 
     static void open(Gui gui, Player p, Menu parent, Target t, PunishType type) {
-        new QuickPunishMenu(gui, p, parent, t, type, null, 0, null).open();
+        new QuickPunishMenu(gui, p, parent, t, type, null, 0, null, null, null, null).open();
+    }
+
+    /**
+     * The same screen from the Create Case menu: choose duration, reason and note, then "Use this punishment" keeps the choice on the case
+     * draft and returns there. Nothing is issued until the case is submitted.
+     */
+    static void openDraft(Gui gui, Player p, Menu parent, Target t, PunishType type, dev.aura.punishments.config.Offense offense, Draft current,
+                          long suggestedDuration, java.util.function.Consumer<Draft> onDraft) {
+        Draft initial = current != null && current.type() == type ? current : new Draft(type, suggestedDuration, "", "");
+        new QuickPunishMenu(gui, p, parent, t, type, null, 0, null, onDraft, offense, initial).open();
     }
 
     /** Punish from a case (case workflow): evidence and notes go on the case, the case stays open. */
     static void openForCase(Gui gui, Player p, Menu parent, Target t, PunishType type, Case c, long activeCaseEvidence, Runnable afterIssue) {
-        new QuickPunishMenu(gui, p, parent, t, type, c, activeCaseEvidence, afterIssue).open();
+        new QuickPunishMenu(gui, p, parent, t, type, c, activeCaseEvidence, afterIssue, null, null, null).open();
     }
 
     @Override
     protected Component title() {
+        if (onDraft != null) return Items.t("<dark_purple><t> <gray>for the new case: <white><v>", "t", type.display(), "v", target.name());
         return linked == null ? Items.t("<dark_purple><t>: <white><v>", "t", type.display(), "v", target.name())
                 : Items.t("<dark_purple><t> <gray>from <white><c>", "t", type.display(), "c", linked.ref());
     }
 
     private boolean allowed(long ms) {
+        if (draftOffense != null && type.canBeTimed()) {
+            boolean over = ms == Durations.PERMANENT ? draftOffense.maxDuration() != Durations.PERMANENT : draftOffense.exceedsCap(ms);
+            if (over) return false; // longer than the case's offense allows (offenses.yml)
+        }
         return gui.core().auth.checkDuration(gui.actor(viewer), type, ms, false).isOk();
     }
 
@@ -64,7 +95,9 @@ final class QuickPunishMenu extends Menu {
     protected void render() {
         navigation();
         // Evidence already on the case counts toward the requirement when punishing from a case.
-        boolean needsEvidence = gui.settings().quick.requireEvidence().contains(type) && (linked == null || caseEvidence == 0);
+        boolean draftMode = onDraft != null;
+        // (On the Create Case screen the evidence belongs to the case and is checked there when the case is submitted.)
+        boolean needsEvidence = !draftMode && gui.settings().quick.requireEvidence().contains(type) && (linked == null || caseEvidence == 0);
         // With the judicial system off and no case, evidence and notes are attached to the punishment itself.
         boolean recordsOnPunishment = !gui.core().mode.enabled() && linked == null;
         List<Component> headLore = new ArrayList<>();
@@ -101,7 +134,7 @@ final class QuickPunishMenu extends Menu {
                             reason = text;
                             open();
                         }, this::open));
-        if (needsEvidence || !evidence.isEmpty() || ((recordsOnPunishment || linked != null) && type != PunishType.KICK)) {
+        if (!draftMode && (needsEvidence || !evidence.isEmpty() || ((recordsOnPunishment || linked != null) && type != PunishType.KICK))) {
             List<Component> ev = new ArrayList<>();
             ev.add(Items.t(needsEvidence ? "<red>Required for " + type.display() + "s" : "<gray>Optional"));
             if (linked != null) ev.add(Items.t("<gray>New items are added to " + linked.ref()));
@@ -119,7 +152,7 @@ final class QuickPunishMenu extends Menu {
                 });
             });
         }
-        if ((recordsOnPunishment || linked != null) && viewer.hasPermission(Perms.NOTE_ADD)) {
+        if ((recordsOnPunishment || linked != null || draftMode) && viewer.hasPermission(Perms.NOTE_ADD)) {
             set(16, Items.item(Material.OAK_SIGN, Items.t("<gold><b>Staff note <gray>(optional)"),
                     note.isBlank() ? List.of(Items.t("<gray>A private note for other staff"), Items.t("<yellow>Click to enter"))
                             : NotesWrap.wrap(note, 40).stream().map(s -> Items.t("<white><v>", "v", s)).toList()),
@@ -130,6 +163,18 @@ final class QuickPunishMenu extends Menu {
         }
         boolean ready = (!type.canBeTimed() || duration != 0) && (reason.length() >= gui.settings().cases.minReason() || (type == PunishType.KICK && !gui.settings().quick.requireReason()))
                 && (!needsEvidence || !evidence.isEmpty());
+        if (draftMode) {
+            // Create Case screen: keep the choice on the draft and go back; the case and the punishment are created together on Submit
+            set(40, Items.item(ready ? Material.LIME_CONCRETE : Material.RED_CONCRETE, Items.t(ready ? "<green><b>USE THIS PUNISHMENT" : "<red><b>Incomplete"),
+                    List.of(Items.t("<gray>Kept on the new case."), Items.t("<gray>Nothing is issued until you submit the case."))), (p, k) -> {
+                if (!ready) {
+                    gui.messages().sendError(p, "Choose a duration and enter a reason first.");
+                    return;
+                }
+                onDraft.accept(new Draft(type, type.canBeTimed() ? duration : 0, reason.isBlank() ? "No reason given" : reason, note));
+            });
+            return;
+        }
         set(40, Items.item(ready ? Material.LIME_CONCRETE : Material.RED_CONCRETE, Items.t(ready ? "<green><b>CONTINUE" : "<red><b>Incomplete"),
                 List.of(Items.t("<gray>You will be asked to confirm."))), (p, k) -> {
             if (!ready) {

@@ -1,3 +1,12 @@
+# AuraPunishments 1.3.2 - Release notes
+
+* **Choose the punishment inside Create Case.** The New case screen has a Punishment button that opens the usual punishment screens; Submit opens the case and issues the punishment together (all or nothing). Final at once, no owner approval, no court. [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md)
+* **Paper 1.21.11 and 26.3 from one jar** (Java 21+ on 1.21.11, Java 25 on 26.3).
+* **Owner review is off by default for new installs**, never applies to punishments issued from a case, and its screens stay out of the way while it is off. Set `review.enabled: false` to turn it off on an existing server.
+* No database migration, no new permission nodes. Details: [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 # AuraPunishments 1.3.1 - Release notes
 
 **The case workflow: cases without the court.** With `judicial.enabled: false` and `casework.enabled: true` staff still **open a case** (offense, severity, description, evidence, notes) and **punish from it** - warning, kick, mute, ban, IP ban or jail. The punishment is final and immediate, linked to the case, and the **case stays open** for notes, evidence and appeals until it is closed. There is no pretrial detention, hearing, judge, verdict, sentencing or time-served credit. The quick buttons stay for routine actions. New installs get this by default; upgraded servers change nothing until the two config lines are added. [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md)

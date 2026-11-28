@@ -1,12 +1,14 @@
 # AuraPunishments
 
 GUI-based moderation, **optional** judicial case management and punishment enforcement for the **Aurehaven Towny SMP** and its network.
-Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), **LuckPerms** (authority),
+Paper **1.21.11 or 26.3** (one jar for both) - Java **21 or newer** - integrates with **JailReloaded** (imprisonment), **LuckPerms** (authority),
 **AuraCommandFilter** (command visibility), EssentialsX/Towny/TownyChat (chat and command enforcement) and Discord webhooks.
 
 * Main command: **`/punish <player>`** - the player's complete disciplinary GUI. Also `/punishments`, `/ap help|case|cases|history|judge|reload|...`.
 * **One jar, one switch (1.3.0): `judicial.enabled`.** Off (new installs): a punishment is final and immediate; evidence, notes, jail, appeals, emergency actions and owner review all work without cases. On (upgrades): the full judicial system, exactly as before. See [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md).
 * **The case workflow (1.3.1): `casework.enabled`.** With the judicial system off, staff still **open a case, add evidence and notes, and punish from it** - no court, no detention, no verdict; the punishment is final at once and the case stays open. Quick buttons stay for routine actions. See [docs/WORKFLOW_CASEWORK.md](docs/WORKFLOW_CASEWORK.md).
+* **Choose the punishment inside Create Case (1.3.2):** the New case screen has a Punishment button that opens the usual punishment screens; Submit opens the case and issues the punishment in one step. No owner approval, no court. **Owner review is off by default** for new installs.
+* **Paper 1.21.11 and 26.3 from one jar (1.3.2).**
 * Judicial path (when on): **case -> pretrial detention (JailReloaded) -> Discord hearing -> verdict -> sentence** (owner is the judge).
 * **Jail is a punishment** (`/ap jail`, `/ap unjail`), **appeals** go through Discord Ticket Tool and are decided with `aurapunishments.appeal.decide`, and Discord punishment notifications are configurable (private log + optional sanitized public log).
 * Exception path: **direct punishment** for proven major offenses (evidence + justification) and **emergency actions**.
@@ -58,7 +60,7 @@ src/main/java/dev/aura/punishments/
   command/      /punish, /punishments, /ap
   gui/          menus, GUI manager (click safety), dialog-window text entry
 src/test/       services, MockBukkit GUI/listener flows, Discord failure handling, migrations, jail/appeal/judicial-mode suites
-live-test/      driver plugin run inside a real Paper 26.3 server with the real JailReloaded/LuckPerms/EssentialsX/Towny
+live-test/      driver plugin run inside a real Paper 26.3 server (live-test-121/: the same phases on Paper 1.21.11) with the real JailReloaded/LuckPerms/EssentialsX/Towny
 libs/           supplied custom jars (compile-only / test-only; not bundled)
 docs/           handbooks, reports, evidence
 release/        built jar + checksum + build info

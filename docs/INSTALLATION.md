@@ -3,7 +3,7 @@
 ## Before you start
 
 1. Back up the server (at minimum `plugins/JailReloaded/` and, if present, `plugins/AuraPunishments/`).
-2. Confirm: Paper **26.3**, Java **25**, JailReloaded **1.2.x** (tested 1.2.2), LuckPerms installed.
+2. Confirm: Paper **1.21.11** (Java 21+) or **26.3** (Java 25) - the same jar runs on both - JailReloaded **1.2.x** (tested 1.2.2), LuckPerms installed.
 3. Read [PERMISSIONS.md](PERMISSIONS.md) so staff access is granted deliberately; nothing is granted by default.
 
 ## Install
@@ -31,6 +31,10 @@ Do this on the live server with two staff accounts and one test player before an
 7. Ban the test player; confirm login is refused with the ban screen (no IP shown), then revoke the ban.
 8. `/ap status` and `/ap audit verify` report healthy.
 9. Restart the server; confirm bans/mutes/custody persisted and `/ap status` is clean.
+
+## Upgrade to 1.3.2 (from 1.3.x)
+
+Replace the jar and restart. **No database migration.** Nothing changes by itself except what the new jar does on a server version it now supports. Your `config.yml` is never rewritten: a missing `review.enabled` line still means on. To turn owner review off (it is off in the shipped file for new installs) set `review:` / `  enabled: false` and run `/ap reload`. Moving a server from Paper 26.3 to 1.21.11 is a Minecraft/Paper change you make separately (worlds created by a newer Minecraft version cannot be opened by an older one). Rollback: put the 1.3.1 jar back.
 
 ## Upgrade to 1.3.1 (from 1.3.0)
 

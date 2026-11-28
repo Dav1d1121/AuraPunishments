@@ -54,6 +54,8 @@ public final class ReviewService extends Svc {
         Settings.Review cfg = core.settings.review;
         boolean emergency = p.source() == dev.aura.punishments.model.Simple.Source.EMERGENCY && !core.mode.enabled() && cfg.includeEmergency();
         if (!cfg.enabled() || !(p.source().quickLike() || emergency) || !(emergency || cfg.requiredTypes().contains(p.type()))) return -1;
+        // A punishment issued from a case in the case workflow is final and never waits for, or asks for, an owner's second look.
+        if (!emergency && p.caseId() != null && core.mode.casework()) return -1;
         if (!emergency && cfg.permanentOnlyTypes().contains(p.type()) && p.expiresAt() != null) return -1; // e.g. only permanent bans are reviewed
         long duration = p.expiresAt() == null ? Long.MAX_VALUE : p.expiresAt() - p.issuedAt();
         if (!emergency && duration < cfg.minDuration()) return -1;

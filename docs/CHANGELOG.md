@@ -2,6 +2,18 @@
 
 (This file was accidentally emptied in the 1.2.0 release commit; it is rebuilt here from the release notes and commit history. Nothing else was affected.)
 
+## 1.3.2 - choose the punishment inside Create Case; Paper 1.21.11 and 26.3 from one jar; owner review off by default
+**Added**
+* **Punishment inside the New case screen** (case workflow). A **6. Punishment** button opens the same list and the same punishment screens used everywhere else (type, duration, reason, note); "Use this punishment" keeps the choice on the draft. **Submit case + punishment** opens the case and issues the punishment in **one transaction**: both exist afterwards or neither does. The offense decides what is possible (types and longest duration from `offenses.yml`) and its recommendation for the player's history is shown as a hint. With no punishment chosen only the case is opened (as in 1.3.1). One confirmation (type-the-name for bans and permanent punishments when configured).
+* **Paper 1.21.11 and 26.3 from one jar.** The plugin is compiled against the 1.21.11 API for Java 21 (`api-version: 1.21.11`) and runs on both servers. The unit tests run on both APIs (`gradle test` on 26.3 + MockBukkit v26.3, `gradle test121` on 1.21.11 + MockBukkit v1.21) and the live phases run on both a real Paper 1.21.11 and a real Paper 26.3 server.
+
+**Changed**
+* **Owner review is off by default for new installs** (`review.enabled: false` in the shipped file; a missing line still means on, so upgrades change nothing). A punishment issued from a case **never creates an owner review** in the case workflow, whatever the setting. The dashboard's owner-review buttons and `/ap review` appear only while review is on or reviews from before are still open. Emergency actions keep their own senior-staff review.
+* "Strikes" for the offense recommendation in the case workflow are the player's earlier punishments issued from cases (not kicks, not revoked ones), since there are no verdicts.
+* The case screen's Punish button and the Create Case screen's Punishment button share one chooser.
+
+**Upgrade:** replace the jar and restart. No database migration. To turn owner review off on an existing server add/set `review:` / `  enabled: false` and run `/ap reload`.
+
 ## 1.3.1 - the case workflow: cases without the court
 You liked opening a case first. With the judicial system off, **staff can still create a case, add evidence and notes, and punish from the case** - with no court: no pretrial detention, hearing, judge, verdict, sentencing or time-served credit. Read [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md).
 

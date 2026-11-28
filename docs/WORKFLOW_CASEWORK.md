@@ -13,9 +13,10 @@ casework:
 ## What staff do
 
 1. `/punish <player>` -> **Create Case** (the first button on the screen).
-2. Choose the offense, write what happened, add evidence (links, screenshots, chat logs, CoreProtect lookups ...) and, if you like, notes. **Submit.** The case opens as **Open**; you are its owner.
-3. On the case screen press **Punish** -> choose Warning, Kick, Mute, Ban, IP Ban or Jail -> duration, reason, (optionally more evidence and a note) -> **Continue** -> **Confirm**.
-4. The punishment **takes effect immediately and is final**. It is linked to the case. **The case stays open**: you can keep adding evidence and notes, see the punishment on the case, record an appeal against it, and close the case when you are done (**Change status -> Closed**, with a reason).
+2. Choose the offense, write what happened, add evidence (links, screenshots, chat logs, CoreProtect lookups ...) and, if you like, notes.
+3. **Choose the punishment on the same screen (1.3.2):** press **6. Punishment** -> the usual list (Warning, Kick, Mute, Ban, IP Ban, Jail; types the offense does not allow are greyed out and the offense's recommendation for this player's history is shown) -> the usual punishment screen: duration, reason, optional note -> **Use this punishment**. You are back on the case screen, which now shows the punishment (Shift+Click removes it). Nothing has been saved or issued yet.
+4. **Submit case + punishment** -> one confirmation. The case is opened **and** the punishment issued **in one step**: either both exist afterwards or neither does (a refused punishment - an active ban already exists, a limit, JailReloaded missing - leaves no half-made case, so you can correct the draft and submit again). If you choose no punishment, only the case is opened and you can punish from it later with **Punish** on the case screen: choose the type -> duration, reason, (optionally more evidence and a note) -> **Continue** -> **Confirm**.
+5. The punishment **takes effect immediately and is final**, with **no owner approval** (no review record is created for a punishment issued from a case, whatever `review.enabled` says). It is linked to the case. **The case stays open**: you can keep adding evidence and notes, see the punishment on the case, record an appeal against it, and close the case when you are done (**Change status -> Closed**, with a reason).
 
 A closed case can be reopened (Change status -> Under Review -> Open) and punished from again. Closing a case never lifts what was issued from it: the mute keeps running, the prisoner stays in jail.
 
@@ -43,7 +44,7 @@ Everything a quick punishment checks, plus the case's own rules:
 | The case is **open** (Open, Under Investigation, Under Review) | closed cases must be reopened first |
 | The offense **allows** this punishment and its **maximum duration** (permanent only where the offense has no cap) | `offenses.yml` (a kick is not a sentence and is always allowed) |
 | Bans / IP bans need evidence | `punishments.quick.require-evidence`; evidence already **on the case** counts, so you do not re-attach it |
-| Owner review | a ban from a case is reviewed exactly like a quick ban, and the review points to the case |
+| Owner review | none: a punishment issued from a case is final and never creates an owner review (quick punishments without a case still follow `review.enabled`, which is off by default for new installs) |
 | You can see the case | `case.view.all` / `case.view.own` |
 
 Nothing new to grant: **no new permission nodes** were added in 1.3.1. Whoever may punish (`punish.<type>`) and may see cases may punish from a case.
@@ -71,4 +72,4 @@ Appeals are filed against the **punishment** (history -> the punishment -> Appea
 
 ## Discord and logs
 
-A punishment from a case is announced like any other (`discord.punishment-log`, with the case reference), and the case timeline, history screens and audit log record who issued it and why.
+A punishment from a case (or opened together with its case) is announced like any other (`discord.punishment-log`, with the case reference), and the case timeline, history screens and audit log record who issued it and why.

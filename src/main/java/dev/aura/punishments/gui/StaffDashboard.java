@@ -79,10 +79,12 @@ final class StaffDashboard extends Menu {
                     Material.LECTERN, "<light_purple><b>Appeals", List.of("<gray>Open appeals against punishments: <white>" + n.pendingAppeals(), "<gray>(handled through Discord Ticket Tool)"),
                     (p, t) -> AppealListMenu.open(gui, p, this));
         }
-        action(16, gui.can(viewer, Perms.REVIEW_VIEW), n.overdueReviews() > 0 ? Material.RED_CONCRETE : Material.BLUE_CONCRETE, "<aqua><b>Owner review queue",
+        // owner review is off by default on new installs: its screens only appear while it is on or reviews from before are still open
+        boolean reviewsShown = gui.settings().review.enabled() || n.pendingReviews() > 0 || n.overdueReviews() > 0;
+        if (reviewsShown) action(16, gui.can(viewer, Perms.REVIEW_VIEW), n.overdueReviews() > 0 ? Material.RED_CONCRETE : Material.BLUE_CONCRETE, "<aqua><b>Owner review queue",
                 List.of("<gray>Awaiting a decision: <white>" + n.pendingReviews(), n.overdueReviews() > 0 ? "<red>OVERDUE: " + n.overdueReviews() : "<green>None overdue"), (p, t) ->
                         ReviewQueueMenu.open(gui, p, this, false));
-        action(19, gui.can(viewer, Perms.PUNISH), Material.NAME_TAG, "<aqua><b>My punishments under review",
+        if (reviewsShown) action(19, gui.can(viewer, Perms.PUNISH), Material.NAME_TAG, "<aqua><b>My punishments under review",
                 List.of("<gray>Quick punishments you issued and", "<gray>their review status / evidence requests"), (p, t) -> ReviewQueueMenu.open(gui, p, this, true));
         action(20, (judicialShown && gui.can(viewer, Perms.JUDICIAL_VIEW)) || gui.can(viewer, Perms.REVIEW_VIEW) || gui.can(viewer, Perms.EMERGENCY_REVIEW), Material.HOPPER, "<light_purple><b>Work queue",
                 List.of("<gray>Everything waiting for a decision,", "<gray>most urgent first"), (p, t) -> WorkQueueMenu.open(gui, p, this));

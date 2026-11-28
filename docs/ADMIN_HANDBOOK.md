@@ -48,8 +48,8 @@ JailReloaded through its public API, **verifies** the result, and reconciles aft
 
 | Requirement | Detail |
 |---|---|
-| Server | Paper **26.3** (built and tested against `26.3.build.256-stable`; plugin `api-version: 26.3`). |
-| Java | **25** (Paper 26.3 requires it). |
+| Server | Paper **1.21.11** or **26.3** - the same jar runs on both (compiled against the 1.21.11 API, `api-version: 1.21.11`; tested on `1.21.11-132` and `26.3.build.256-stable`). |
+| Java | **21 or newer** (Paper 1.21.11 needs 21, Paper 26.3 needs 25; the plugin is compiled for Java 21). |
 | JailReloaded | **1.2.0 or newer**, tested with **1.2.2**. Without it custody and jail sentences are disabled (everything else works). |
 | LuckPerms | Strongly recommended (and required by AuraCommandFilter). Used for offline staff-hierarchy lookups and to close open GUIs when permissions change. Without it the plugin works with reduced offline protection (cached levels). |
 | Optional | AuraCommandFilter, EssentialsX, Towny, TownyChat, CoreProtect/Grim (as *evidence references only*), Discord webhook. |
@@ -273,3 +273,13 @@ Daily workflow without the judicial system: [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_N
 | `casework.require-case-for` | `[]` | Punishment types that can only be issued from a case (for example `[BAN, IPBAN, JAIL]`); the quick buttons and `/ap` commands refuse them with an explanation. |
 
 No new permission nodes, no database migration. `/ap judicial` and `/ap status` show the state (ENABLED, CASEWORK, WIND_DOWN, DISABLED) and any court work left over from before. To adopt the workflow on an upgraded server add the `casework:` section shown in [INSTALLATION.md](INSTALLATION.md) and run `/ap reload`.
+
+## 1.3.2 additions for administrators
+
+| Change | Detail |
+|---|---|
+| **Paper 1.21.11 and 26.3** | One jar. Needs Java 21+ on 1.21.11 and Java 25 on 26.3 (what those servers require anyway). Plugins you depend on must themselves load on your server version (for example a plugin whose `plugin.yml` says `api-version: 26.3` will not load on 1.21.11). |
+| `review.enabled` | **`false` in the shipped file** (new installs): owner review is off. A missing line still means on, so upgrades do not change. To turn it off on an existing server set `review:` / `  enabled: false` and `/ap reload`. Reviews that already exist stay readable. Emergency actions keep their own senior-staff review. |
+| Review screens | The dashboard's owner-review buttons and `/ap review` appear only while `review.enabled` is true or reviews from before are still open. |
+| Punishments from a case | Never create an owner review (the case workflow), whatever `review.enabled` says. |
+

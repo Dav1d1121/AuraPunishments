@@ -66,7 +66,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                 new Sub("unjail", "/ap unjail <player> <reason>", "Release a jailed player early", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY) || has(s, Perms.CUSTODY_RELEASE) || has(s, Perms.JUDICIAL_RELEASE)),
                 new Sub("unmute", "/ap unmute <player> <reason>", "Revoke an active mute", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
                 new Sub("unban", "/ap unban <player> <reason>", "Revoke an active ban", s -> has(s, Perms.REVOKE) || has(s, Perms.REVOKE_ANY)),
-                new Sub("review", "/ap review [mine|<id>]", "Owner review queue / your punishments under review", s -> (has(s, Perms.REVIEW_VIEW) || has(s, Perms.PUNISH)) && s instanceof Player),
+                new Sub("review", "/ap review [mine|<id>]", "Owner review queue / your punishments under review", s -> (has(s, Perms.REVIEW_VIEW) || has(s, Perms.PUNISH)) && s instanceof Player && gui.settings().review.enabled()),
                 new Sub("queue", "/ap queue", "Open the prioritised work queue", s -> (has(s, Perms.JUDICIAL_VIEW) || has(s, Perms.REVIEW_VIEW) || has(s, Perms.EMERGENCY_REVIEW)) && s instanceof Player),
                 new Sub("export", "/ap export <case> [md|txt]", "Export a case summary to the exports folder", s -> has(s, Perms.EXPORT)),
                 new Sub("warnings", "/ap warnings <player>", "A player's warnings and repeat indicator", s -> has(s, Perms.HISTORY_VIEW)),
