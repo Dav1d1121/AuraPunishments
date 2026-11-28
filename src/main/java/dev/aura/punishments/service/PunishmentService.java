@@ -71,9 +71,32 @@ public final class PunishmentService extends Svc {
 
     // ------------------------------------------------------------------ quick pathway
     public CompletableFuture<Result<Punishment>> issueQuick(Actor actor, Request r) {
+        return issue(actor, r, null);
+    }
+
+    /**
+     * Case workflow (judicial system off, {@code casework.enabled}): punish the accused FROM a case. The punishment is final and
+     * immediate (no court), is linked to the case, and the case stays open for notes, more evidence and appeals until staff close it.
+     * Everything {@link #issueQuick} checks applies (permission, hierarchy, duration limits, evidence rules, owner review), plus the
+     * case's own rules: the accused must be the target, the offense must allow the punishment and its cap, the case must be open.
+     */
+    public CompletableFuture<Result<Punishment>> issueForCase(Actor actor, long caseId, Request r) {
+        if (!core.mode.casework()) {
+            return done(Result.fail(Code.UNAVAILABLE, core.mode.enabled()
+                    ? "With the judicial system on, punishments from a case are sentences (or direct punishments) - use the court tools."
+                    : "Punishing from a case needs the case workflow (casework.enabled: true while judicial.enabled is false)."));
+        }
+        return issue(actor, r, caseId);
+    }
+
+    private CompletableFuture<Result<Punishment>> issue(Actor actor, Request r, Long linkedCaseId) {
         Settings s = core.settings;
         PunishType type = r.type();
         final boolean judicial = core.mode.enabled();
+        if (linkedCaseId == null && core.mode.casework() && s.casework.requireCaseFor().contains(type)) {
+            return done(Result.fail(Code.INVALID, type.display() + "s must be issued from a case on this server "
+                    + "(casework.require-case-for): open a case with the evidence, then punish from it."));
+        }
         if (type == PunishType.JAIL) {
             if (judicial) {
                 return done(Result.fail(Code.INVALID, "Jail sentences are issued through a case (pretrial custody or a judicial sentence)."));
@@ -110,7 +133,7 @@ public final class PunishmentService extends Svc {
             if (!v.isOk()) return done(v.cast());
             evidence.add(v.value());
         }
-        if (s.quick.requireEvidence().contains(type) && evidence.isEmpty()) {
+        if (linkedCaseId == null && s.quick.requireEvidence().contains(type) && evidence.isEmpty()) {
             return done(Result.fail(Code.EVIDENCE, type.display() + "s require at least one evidence reference."));
         }
         if (evidence.size() > s.cases.maxEvidence()) {
@@ -134,8 +157,41 @@ public final class PunishmentService extends Svc {
         }).thenCompose(tc -> {
             if (!tc.isOk()) return done(tc.<Punishment>cast());
             return db(c -> {
-                Long caseId = null;
+                Long caseId = linkedCaseId;
+                String offenseKey = null;
                 long now0 = core.clock.now();
+                if (linkedCaseId != null) {
+                    Case cs = Repo.Cases.get(c, linkedCaseId);
+                    if (cs == null) return Result.<Punishment>fail(Code.NOT_FOUND, "Case " + linkedCaseId + " does not exist.");
+                    if (!core.auth.canViewCase(actor, cs)) return Result.<Punishment>fail(Code.NO_PERMISSION, "You do not have permission to view that case.");
+                    if (!cs.status().isOpenForWork()) {
+                        return Result.<Punishment>fail(Code.STATE, cs.ref() + " is " + cs.status().display().toLowerCase() + ". Reopen it before punishing from it.");
+                    }
+                    if (!cs.accusedUuid().equals(r.target().uuid())) {
+                        return Result.<Punishment>fail(Code.INVALID, cs.ref() + " is about " + cs.accusedName() + ", not " + r.target().name() + ".");
+                    }
+                    Optional<dev.aura.punishments.config.Offense> off = core.offenses.get(cs.offenseKey());
+                    offenseKey = cs.offenseKey();
+                    if (off.isPresent() && type != PunishType.KICK) { // a kick ends a session; it is not a sentence the offense list governs
+                        dev.aura.punishments.config.Offense o = off.get();
+                        if (!o.allows(type)) {
+                            return Result.<Punishment>fail(Code.INVALID, o.display() + " cannot result in a " + type.display().toLowerCase() + " (see offenses.yml).");
+                        }
+                        if (type.canBeTimed() && dur2 != Durations.PERMANENT && o.exceedsCap(dur2)) {
+                            return Result.<Punishment>fail(Code.LIMIT, "That exceeds the maximum for " + o.display() + " (" + Durations.format(o.maxDuration()) + ").");
+                        }
+                        if (type.canBeTimed() && dur2 == Durations.PERMANENT && o.maxDuration() != Durations.PERMANENT) {
+                            return Result.<Punishment>fail(Code.LIMIT, o.display() + " cannot be punished permanently (maximum " + Durations.format(o.maxDuration()) + ").");
+                        }
+                    }
+                    long onCase = Repo.Evidences.countActive(c, linkedCaseId);
+                    if (s.quick.requireEvidence().contains(type) && onCase + evidence.size() == 0) {
+                        return Result.<Punishment>fail(Code.EVIDENCE, type.display() + "s require at least one evidence reference - add evidence to " + cs.ref() + " first.");
+                    }
+                    if (onCase + evidence.size() > s.cases.maxEvidence()) {
+                        return Result.<Punishment>fail(Code.LIMIT, cs.ref() + " already has the maximum number of evidence items.");
+                    }
+                }
                 if (!evidence.isEmpty() && judicial) {
                     long now = now0;
                     caseId = Repo.Cases.insert(c, CaseStatus.CLOSED, CaseKind.QUICK, r.target().uuid(), r.target().name(),
@@ -152,10 +208,19 @@ public final class PunishmentService extends Svc {
                     var cu = Repo.Custodies.liveForPlayer(c, r.target().uuid());
                     if (cu != null) return Result.<Punishment>fail(Code.DUPLICATE, r.target().name() + " is held in pretrial custody (case " + CustodyService.tag(cu.caseId()) + ").");
                 }
-                Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, judicial ? Source.QUICK : Source.STANDARD, caseId, null, null, null, true);
+                Result<Punishment> ins = insert(c, actor, type, r.target(), dur2, cleanReason, judicial ? Source.QUICK : Source.STANDARD, caseId, offenseKey, null, null, true);
                 if (!ins.isOk()) return ins;
                 Punishment pun = ins.value();
-                if (!judicial) {
+                if (linkedCaseId != null) {
+                    // Everything the issuer supplied belongs to the case; the punishment is linked to it and the case stays open.
+                    for (EvidenceValidator.Input in : evidence) {
+                        Repo.Evidences.add(c, linkedCaseId, in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now0, null);
+                    }
+                    if (note != null) Repo.Notes.add(c, linkedCaseId, null, actor.dbUuid(), actor.name(), note, false, now0);
+                    Repo.Events.add(c, linkedCaseId, now0, actor.dbUuid(), actor.name(), "PUNISHMENT_ISSUED", null, null,
+                            "#" + pun.id() + " " + type.display() + (type.canBeTimed() ? " (" + (pun.expiresAt() == null ? "permanent" : Durations.format(dur2)) + ")" : "")
+                            + ": " + clip(cleanReason, 150));
+                } else if (!judicial) {
                     // No case exists: evidence and the optional note belong to the punishment itself.
                     for (EvidenceValidator.Input in : evidence) {
                         Repo.Evidences.addToPunishment(c, pun.id(), in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now0, null);

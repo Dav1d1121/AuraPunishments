@@ -84,21 +84,26 @@ final class TargetMenu extends Menu {
         set(4, Items.head(target.uuid(), target.name(), Items.t("<white><b><v>", "v", target.name()), head));
 
         // ---- case & custody row (the judicial system: on = everything, wind-down = only what is still open, off = none of it)
-        boolean judicialOn = gui.core().mode.enabled();
-        boolean judicialShown = gui.core().mode.judicialVisible();
+        var mode = gui.core().mode;
+        boolean judicialOn = mode.enabled();
+        boolean judicialShown = mode.judicialVisible();
+        boolean casework = mode.casework();
+        boolean casesAvailable = mode.casesAvailable(); // judicial system, or the case workflow
+        boolean casesShown = mode.casesVisible();
         boolean canCreate = can(Perms.CASE_CREATE) || can(Perms.REPORT);
-        if (judicialOn) {
+        if (casesAvailable) {
             action(10, canCreate, Material.WRITABLE_BOOK, "<green><b>Create Case",
-                    List.of("<gray>Open a disciplinary case", "<gray>(the standard judicial process)"), (p, t) -> CaseCreateMenu.open(gui, p, this, target));
+                    casework ? List.of("<gray>Open a case: offense, evidence and notes,", "<gray>then punish from it. <dark_gray>(no court)")
+                            : List.of("<gray>Open a disciplinary case", "<gray>(the standard judicial process)"), (p, t) -> CaseCreateMenu.open(gui, p, this, target));
         }
         boolean viewCases = can(Perms.CASE_VIEW_ALL) || can(Perms.CASE_VIEW_OWN);
-        if (judicialShown) {
+        if (casesShown) {
             action(11, viewCases, Material.BOOK, "<aqua><b>View Cases",
                     List.of("<gray>Active cases: <white>" + ov.openCases().size() + (ov.openCases().size() >= 5 ? "+" : ""), "<gray>Click to browse all cases"),
                     (p, t) -> CaseListMenu.open(gui, p, this, "Cases: " + target.name(),
                             n -> gui.cases.historyForCases(gui.actor(p), target.uuid(), n, 28), null));
         }
-        if (judicialOn) {
+        if (casesAvailable) {
             action(12, can(Perms.EVIDENCE_ADD), Material.SPYGLASS, "<yellow><b>Submit Evidence",
                     List.of("<gray>Attach evidence to one of", "<gray>this player's open cases"), (p, t) -> pickCaseFor("Add evidence to which case?", c -> EvidenceMenu.promptAdd(gui, p, this, c.id())));
         }
@@ -145,6 +150,11 @@ final class TargetMenu extends Menu {
                 List.of("<gray>Blocks login", "<dark_gray>Evidence required by default"), (p, t) -> QuickPunishMenu.open(gui, p, this, target, PunishType.BAN));
         action(23, can(Perms.punish(PunishType.IPBAN)), Views.punishIcon(PunishType.IPBAN), "<dark_red><b>Issue IP Ban",
                 List.of("<gray>Blocks the account and its", "<gray>last known connection address", "<dark_gray>Evidence required by default"), (p, t) -> QuickPunishMenu.open(gui, p, this, target, PunishType.IPBAN));
+        if (casework) {
+            // the quick buttons stay, but the case is the main path: say so on the player's screen
+            set(18, Items.item(Material.PAPER, Items.t("<gray>Quick punishments"), List.of(Items.t("<gray>No case: one click, recorded on the"), Items.t("<gray>punishment itself."),
+                    Items.t("<yellow>For anything needing evidence, use <green>Create Case"))));
+        }
         boolean directOk = gui.settings().direct.enabled() && can(Perms.DIRECT) && DirectService.DIRECT_TYPES.stream().anyMatch(t -> can(Perms.direct(t)));
         if (judicialOn) {
             action(24, directOk, Material.NETHERITE_SWORD, "<dark_red><b>Direct Punishment",
@@ -174,9 +184,9 @@ final class TargetMenu extends Menu {
                 List.of("<gray>Active punishments: <white>" + ov.active().size(), "<gray>Lift a punishment with a recorded reason"),
                 (p, t) -> PunishmentListMenu.open(gui, p, this, target));
 
-        // ---- open cases (or, with the judicial system off, the punishments in force)
+        // ---- open cases (or, with no cases in use, the punishments in force)
         int slot = 38;
-        if (judicialShown) {
+        if (casesShown) {
             for (Case c : ov.openCases()) {
                 if (slot > 42) break;
                 ItemStack it = Views.caseItem(c);

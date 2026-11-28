@@ -17,12 +17,14 @@ final class V13Support {
     static Fx fx(boolean judicial) throws Exception {
         Fx.Mutator m = new Fx.Mutator();
         m.set.put("judicial.enabled", judicial);
+        if (!judicial) m.set.put("casework.enabled", false); // the 1.3.0 "plain off" mode; casework tests ask for it explicitly
         return new Fx(null, m);
     }
 
     static Fx fx(boolean judicial, java.util.function.Consumer<Fx.Mutator> more) throws Exception {
         Fx.Mutator m = new Fx.Mutator();
         m.set.put("judicial.enabled", judicial);
+        if (!judicial) m.set.put("casework.enabled", false);
         more.accept(m);
         return new Fx(null, m);
     }

@@ -40,11 +40,11 @@ final class StaffDashboard extends Menu {
         set(49, Items.item(Material.BARRIER, "<red>Close"), (p, t) -> p.closeInventory());
         boolean judicialShown = gui.core().mode.judicialVisible();
         boolean judicialOn = gui.core().mode.enabled();
+        boolean casesShown = gui.core().mode.casesVisible();
+        boolean casework = gui.core().mode.casework();
         List<Component> head = new java.util.ArrayList<>();
-        if (judicialShown) {
-            head.add(Items.t("<gray>Open cases: <white><v>", "v", String.valueOf(c(CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.UNDER_REVIEW))));
-            head.add(Items.t("<gray>Prisoners in custody: <white><v>", "v", String.valueOf(n.liveCustody())));
-        }
+        if (casesShown) head.add(Items.t("<gray>Open cases: <white><v>", "v", String.valueOf(c(CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.UNDER_REVIEW))));
+        if (judicialShown) head.add(Items.t("<gray>Prisoners in custody: <white><v>", "v", String.valueOf(n.liveCustody())));
         head.add(Items.t("<gray>Open appeals: <white><v>", "v", String.valueOf(n.pendingAppeals())));
         head.add(Items.t("<gray>Active punishments (bans/mutes): <white><v>", "v", String.valueOf(n.cachedPunishments())));
         set(4, Items.item(Material.NETHER_STAR, Items.t("<white><b>AuraPunishments"), head));
@@ -52,7 +52,7 @@ final class StaffDashboard extends Menu {
             List<Component> w = new java.util.ArrayList<>();
             w.add(Items.t("<gray>The judicial system is switched off, but work is still open."));
             w.add(Items.t("<gray>Nothing is released or resolved automatically:"));
-            for (String l : gui.core().mode.report().lines()) w.add(Items.t("<yellow>- <v>", "v", l));
+            for (String l : casework ? gui.core().mode.report().courtLines() : gui.core().mode.report().lines()) w.add(Items.t("<yellow>- <v>", "v", l));
             set(22, Items.item(Material.ORANGE_BANNER, Items.t("<gold><b>Judicial wind-down"), w));
         }
 
@@ -60,17 +60,19 @@ final class StaffDashboard extends Menu {
                 List.of("<gray>Open a player's punishment screen", "<gray>(same as /punish <player>)"), (p, t) ->
                         gui.prompts().ask(p, "Type the player's name.", 1, 32, name -> gui.resolve(p, name, tg -> TargetMenu.open(gui, p, this, tg)), this::open));
         boolean view = gui.can(viewer, Perms.CASE_VIEW_ALL) || gui.can(viewer, Perms.CASE_VIEW_OWN);
-        if (judicialShown) {
-            action(11, view, Material.BOOK, "<aqua><b>My cases", List.of("<gray>Cases you prosecute or judge"), (p, t) ->
+        if (casesShown) {
+            action(11, view, Material.BOOK, "<aqua><b>My cases", List.of(casework ? "<gray>Cases you opened" : "<gray>Cases you prosecute or judge"), (p, t) ->
                     CaseListMenu.open(gui, p, this, "My cases", pg -> gui.cases.list(gui.actor(p), Filter.MINE, pg, 28), null));
             action(12, gui.can(viewer, Perms.CASE_VIEW_ALL), Material.WRITABLE_BOOK, "<aqua><b>Open cases", List.of("<gray>Open: <white>" + c(CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.UNDER_REVIEW)), (p, t) ->
                     CaseListMenu.open(gui, p, this, "Open cases", pg -> gui.cases.list(gui.actor(p), Filter.OPEN, pg, 28), null));
+        }
+        if (judicialShown) {
             action(14, gui.can(viewer, Perms.JUDICIAL_VIEW), Material.ANVIL, "<light_purple><b>Judicial dashboard",
-                    List.of("<gray>Trials, verdicts, sentencing, custody"), (p, t) -> JudicialDashboard.open(gui, p, this));
+                    List.of(casework ? "<gray>Court work left over from before" : "<gray>Trials, verdicts, sentencing, custody"), (p, t) -> JudicialDashboard.open(gui, p, this));
         }
         // historical case records stay reachable even when the judicial system is off
-        action(13, gui.can(viewer, Perms.CASE_VIEW_ALL), Material.ENCHANTED_BOOK, judicialShown ? "<aqua><b>All cases" : "<aqua><b>Case history (read-only)",
-                List.of(judicialShown ? "<gray>Every case, newest first" : "<gray>Cases from before the judicial system was switched off"), (p, t) ->
+        action(13, gui.can(viewer, Perms.CASE_VIEW_ALL), Material.ENCHANTED_BOOK, casesShown ? "<aqua><b>All cases" : "<aqua><b>Case history (read-only)",
+                List.of(casesShown ? "<gray>Every case, newest first" : "<gray>Cases from before the judicial system was switched off"), (p, t) ->
                 CaseListMenu.open(gui, p, this, "All cases", pg -> gui.cases.list(gui.actor(p), Filter.ALL, pg, 28), null));
         if (gui.appeals != null) {
             action(17, gui.can(viewer, Perms.APPEAL_DECIDE) || gui.can(viewer, Perms.APPEAL_FILE) || gui.can(viewer, Perms.APPEAL_TICKET) || gui.can(viewer, Perms.JUDICIAL_OVERTURN),

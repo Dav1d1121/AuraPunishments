@@ -18,6 +18,9 @@ import java.util.concurrent.CompletableFuture;
  * <p>States:
  * <ul>
  *   <li>{@link State#ENABLED}: {@code judicial.enabled: true}. Everything behaves exactly as in 1.2.x.</li>
+ *   <li>{@link State#CASEWORK}: judicial system off, {@code casework.enabled: true} (1.3.1). Staff still open cases (offense, severity,
+ *       description, evidence, notes) and punish from them, but there is no court: no pretrial detention, hearing, verdict, sentencing or
+ *       direct-punishment bypass. Punishments are final and immediate. Leftover judicial work from before is reported, never resolved for you.</li>
  *   <li>{@link State#DISABLED}: switched off and nothing judicial is open. Punishments are final and immediately
  *       enforceable; no judicial option is offered anywhere. Historical records stay viewable.</li>
  *   <li>{@link State#WIND_DOWN}: switched off but cases are still open or a player is still held in pretrial
@@ -27,7 +30,7 @@ import java.util.concurrent.CompletableFuture;
  * </ul>
  */
 public final class JudicialMode {
-    public enum State { ENABLED, WIND_DOWN, DISABLED }
+    public enum State { ENABLED, CASEWORK, WIND_DOWN, DISABLED }
 
     /** Open judicial work. {@code known} is false until the first successful count (treated as "maybe open"). */
     public record Report(boolean known, int openCases, int awaitingVerdict, int awaitingSentencing, int pretrialDetainees,
@@ -37,6 +40,20 @@ public final class JudicialMode {
         /** Items that block a clean switch-off (a detainee or an unresolved case/appeal). */
         public int blocking() {
             return openCases + pretrialDetainees + caseAppeals;
+        }
+
+        /** Court work left over from when the judicial system was on (not ordinary open cases): the case workflow never starts any, never resolves any for you. */
+        public int courtLeftover() {
+            return pretrialDetainees + awaitingVerdict + awaitingSentencing + caseAppeals;
+        }
+
+        public List<String> courtLines() {
+            List<String> l = new ArrayList<>();
+            if (pretrialDetainees > 0) l.add(pretrialDetainees + " player(s) still held in pretrial detention - release or sentence them (/ap custody)");
+            if (awaitingVerdict > 0 || awaitingSentencing > 0) l.add((awaitingVerdict + awaitingSentencing) + " case(s) still awaiting a verdict or sentencing from the judicial system - "
+                    + "finish them with /ap judge, or move them to Under Review and close them");
+            if (caseAppeals > 0) l.add(caseAppeals + " case appeal(s) not yet decided (/ap cases appeals)");
+            return l;
         }
 
         public List<String> lines() {
@@ -61,15 +78,35 @@ public final class JudicialMode {
         return core.settings.judicial.enabled();
     }
 
+    /** The case workflow without the court is on (judicial system off, {@code casework.enabled}). */
+    public boolean casework() {
+        return !enabled() && core.settings.casework.enabled();
+    }
+
+    /** New cases may be opened (full judicial system, or the case workflow). */
+    public boolean casesAvailable() {
+        return enabled() || casework();
+    }
+
+    /** Case screens, case lists and case history are shown (everything except plain DISABLED). */
+    public boolean casesVisible() {
+        return state() != State.DISABLED;
+    }
+
     public State state() {
         if (enabled()) return State.ENABLED;
+        if (casework()) return State.CASEWORK;
         Report r = report;
         return !r.known() || r.blocking() > 0 ? State.WIND_DOWN : State.DISABLED;
     }
 
-    /** True while judicial screens, queues and notices should be offered (switch on, or open work still to finish). */
+    /** True while the COURT (judge dashboard, trials, custody sweeps, verdicts) should be offered: switch on, or open work still to finish. */
     public boolean judicialVisible() {
-        return state() != State.DISABLED;
+        return switch (state()) {
+            case ENABLED, WIND_DOWN -> true;
+            case CASEWORK -> !report.known() || report.courtLeftover() > 0; // only to finish what the court left behind
+            case DISABLED -> false;
+        };
     }
 
     public Report report() {
@@ -94,6 +131,20 @@ public final class JudicialMode {
             else core.log.warning("Could not count open judicial work: " + ex.getMessage());
             return report;
         });
+    }
+
+    /** Guard for opening a case: allowed with the full judicial system and with the case workflow. {@code null} = go ahead. */
+    public <T> Result<T> refuseNewCase() {
+        if (casesAvailable()) return null;
+        return Result.fail(Code.UNAVAILABLE, "The judicial system is switched off on this server and the case workflow (casework.enabled) is off too, "
+                + "so opening a case is not available. Punishments are issued and final immediately (judicial.enabled / casework.enabled in config.yml).");
+    }
+
+    /** Guard for the COURT (hearings, trials, verdicts, sentencing, case appeals): refused in the case workflow. {@code null} = go ahead. */
+    public <T> Result<T> refuseCourt(String what) {
+        if (!casework()) return null;
+        return Result.fail(Code.UNAVAILABLE, what + " is not part of the case workflow: cases are opened, investigated, punished from and closed - there is no court. "
+                + "Close the case, or punish from it.");
     }
 
     /**

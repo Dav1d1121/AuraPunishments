@@ -80,10 +80,10 @@ public final class PunishmentRecords extends Svc {
     // ------------------------------------------------------------------ evidence
     /**
      * Attach evidence inside the caller's transaction (also used by the owner-review flow). Goes to the punishment's
-     * case only while the judicial system is on and that case is still being worked; otherwise to the punishment.
+     * case only while cases are in use (judicial system or case workflow) and that case is still being worked; otherwise to the punishment.
      */
     static long attachTx(Core core, Connection c, Actor actor, Punishment p, EvidenceValidator.Input in, long now) throws SQLException {
-        if (core.mode.enabled() && p.caseId() != null) {
+        if (core.mode.casesAvailable() && p.caseId() != null) {
             Case cs = Repo.Cases.get(c, p.caseId());
             if (cs != null && cs.status().isOpenForWork()) {
                 long id = Repo.Evidences.add(c, cs.id(), in.type(), in.reference(), in.description(), actor.dbUuid(), actor.name(), now, null);

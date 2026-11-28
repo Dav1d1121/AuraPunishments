@@ -72,6 +72,7 @@ public final class NotificationService {
     public void defendant(dev.aura.punishments.model.Records.Case cs, String event, String detail, String key) {
         Settings.Defendant cfg = core.settings.defendant;
         if (!cfg.enabled() || cs.accusedUuid() == null) return;
+        if (core.mode.casework()) return; // the case workflow has no hearing procedure to report to the accused
         Map<String, String> pl = new LinkedHashMap<>();
         pl.put("event", event);
         pl.put("ref", cs.ref());

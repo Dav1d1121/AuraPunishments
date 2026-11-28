@@ -43,6 +43,15 @@ public final class Settings {
     public record Judicial(boolean enabled, boolean prosecutorMayJudge, boolean requireAssignedJudge, int minVerdictReason,
                            TimeServed timeServed) {}
 
+    /**
+     * The case workflow without the court (1.3.1). Only meaningful while {@code judicial.enabled} is false: staff still open a case (offense,
+     * severity, description, evidence, notes) and punish from it, but there is no pretrial detention, hearing, verdict, sentencing or
+     * time-served credit. A punishment issued from a case is final and immediate.
+     *
+     * @param requireCaseFor punishment types that may only be issued from a case (the quick buttons and commands refuse them)
+     */
+    public record Casework(boolean enabled, Set<PunishType> requireCaseFor) {}
+
     /** Which server this is; stamped on every record so a shared network database can tell them apart. */
     public record Network(String serverName) {}
 
@@ -115,6 +124,7 @@ public final class Settings {
     public final Custody custody;
     public final Judicial judicial;
     public final Network network;
+    public final Casework casework;
     public final Appeals appeals;
     public final JailCfg jail;
     public final Escalation escalation;
@@ -207,6 +217,7 @@ public final class Settings {
             srv = "";
         }
         this.network = new Network(srv);
+        this.casework = new Casework(y.getBoolean("casework.enabled", false), types(y.getStringList("casework.require-case-for"), "casework.require-case-for", p));
         this.appeals = new Appeals(y.getBoolean("appeals.require-ticket", false), range(y, "appeals.min-reason-length", 10, 1, 500, p));
         this.jail = new JailCfg(y.getString("punishments.jail.jail-name", "").trim(), y.getString("punishments.jail.cell-name", "").trim(),
                 y.getBoolean("punishments.jail.mute-while-jailed", false));

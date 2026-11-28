@@ -52,21 +52,36 @@ public final class McFx implements AutoCloseable {
         this(true);
     }
 
-    /** @param judicial true = config with judicial.enabled: true; false = the file exactly as a fresh install receives it */
+    /** The judicial system off and the case workflow on: the shipped file exactly as a fresh install receives it (1.3.1). */
+    public static McFx casework() {
+        return new McFx(false, true);
+    }
+
+    /** @param judicial true = config with judicial.enabled: true; false = judicial off and the case workflow off (the 1.3.0 "plain off" mode) */
     public McFx(boolean judicial) {
+        this(judicial, false);
+    }
+
+    private McFx(boolean judicial, boolean casework) {
         server = MockBukkit.mock();
         String version = org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
                 new java.io.InputStreamReader(McFx.class.getResourceAsStream("/plugin.yml"), java.nio.charset.StandardCharsets.UTF_8)).getString("version");
         File data = new File(server.getPluginsFolder(), "AuraPunishments-" + version); // MockBukkit names the data folder <name>-<version>
         deleteRecursively(data);
         deleteRecursively(new File(server.getPluginsFolder(), "AuraPunishments"));
-        if (judicial) {
+        if (judicial || !casework) {
             try (var in = McFx.class.getResourceAsStream("/config.yml")) {
                 String text = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-                String on = text.replace("\n  enabled: false\n  # May the staff member", "\n  enabled: true\n  # May the staff member");
-                if (on.equals(text)) throw new IllegalStateException("shipped config.yml has no judicial.enabled line to switch on");
+                String patched = text;
+                if (judicial) {
+                    patched = patched.replace("\n  enabled: false\n  # May the staff member", "\n  enabled: true\n  # May the staff member");
+                    if (patched.equals(text)) throw new IllegalStateException("shipped config.yml has no judicial.enabled line to switch on");
+                }
+                String before = patched;
+                patched = patched.replace("\ncasework:\n  enabled: true\n", "\ncasework:\n  enabled: false\n");
+                if (patched.equals(before)) throw new IllegalStateException("shipped config.yml has no casework.enabled line");
                 data.mkdirs();
-                java.nio.file.Files.writeString(new File(data, "config.yml").toPath(), on);
+                java.nio.file.Files.writeString(new File(data, "config.yml").toPath(), patched);
             } catch (java.io.IOException e) {
                 throw new IllegalStateException(e);
             }

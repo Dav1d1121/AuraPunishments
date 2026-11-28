@@ -33,8 +33,11 @@ class JudicialModeTest {
         if (fx != null) fx.close();
     }
 
+    /** The shipped file, with the 1.3.1 case workflow switched off again: these tests are about the plain "off" mode (see CaseworkTest for the other). */
     static YamlConfiguration shipped() {
-        return YamlConfiguration.loadConfiguration(new InputStreamReader(JudicialModeTest.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
+        YamlConfiguration y = YamlConfiguration.loadConfiguration(new InputStreamReader(JudicialModeTest.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
+        y.set("casework.enabled", false);
+        return y;
     }
 
     // ------------------------------------------------------------------ defaults
@@ -100,6 +103,7 @@ class JudicialModeTest {
         // the admin edits config.yml and reloads
         YamlConfiguration y = shipped();
         y.set("judicial.enabled", false);
+        y.set("casework.enabled", false); // the plain "off" mode of 1.3.0 (the shipped 1.3.1 file turns the case workflow on)
         fx.core.settings = Settings.parse(y);
     }
 

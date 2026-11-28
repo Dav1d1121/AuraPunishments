@@ -42,6 +42,10 @@ public final class CaseService extends Svc {
         }
     }
 
+    /** The only statuses staff move a case between in the case workflow (no court steps). */
+    private static final java.util.Set<CaseStatus> CASEWORK_STATUSES = java.util.EnumSet.of(CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION,
+            CaseStatus.UNDER_REVIEW, CaseStatus.CLOSED);
+
     public enum Filter { ALL, OPEN, PENDING_TRIAL, AWAITING_VERDICT, AWAITING_SENTENCE, MINE, APPEALS }
 
     public CaseService(Core core, CustodyService custody) {
@@ -51,7 +55,7 @@ public final class CaseService extends Svc {
 
     // ------------------------------------------------------------------ create
     public CompletableFuture<Result<Case>> create(Actor actor, CreateRequest r) {
-        Result<Case> off0 = core.mode.refuseNew("opening a case");
+        Result<Case> off0 = core.mode.refuseNewCase();
         if (off0 != null) return done(off0);
         Settings s = core.settings;
         boolean full = core.auth.has(actor, Perms.CASE_CREATE);
@@ -379,6 +383,10 @@ public final class CaseService extends Svc {
     }
 
     public CompletableFuture<Result<Case>> transition(Actor actor, long caseId, long expectedVersion, CaseStatus to, String reason) {
+        if (core.mode.casework() && !CASEWORK_STATUSES.contains(to)) {
+            Result<Case> court = core.mode.refuseCourt("'" + to.display() + "'");
+            return done(court != null ? court : Result.<Case>fail(Code.UNAVAILABLE, "That status is not available."));
+        }
         Result<Void> perm = permitTransition(actor, to);
         if (!perm.isOk()) return done(perm.cast());
         String why = Text.clean(reason);
@@ -395,7 +403,8 @@ public final class CaseService extends Svc {
                 return Result.<Case>fail(Code.STATE, "A case that is '" + cs.status().display() + "' cannot move to '" + to.display() + "'.");
             }
             // With the judicial system off, a finished case may only be closed; it cannot be brought back to life.
-            if (!core.mode.enabled() && !cs.status().isOpenForWork() && to != CaseStatus.CLOSED) {
+            // (The case workflow keeps cases open and lets staff reopen a closed one through Under Review.)
+            if (!core.mode.enabled() && !core.mode.casework() && !cs.status().isOpenForWork() && to != CaseStatus.CLOSED) {
                 return Result.<Case>fail(Code.UNAVAILABLE, "The judicial system is switched off, so a finished case cannot be reopened or appealed through the case. "
                         + "Use the punishment's own appeal and history tools instead.");
             }
@@ -482,6 +491,8 @@ public final class CaseService extends Svc {
     }
 
     public CompletableFuture<Result<Case>> assignJudge(Actor actor, long caseId, long expectedVersion, Target judge) {
+        Result<Case> court = core.mode.refuseCourt("Assigning a judge");
+        if (court != null) return done(court);
         Result<Void> perm = core.auth.requireAny(actor, "assign a judge", Perms.JUDICIAL_MANAGE);
         if (!perm.isOk()) return done(perm.cast());
         return core.levels.hasPermission(judge.uuid(), Perms.JUDICIAL_VERDICT).handle((ok, ex) -> ex == null && Boolean.TRUE.equals(ok)).thenCompose(can -> {
@@ -525,6 +536,8 @@ public final class CaseService extends Svc {
     }
 
     public CompletableFuture<Result<Case>> scheduleTrial(Actor actor, long caseId, long expectedVersion, long trialAtMillis) {
+        Result<Case> court = core.mode.refuseCourt("Scheduling a trial");
+        if (court != null) return done(court);
         Result<Void> perm = core.auth.requireAny(actor, "schedule a trial", Perms.JUDICIAL_MANAGE, Perms.CASE_MANAGE);
         if (!perm.isOk()) return done(perm.cast());
         final Long[] previousTrial = new Long[1];
@@ -564,6 +577,8 @@ public final class CaseService extends Svc {
     }
 
     public CompletableFuture<Result<Case>> setHearingRef(Actor actor, long caseId, long expectedVersion, String ref) {
+        Result<Case> court = core.mode.refuseCourt("A hearing reference");
+        if (court != null) return done(court);
         Result<Void> perm = core.auth.requireAny(actor, "record the hearing reference", Perms.JUDICIAL_MANAGE, Perms.CASE_MANAGE);
         if (!perm.isOk()) return done(perm.cast());
         String r = Text.truncate(Text.clean(ref), 200);

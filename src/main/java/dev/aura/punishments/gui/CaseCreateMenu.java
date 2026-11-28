@@ -43,7 +43,7 @@ final class CaseCreateMenu extends Menu {
     protected void render() {
         navigation();
         set(4, Items.head(target.uuid(), target.name(), Items.t("<white><b><v>", "v", target.name()),
-                List.of(Items.t("<gray>Accused"), Items.t("<gray>Prosecutor (you): <white><v>", "v", viewer.getName()))));
+                List.of(Items.t("<gray>Accused"), Items.t(gui.core().mode.casework() ? "<gray>Opened by (you): <white><v>" : "<gray>Prosecutor (you): <white><v>", "v", viewer.getName()))));
 
         // 1. offense
         List<Component> o = new ArrayList<>();
@@ -106,7 +106,7 @@ final class CaseCreateMenu extends Menu {
         boolean ready = offense != null && severity != null && description.length() >= gui.settings().cases.minDescription() && evidence.size() >= need;
         List<Component> sub = new ArrayList<>();
         sub.add(Items.t(ready ? "<green>Ready to open the case" : "<red>Complete the required steps first"));
-        sub.add(Items.t("<gray>You become the default prosecutor."));
+        sub.add(Items.t(gui.core().mode.casework() ? "<gray>You can punish from the case afterwards." : "<gray>You become the default prosecutor."));
         set(31, Items.item(ready ? Material.LIME_CONCRETE : Material.RED_CONCRETE, Items.t(ready ? "<green><b>SUBMIT CASE" : "<red><b>Incomplete"), sub), (p, t) -> {
             if (!ready) {
                 gui.messages().sendError(p, "Choose the offense, write a description and add the required evidence first.");

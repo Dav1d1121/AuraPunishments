@@ -426,7 +426,7 @@ public final class ReviewService extends Svc {
 
     /** Refer the punishment to the judicial system: opens a standard case and marks the review "Further investigation". */
     public CompletableFuture<Result<Long>> refer(Actor actor, long id, long expectedVersion, String note) {
-        Result<Long> off0 = core.mode.refuseNew("opening a case from a review");
+        Result<Long> off0 = core.mode.refuseNewCase();
         if (off0 != null) return done(off0);
         Result<Void> perm = core.auth.requireAny(actor, "refer to the judicial system", Perms.REVIEW_REVIEW);
         if (!perm.isOk()) return done(perm.cast());

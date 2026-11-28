@@ -160,6 +160,21 @@ escalation:
   count-direct-punishments: true
   # Acquittals, dismissals, overturned verdicts and unproven allegations NEVER count.
 
+# CASE WORKFLOW (new in 1.3.1) - the case screens WITHOUT the court. Only used while judicial.enabled is false.
+#   true  - "Create Case" is the main path on a player's screen: open a case (offense, severity, description, evidence, notes),
+#           then press "Punish" on the case to warn / kick / mute / ban / IP-ban / jail. The punishment takes effect
+#           immediately and is final; it is linked to the case, and the case STAYS OPEN for more evidence, notes and appeals
+#           until staff close it. There is no pretrial detention, no hearing, no verdict, no sentencing and no time-served credit.
+#           The quick buttons (Issue Warning / Kick / Mute / Ban ...) and /ap warn|kick|mute|ban still work without a case.
+#   false - no cases at all while the judicial system is off (the 1.3.0 behaviour: punishments are issued directly).
+# If this section is missing it is treated as false, so an upgrade never changes behaviour by itself. Takes effect on /ap reload.
+# Ignored while judicial.enabled is true (the full judicial system always has cases).
+casework:
+  enabled: true
+  # Punishment types that may ONLY be issued from a case (the quick buttons and /ap commands refuse them with an explanation).
+  # Leave empty to keep the quick buttons fully available. Example: [BAN, IPBAN, JAIL] makes every ban and jail need a case.
+  require-case-for: []
+
 # ---------------------------------------------------------------------------
 #  Direct punishments (major offenses only - not the primary workflow)
 # ---------------------------------------------------------------------------

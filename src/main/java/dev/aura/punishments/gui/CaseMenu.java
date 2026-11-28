@@ -73,10 +73,12 @@ final class CaseMenu extends Menu {
         h.add(Items.t("<gray>Status: " + Views.statusColor(c.status()) + "<v>", "v", c.status().display()));
         h.add(Items.t("<gray>Accused: <white><v>", "v", c.accusedName()));
         h.add(Items.t("<gray>Offense: <white><v> <dark_gray>(<s>)", "v", off.map(Offense::display).orElse(c.offenseKey()), "s", c.severity().name()));
-        h.add(Items.t("<gray>Prosecutor: <white><v>", "v", c.prosecutorName() == null ? "-" : c.prosecutorName()));
-        h.add(Items.t("<gray>Judge: <white><v>", "v", c.judgeName() == null ? "not assigned" : c.judgeName()));
-        h.add(Items.t("<gray>Trial: <white><v>", "v", c.trialAt() == null ? "not scheduled" : Gui.time(c.trialAt())));
-        h.add(Items.t("<gray>Hearing: <white><v>", "v", c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 40)));
+        boolean casework = gui.core().mode.casework();
+        h.add(Items.t(casework ? "<gray>Opened by: <white><v>" : "<gray>Prosecutor: <white><v>", "v", c.prosecutorName() == null ? "-" : c.prosecutorName()));
+        if (!casework || c.judgeName() != null) h.add(Items.t("<gray>Judge: <white><v>", "v", c.judgeName() == null ? "not assigned" : c.judgeName()));
+        if (!casework || c.trialAt() != null) h.add(Items.t("<gray>Trial: <white><v>", "v", c.trialAt() == null ? "not scheduled" : Gui.time(c.trialAt())));
+        if (!casework || c.hearingRef() != null) h.add(Items.t("<gray>Hearing: <white><v>", "v", c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 40)));
+        if (casework) h.add(Items.t("<gray>Punishments from this case: <white><v>", "v", String.valueOf(d.punishments().size())));
         if (c.verdict() != null) {
             h.add(Items.t("<gray>Verdict: <white><v><gray> by <white><b>", "v", c.verdict().display() + (c.overturned() ? " (OVERTURNED)" : ""), "b", String.valueOf(c.verdictByName())));
             h.add(Items.t("<gray>Reasoning: <white><v>", "v", Text.truncate(String.valueOf(c.verdictReason()), 50)));
@@ -114,7 +116,14 @@ final class CaseMenu extends Menu {
         } else if (!live && c.status().custodyAllowed() && can(Perms.CUSTODY_INITIATE) && gui.settings().custody.enabled()) {
             cl.add(Items.t("<yellow>Click: initiate pretrial detention"));
         }
-        set(13, Items.item(live ? Material.IRON_BARS : Material.OAK_DOOR, Items.t("<gold><b>Custody"), cl), (p, t) -> custodyClick(p, t, cu, live));
+        if (casework && cu == null) {
+            boolean open = c.status().isOpenForWork();
+            action(13, canPunishFromCase(), Material.NETHERITE_SWORD, "<red><b>Punish",
+                    List.of(open ? "<gray>Warn, kick, mute, ban or jail " + esc(c.accusedName()) : "<red>The case is " + c.status().display().toLowerCase() + " - reopen it first",
+                            "<gray>Takes effect immediately and is final.", "<gray>This case stays open for notes and appeals."), (p, t) -> punishClick(p));
+        } else {
+            set(13, Items.item(live ? Material.IRON_BARS : Material.OAK_DOOR, Items.t("<gold><b>Custody"), cl), (p, t) -> custodyClick(p, t, cu, live));
+        }
         List<Component> pl = new ArrayList<>();
         for (Punishment pun : d.punishments()) pl.add(Items.t("<red>#<id> <white><t> <gray>(<s>)", "id", String.valueOf(pun.id()), "t", pun.type().display(), "s", pun.status().name().toLowerCase()));
         if (pl.isEmpty()) pl.add(Items.t("<gray>No punishments attached"));
@@ -127,22 +136,30 @@ final class CaseMenu extends Menu {
         }
         for (Appeal a : d.appeals()) ap.add(Items.t("<gray>Appeal by <white><b> <gray>(<s>)", "b", a.filedByName(), "s", a.status().name().toLowerCase()));
         if (ap.isEmpty()) ap.add(Items.t("<gray>No appeals or direct decisions"));
-        set(15, Items.item(Material.WRITABLE_BOOK, Items.t("<light_purple><b>Appeals / Direct decision"), ap));
+        if (casework && d.appeals().isEmpty()) {
+            ap.clear();
+            ap.add(Items.t("<gray>Appeals are filed against a punishment:"));
+            ap.add(Items.t("<gray>open it from <white>Punishments <gray>and use <white>File appeal"));
+        }
+        set(15, Items.item(Material.WRITABLE_BOOK, Items.t("<light_purple><b>" + (casework ? "Appeals" : "Appeals / Direct decision")), ap));
 
         // ---- management row
         boolean manage = can(Perms.CASE_MANAGE) || can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_CLOSE);
         action(19, manage, Material.COMPARATOR, "<aqua><b>Change status",
-                List.of("<gray>Current: <white>" + c.status().display(), "<gray>Investigate, schedule, start trial, close"), (p, t) -> statusMenu());
-        action(20, can(Perms.JUDICIAL_MANAGE), Material.LECTERN, "<light_purple><b>Assign judge",
-                List.of("<gray>Judge: <white>" + esc(c.judgeName() == null ? "none" : c.judgeName()), "<yellow>Click: assign yourself", "<yellow>Right-click: assign another player"), (p, t) -> judgeClick(p, t));
-        action(21, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.CLOCK, "<light_purple><b>Schedule trial",
-                List.of("<gray>Trial: <white>" + (c.trialAt() == null ? "not scheduled" : Gui.time(c.trialAt())), "<gray>Enter yyyy-MM-dd HH:mm or e.g. 2d"), (p, t) -> trialClick(p));
-        action(22, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.NAME_TAG, "<light_purple><b>Hearing reference",
-                List.of("<gray>Discord channel or link: <white>" + esc(c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 30))), (p, t) -> hearingClick(p));
+                casework ? List.of("<gray>Current: <white>" + c.status().display(), "<gray>Investigate, put under review, close or reopen")
+                        : List.of("<gray>Current: <white>" + c.status().display(), "<gray>Investigate, schedule, start trial, close"), (p, t) -> statusMenu());
+        if (!casework) {
+            action(20, can(Perms.JUDICIAL_MANAGE), Material.LECTERN, "<light_purple><b>Assign judge",
+                    List.of("<gray>Judge: <white>" + esc(c.judgeName() == null ? "none" : c.judgeName()), "<yellow>Click: assign yourself", "<yellow>Right-click: assign another player"), (p, t) -> judgeClick(p, t));
+            action(21, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.CLOCK, "<light_purple><b>Schedule trial",
+                    List.of("<gray>Trial: <white>" + (c.trialAt() == null ? "not scheduled" : Gui.time(c.trialAt())), "<gray>Enter yyyy-MM-dd HH:mm or e.g. 2d"), (p, t) -> trialClick(p));
+            action(22, can(Perms.JUDICIAL_MANAGE) || can(Perms.CASE_MANAGE), Material.NAME_TAG, "<light_purple><b>Hearing reference",
+                    List.of("<gray>Discord channel or link: <white>" + esc(c.hearingRef() == null ? "-" : Text.truncate(c.hearingRef(), 30))), (p, t) -> hearingClick(p));
+        }
         action(23, can(Perms.CASE_MANAGE), Material.ANVIL, "<yellow><b>Edit details",
-                List.of("<gray>Change description / severity", "<gray>(before the trial begins)"), (p, t) -> editMenu());
-        action(24, can(Perms.CASE_MANAGE), Material.PLAYER_HEAD, "<yellow><b>Reassign prosecutor",
-                List.of("<gray>Prosecutor: <white>" + esc(String.valueOf(c.prosecutorName()))), (p, t) -> prosecutorClick(p));
+                casework ? List.of("<gray>Change description / severity") : List.of("<gray>Change description / severity", "<gray>(before the trial begins)"), (p, t) -> editMenu());
+        action(24, can(Perms.CASE_MANAGE), Material.PLAYER_HEAD, casework ? "<yellow><b>Reassign case owner" : "<yellow><b>Reassign prosecutor",
+                List.of((casework ? "<gray>Owner: <white>" : "<gray>Prosecutor: <white>") + esc(String.valueOf(c.prosecutorName()))), (p, t) -> prosecutorClick(p));
 
         // ---- judicial row
         boolean awaitingVerdict = c.status() == CaseStatus.IN_TRIAL || c.status() == CaseStatus.AWAITING_VERDICT;
@@ -175,7 +192,7 @@ final class CaseMenu extends Menu {
                                 gui.success(p, "Saved " + ex.fileName() + " in the exports folder.")));
         action(36, can(Perms.COREPROTECT) && can(Perms.EVIDENCE_ADD) && gui.coreProtect != null && gui.coreProtect.available(), Material.COMPASS, "<green><b>CoreProtect lookup",
                 List.of("<gray>Read-only lookup of the accused's", "<gray>blocks, chat, commands or sessions", "<gray>Optionally saved as evidence"), (p, t) -> CoreProtectFlow.start(gui, p, this, c));
-        action(37, can(Perms.APPEAL_TICKET) || can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE), Material.NAME_TAG, "<aqua><b>Appeal ticket",
+        action(37, !casework && (can(Perms.APPEAL_TICKET) || can(Perms.JUDICIAL_OVERTURN) || can(Perms.APPEAL_DECIDE)), Material.NAME_TAG, "<aqua><b>Appeal ticket",
                 List.of("<gray>Ticket Tool ticket: <white>" + (c.appealTicket() == null ? "none" : c.appealTicket()), "<gray>Click to link / replace"), (p, t) ->
                         gui.prompts().ask(p, "Type the Ticket Tool ticket number (e.g. 0042) or the ticket channel link.", 1, 200, text ->
                                 gui.call(p, gui.judicial.linkAppealTicket(gui.actor(p), c.id(), text), x -> {
@@ -194,6 +211,40 @@ final class CaseMenu extends Menu {
     }
 
     // ------------------------------------------------------------------ actions
+    /** Case workflow: anyone who may issue at least one punishment type may punish from a case they can see. */
+    private boolean canPunishFromCase() {
+        for (PunishType t : new PunishType[]{PunishType.WARN, PunishType.KICK, PunishType.MUTE, PunishType.BAN, PunishType.IPBAN, PunishType.JAIL}) {
+            if (can(Perms.punish(t))) return true;
+        }
+        return false;
+    }
+
+    /** Choose the punishment, then the usual screen (duration, reason, evidence, note, confirmation) with this case as its context. */
+    private void punishClick(Player p) {
+        Case c = d.c();
+        long caseEvidence = d.evidence().stream().filter(e -> !e.voided()).count();
+        List<ChoiceMenu.Choice> choices = new ArrayList<>();
+        for (PunishType t : new PunishType[]{PunishType.WARN, PunishType.KICK, PunishType.MUTE, PunishType.BAN, PunishType.IPBAN, PunishType.JAIL}) {
+            boolean allowed = can(Perms.punish(t));
+            Optional<Offense> off = gui.core().offenses.get(c.offenseKey());
+            String why = "<gray>Click to continue";
+            if (!allowed) {
+                why = "<red>You may not issue this";
+            } else if (t == PunishType.JAIL && !gui.core().jail.available()) {
+                allowed = false;
+                why = "<red>JailReloaded is not available";
+            } else if (t != PunishType.KICK && off.isPresent() && !off.get().allows(t)) {
+                allowed = false;
+                why = "<red>" + esc(off.get().display()) + " cannot result in this (offenses.yml)";
+            }
+            final PunishType type = t;
+            choices.add(new ChoiceMenu.Choice(Views.punishIcon(t), "<white><b>" + t.display(), List.of(why), allowed, () ->
+                    QuickPunishMenu.openForCase(gui, p, this, new Target(c.accusedUuid(), c.accusedName(), false), type, c, caseEvidence, this::reload)));
+        }
+        new ChoiceMenu(gui, viewer, this, "Punish from " + c.ref(), Items.item(Material.NETHERITE_SWORD, Items.t("<white><b><v>", "v", c.accusedName()),
+                List.of(Items.t("<gray>Takes effect immediately and is final."), Items.t("<gray>" + c.ref() + " stays open."))), choices).open();
+    }
+
     private void custodyClick(Player p, org.bukkit.event.inventory.ClickType t, Custody cu, boolean live) {
         Case c = d.c();
         if (live && cu.status() == CustodyStatus.ACTIVE) {
@@ -224,8 +275,11 @@ final class CaseMenu extends Menu {
     private void statusMenu() {
         Case c = d.c();
         List<ChoiceMenu.Choice> choices = new ArrayList<>();
-        for (CaseStatus s : new CaseStatus[]{CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.AWAITING_TRIAL, CaseStatus.IN_TRIAL,
-                CaseStatus.AWAITING_VERDICT, CaseStatus.UNDER_REVIEW, CaseStatus.CLOSED}) {
+        CaseStatus[] offered = gui.core().mode.casework()
+                ? new CaseStatus[]{CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.UNDER_REVIEW, CaseStatus.CLOSED}
+                : new CaseStatus[]{CaseStatus.OPEN, CaseStatus.UNDER_INVESTIGATION, CaseStatus.AWAITING_TRIAL, CaseStatus.IN_TRIAL,
+                CaseStatus.AWAITING_VERDICT, CaseStatus.UNDER_REVIEW, CaseStatus.CLOSED};
+        for (CaseStatus s : offered) {
             boolean ok = c.status().canMoveTo(s);
             String why = ok ? "<gray>Click to move the case here" : "<red>Not allowed from " + c.status().display();
             if (s == CaseStatus.IN_TRIAL && c.judgeUuid() == null) {

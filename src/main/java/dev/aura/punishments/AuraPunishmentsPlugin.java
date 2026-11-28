@@ -266,12 +266,14 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
 
     /** Console (and optionally one player) warning while the judicial system is off but work is still open. Never changes anything. */
     private void warnWindDown(CommandSender to) {
-        if (core.mode.state() != JudicialMode.State.WIND_DOWN) return;
+        if (!windDownWarning()) return;
         var report = core.mode.report();
+        boolean casework = core.mode.casework();
         List<String> lines = new ArrayList<>();
-        lines.add("The judicial system is switched OFF but judicial work is still open. NOTHING has been released, closed or deleted automatically:");
+        lines.add("The judicial system is switched OFF but court work is still open" + (casework ? " (the case workflow does not touch it)" : "")
+                + ". NOTHING has been released, closed or deleted automatically:");
         if (!report.known()) lines.add("  (the open items could not be counted yet)");
-        for (String l : report.lines()) lines.add("  - " + l);
+        for (String l : casework ? report.courtLines() : report.lines()) lines.add("  - " + l);
         lines.add("Finish them with the normal tools (/ap judge, /ap cases open). Details and the resolution steps: docs/JUDICIAL-MODE.md. "
                 + "Switching judicial.enabled back to true at any time restores everything.");
         if (to == null) {
@@ -281,11 +283,17 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         }
     }
 
+    /** True while court work from before is still open: judicial.enabled false and either nothing replaces it (wind-down) or leftovers remain next to the case workflow. */
+    private boolean windDownWarning() {
+        var state = core.mode.state();
+        return state == JudicialMode.State.WIND_DOWN || (state == JudicialMode.State.CASEWORK && core.mode.report().known() && core.mode.report().courtLeftover() > 0);
+    }
+
     /** Tell administrators who join while judicial work is still open after the system was switched off. */
     @org.bukkit.event.EventHandler
     public void onAdminJoin(org.bukkit.event.player.PlayerJoinEvent e) {
         Player p = e.getPlayer();
-        if (core == null || !p.hasPermission(Perms.ADMIN) || core.mode.state() != JudicialMode.State.WIND_DOWN) return;
+        if (core == null || !p.hasPermission(Perms.ADMIN) || !windDownWarning()) return;
         Bukkit.getScheduler().runTaskLater(this, () -> {
             if (p.isOnline()) warnWindDown(p);
         }, 60L);
@@ -298,6 +306,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         log.info("JailReloaded: " + core.jail.status());
         log.info("Server name (records are stamped with it): " + db.origin());
         log.info("Judicial system: " + (core.mode.enabled() ? "ENABLED (cases, pretrial detention, hearings, verdicts and sentencing are available)"
+                : core.mode.casework() ? "OFF (judicial.enabled: false), CASE WORKFLOW ON (casework.enabled: true) - cases are opened, investigated, punished from and closed; no court, punishments are final immediately"
                 : "DISABLED (judicial.enabled: false) - punishments are final and immediately enforceable"));
         if (!core.jail.available()) {
             log.warning("Pretrial custody and jail sentences are UNAVAILABLE until JailReloaded is present and compatible. Everything else works.");
@@ -447,7 +456,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         l.add("Active bans/mutes cached: " + punishments.cache().size());
         l.add("JailReloaded: " + core.jail.status());
         l.add("Server name: " + db.origin() + ", database schema v" + db.schemaVersion());
-        l.add("Judicial system: " + core.mode.state() + (core.mode.state() == JudicialMode.State.WIND_DOWN ? " - " + String.join("; ", core.mode.report().lines()) : ""));
+        l.add("Judicial system: " + core.mode.state() + (core.mode.state() == JudicialMode.State.WIND_DOWN ? " - " + String.join("; ", core.mode.report().lines())
+                : windDownWarning() ? " - court work left over: " + String.join("; ", core.mode.report().courtLines()) : ""));
         l.add("LuckPerms: " + (luckPerms != null ? "connected" : "not connected"));
         l.add("Discord: " + discord.status());
         l.add("CoreProtect: " + coreProtect.status());

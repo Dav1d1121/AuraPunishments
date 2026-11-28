@@ -218,8 +218,14 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
     private void judicial(CommandSender sender, String[] a) {
         var mode = gui.core().mode;
         Runnable show = () -> {
-            gui.messages().sendInfo(sender, "Judicial system: " + mode.state() + " (judicial.enabled: " + mode.enabled() + ")");
-            if (mode.state() == dev.aura.punishments.service.JudicialMode.State.DISABLED) {
+            gui.messages().sendInfo(sender, "Judicial system: " + mode.state() + " (judicial.enabled: " + mode.enabled() + ", casework.enabled: " + gui.settings().casework.enabled() + ")");
+            if (mode.casework()) {
+                gui.messages().sendInfo(sender, "Case workflow: cases are opened, investigated, punished from and closed - there is no court. Punishments are final immediately.");
+                if (mode.report().courtLeftover() > 0) {
+                    gui.messages().sendError(sender, "Court work from before is still open. Nothing is released, closed or deleted automatically:");
+                    for (String l : mode.report().courtLines()) gui.messages().sendInfo(sender, " - " + l);
+                }
+            } else if (mode.state() == dev.aura.punishments.service.JudicialMode.State.DISABLED) {
                 gui.messages().sendInfo(sender, "Nothing judicial is open. Punishments are final and immediately enforceable.");
             } else if (mode.state() == dev.aura.punishments.service.JudicialMode.State.WIND_DOWN) {
                 gui.messages().sendError(sender, "Judicial work is still open. Nothing is released, closed or deleted automatically:");
