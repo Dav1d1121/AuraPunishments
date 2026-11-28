@@ -125,8 +125,26 @@ public final class LiveTest extends JavaPlugin {
         Bukkit.getScheduler().runTaskLater(this, () -> Bukkit.getScheduler().runTaskAsynchronously(this, () -> run(ph)), 60L);
     }
 
+    /** Wait until the server accepts connections (on some Paper versions the listener opens a little after the first ticks). */
+    private void awaitListener() {
+        long end = System.currentTimeMillis() + 120_000L;
+        while (System.currentTimeMillis() < end) {
+            try (java.net.Socket s = new java.net.Socket()) {
+                s.connect(new java.net.InetSocketAddress("127.0.0.1", Bukkit.getPort()), 400);
+                return;
+            } catch (java.io.IOException e) {
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    return;
+                }
+            }
+        }
+    }
+
     private void run(String phase) {
         try {
+            awaitListener();
             results.add("== phase " + phase + " ==");
             switch (phase) {
                 case "1" -> phase1();
