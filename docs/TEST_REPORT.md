@@ -8,9 +8,9 @@
 |---|---|
 | **A. Automated tests, standalone SQLite**, on **both** API versions (`gradle test`: Paper API 26.3 + MockBukkit v26.3; `gradle test121`: Paper API 1.21.11 + MockBukkit v1.21) | **457 tests, 0 failures on each** (375 from 1.3.2, all still asserting what they asserted, plus 82 new) |
 | **B. The same 457 tests against a real MariaDB 10.11** (`gradle testMariadb`: every fixture creates its own throw-away database on the shared engine) | **457 run, 0 failures, 1 skipped** (a test that is SQLite-only by definition) |
-| **C. Live network lab** (`tools/network-lab`): MariaDB 10.11.14, **Velocity 4.3.1** (modern forwarding), **five real Paper backends**: lobby, survival, jail on **26.3**; towny, skyblock on **1.21.11**; real TCP protocol clients of **both versions** connecting **through the proxy**; LuckPerms 5.5.71 with one shared MariaDB storage on lobby/survival/towny; JailReloaded 1.2.2 on the jail backend only | **111/111 checks pass** (one run, [evidence](evidence/live-network-lab-1.4.0-results.txt)) |
-| **D. Live regression of everything from 1.3.x on a standalone server** (SQLite, real JailReloaded, LuckPerms, Towny, TownyChat, EssentialsX + Chat, CoreProtect, AuraCommandFilter; real protocol clients) | **Paper 26.3: 533/533** (phases 13/12/8/9/10/7/6/1/2/3 = 60/115/98/11/22/91/65/54/9/8, identical to 1.3.2). **Paper 1.21.11: @@R121@@** |
-| **E. Real-data upgrade** (data folders written by 1.0.0 and 1.x booted with the 1.4.0 jar, compared row by row with the originals) | **26.3: @@UP26@@; 1.21.11: @@UP121@@** |
+| **C. Live network lab** (`tools/network-lab`): MariaDB 10.11.14, **Velocity 4.3.1** (modern forwarding), **five real Paper backends**: lobby, survival, jail on **26.3**; towny, skyblock on **1.21.11**; real TCP protocol clients of **both versions** connecting **through the proxy**; LuckPerms 5.5.71 with one shared MariaDB storage on lobby/survival/towny; JailReloaded 1.2.2 on the jail backend only | **112/112 checks pass** (one run, [evidence](evidence/live-network-lab-1.4.0-results.txt)) |
+| **D. Live regression of everything from 1.3.x on a standalone server** (SQLite, real JailReloaded, LuckPerms, Towny, TownyChat, EssentialsX + Chat, CoreProtect, AuraCommandFilter; real protocol clients) | **Paper 26.3: 533/533** (phases 13/12/8/9/10/7/6/1/2/3 = 60/115/98/11/22/91/65/54/9/8, identical to 1.3.2). **Paper 1.21.11: 519/520** (identical to 1.3.2: the one miss is "AuraCommandFilter present" - your AuraCommandFilter declares `api-version: 26.3` and Paper 1.21.11 refuses to load it; it is not part of AuraPunishments) |
+| **E. Real-data upgrade** (data folders written by 1.0.0 and 1.x booted with the 1.4.0 jar, compared row by row with the originals) | **26/26 runtime checks on each server; 696 original rows (204 from 1.0.0 data across 12 tables, 492 from 1.x data across 16 tables): all identical** on 26.3 and on 1.21.11 |
 | **Build** | one shaded jar (1.84 MB): MariaDB driver and HikariCP relocated under `dev.aura.punishments.libs`, class-file version 65 (Java 21), `api-version: 1.21.11`, verified outside the test framework against MariaDB |
 
 ### What the live network lab exercised (all passing)
@@ -20,7 +20,7 @@
 | Boot | all five backends and the proxy start; every backend reports the shared MariaDB, schema v4, no AuraPunishments warning at start; the registry lists all five and flags the jail backend |
 | **Bans across servers and versions** | a ban issued on skyblock (1.21.11) disconnects the player on survival (26.3) in **2.0 s**; the database decides at login on every backend; an unban on towny lifts it everywhere; a ban from the lobby (26.3) disconnects a 1.21.11 client |
 | Mutes | a mute from the jail backend cancels the player's chat on survival; an unmute from towny lifts it |
-| Warnings | a warning for an offline player reaches them at login, once |
+| Warnings | a warning for an offline player reaches them at login, is recorded as delivered and is not shown again when they connect to another server |
 | **Network jail** | ordered on the lobby for a player on survival: the origin is recorded, the player is moved to the jail backend through the proxy, JailReloaded holds them, the record turns HELD; `/ap unjail` from towny frees them and sends them back to survival; a player jailed while offline lands in jail at their next login on any backend |
 | **Jail backend frozen** (SIGSTOP) | the jail is still accepted (heartbeat fresh); the player cannot be moved so stays **held** on survival: chat cancelled, commands refused with the reason; when the backend answers again the player is carried off and jailed |
 | Concurrency | three backends ban the same player at the same instant: **exactly one** active ban; 120 warnings from two backends stored in 0.6 s; the shared audit hash chain verifies after both |
@@ -44,6 +44,13 @@
 | Live lab (outage) | heartbeats queued up behind the dead database | at most one in flight; the pool refuses quickly and probes the server once a second |
 | Live lab | a network backend without JailReloaded logged "pretrial custody UNAVAILABLE" | informative message instead |
 | Unit test | `Database.close()` threw when called twice | idempotent |
+
+### How the live runs went
+
+* The network lab took several iterations; every failure it produced was either a defect in the plugin (the table above) or in the lab itself (a scenario that needed a player to have joined once, a client that must be the right Minecraft version for the backend, LuckPerms refusing logins by itself while its own database is away). Velocity 3.5.1 and 3.6 did not yet accept 26.3 clients; **Velocity 4.3.1** does and was used.
+* On Paper 1.21.11 phase 6 the test server hung while shutting down after the phase had finished (a harness fake player whose embedded channel Paper 1.21.11 cannot disconnect cleanly at shutdown: the exception is entirely inside Paper, not in AuraPunishments). The results file had already been written; the process was killed and the run continued.
+* The standalone live phases ran with `punishments.ip-bans.refuse-private-addresses: false` (the harness records its fake players with 10.x addresses; the shipped file refuses such addresses). The network lab ran with the shipped value.
+* The live phases that hard-coded schema v3 now check the latest schema.
 
 ### Not tested (said plainly)
 

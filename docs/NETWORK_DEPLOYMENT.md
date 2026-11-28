@@ -182,8 +182,8 @@ No new permission nodes. Hierarchy (who may punish whom) works as before on ever
 |---|---|
 | `Another server is already running as 'survival'` | two backends share a `server-name`; rename one (a crashed server's entry expires after 45 s) |
 | `This server's clock differs from the database server's by N s` | fix NTP |
-| `Database schema vN is newer than this plugin` | an updated backend has already migrated; update this one |
-| `has not been migrated ... allow-migration` | start one backend with `database.allow-migration: true` once (all stopped, backup taken) |
+| `The shared database is at schema vN but this plugin only knows vM` | an updated backend has already migrated; update this one to the same version |
+| `The shared database is at schema vN and this plugin needs vM` | start ONE backend with `database.allow-migration: true` once (all stopped, backup taken), then the others |
 | `The jail backend 'jail' is not running` | the jail backend's heartbeat is older than 45 s; start/repair it. Jails already ordered stay held and are carried out when it returns. |
 | `... is not a public player address` | forwarding is not configured; see section 4 |
 | `The database is unavailable right now. Nothing was changed.` | see section 6; the plugin recovers by itself |

@@ -42,8 +42,9 @@ PASS Dana joins once and leaves (so every server knows her)
 PASS warning stored for an offline player
 PASS Dana joins survival
 PASS the warning reaches Dana at login
-PASS and exactly once
-PASS the notification is recorded as delivered once
+PASS it is recorded as delivered
+PASS Dana connects to another server (1.21.11)
+PASS and the warning is NOT shown to her again
 PASS Eve joins survival
 PASS jail ordered on the lobby (no JailReloaded there) is recorded
 PASS it is recorded with where Eve was
@@ -109,4 +110,4 @@ PASS every imported punishment still points at a case that exists
 PASS the audit chain verifies after 77 imported entries
 PASS repeating it adds nothing
 PASS the file in the migration folder is untouched by the import
-111/111 checks passed
+112/112 checks passed
