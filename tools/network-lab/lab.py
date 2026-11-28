@@ -422,21 +422,59 @@ def s_outage():
     subprocess.run(["mysqladmin", "-uroot", "shutdown"], capture_output=True)
     time.sleep(3)
     check("MariaDB is down", subprocess.run(["mysqladmin", "-uroot", "ping"], capture_output=True).returncode != 0)
-    ok, msg = join("Vic", "survival")
+    time.sleep(8)   # long enough for every server to notice
+    out = ap("survival", f"ban Wade 1d Griefing the spawn area {EVID}", 6)
+    check("a staff action that cannot be saved is refused honestly", "database" in out.lower() and ("nothing was changed" in out.lower() or "unavailable" in out.lower() or "cannot be reached" in out.lower()), out[-400:])
+    # (the logins use skyblock: lobby, survival and towny run LuckPerms on the same database, and LuckPerms itself refuses logins while ITS database is away)
+    ok, msg = join("Vic", "skyblock")
     check("a ban the server already knew is still enforced during the outage", (not ok) and "banned" in msg.lower(), msg)
-    out = ap("survival", f"ban Wade 1d Griefing the spawn area {EVID}", 4)
-    check("a staff action that cannot be saved is refused honestly", "database is unavailable" in out.lower() or "nothing was changed" in out.lower(), out[-300:])
-    ok, _ = join("Xena", "lobby")
+    ok, _ = join("Xena", "skyblock")
     check("players can still connect (ENFORCE_KNOWN policy)", ok)
     subprocess.Popen("nohup mysqld_safe --user=mysql --bind-address=127.0.0.1 --port=3306 > /dev/null 2>&1 &", shell=True)
     up = wait_until(lambda: subprocess.run(["mysqladmin", "-uroot", "ping"], capture_output=True).returncode == 0, 60, 1)
     check("MariaDB is back", up)
+    check("the refused ban was never recorded", active("Wade", "BAN") == 0)
     time.sleep(8)
     out = ap("survival", f"ban Wade 1d Griefing the spawn area {EVID}", 3)
     check("staff actions work again without restarting anything", active("Wade", "BAN") == 1, out[-300:])
     out = ap("lobby", "network", 2)
     check("every server is back in the registry", all(re.search(rf"- {n} .* running", out) for n in B), out)
     quit_bot("Una"); quit_bot("Xena")
+
+
+def s_hierarchy():
+    print("== hierarchy across backends (LuckPerms with one shared storage) ==", flush=True)
+    check("Boss (an administrator) joins survival", join("Boss", "survival")[0])
+    check("Moda (a moderator) joins lobby", join("Moda", "lobby")[0])
+    check("Pip (a player) joins survival", join("Pip", "survival")[0])
+    lp = lambda line: B["lobby"].console("lp " + line, 1.5)
+    for node in ("aurapunishments.level.90", "aurapunishments.command"):
+        lp(f"user Boss permission set {node} true")
+    for node in ("aurapunishments.level.20", "aurapunishments.command", "aurapunishments.punish", "aurapunishments.punish.others", "aurapunishments.punish.ban",
+                 "aurapunishments.limit.ban.long", "aurapunishments.case.evidence.add", "aurapunishments.history.view"):
+        lp(f"user Moda permission set {node} true")
+    for n in ("lobby", "survival", "towny"):
+        B[n].console("lp sync", 2.0)
+    time.sleep(3)
+    # Boss leaves: his level (90) is remembered for everybody, so he is protected while OFFLINE on every backend
+    quit_bot("Boss"); time.sleep(2)
+    at = B["lobby"].size()
+    cmd_as("Moda", f"ap ban Boss 1d Griefing the spawn area {EVID}")
+    time.sleep(3)
+    check("a moderator cannot ban an offline administrator (hierarchy, from the lobby)", saw("Moda", "higher staff authority"), host_for("26.3").netlab("dump", "Moda")[1])
+    check("and nothing was recorded", active("Boss", "BAN") == 0)
+    cmd_as("Moda", f"ap ban Pip 1d Griefing the spawn area {EVID}")
+    ok = wait_until(lambda: active("Pip", "BAN") == 1, 10)
+    check("the same moderator can ban an ordinary player", ok, host_for("26.3").netlab("dump", "Moda")[1])
+    check("Pip is removed from survival (another backend)", wait_until(lambda: here("Pip") == [], 15), here("Pip"))
+    # from a backend on the other Minecraft version, same rules
+    quit_bot("Moda"); time.sleep(2)
+    check("Moda (1.21.11 client) joins towny", join("Moda", "towny", "1.21.11")[0])
+    host_for("1.21.11").netlab("clear", "Moda")
+    cmd_as("Moda", f"ap ban Boss 1d Griefing the spawn area {EVID}", "1.21.11")
+    time.sleep(3)
+    check("the same refusal on towny (1.21.11)", saw("Moda", "higher staff authority", "1.21.11"), host_for("1.21.11").netlab("dump", "Moda")[1])
+    quit_bot("Moda"); quit_bot("Moda", "1.21.11")
 
 
 def s_migrate():
@@ -476,7 +514,7 @@ def s_migrate():
 
 
 SCENARIOS = [("ban", s_ban), ("mute", s_mute), ("warn", s_warn), ("jail", s_jail), ("jail_unavailable", s_jail_unavailable), ("concurrency", s_concurrency),
-             ("ip", s_ip), ("rapid", s_rapid), ("restart", s_restart), ("outage", s_outage), ("migrate", s_migrate)]
+             ("ip", s_ip), ("rapid", s_rapid), ("restart", s_restart), ("hierarchy", s_hierarchy), ("outage", s_outage), ("migrate", s_migrate)]
 
 
 def shutdown():

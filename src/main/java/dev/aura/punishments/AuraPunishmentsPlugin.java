@@ -68,6 +68,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
     private volatile AdminService.Counts lastCounts;
     private volatile boolean enabledOk;
     private JailEventListener jailListener;
+    private volatile long lastHeartbeatWarning;
 
     // ------------------------------------------------------------------ lifecycle
     @Override
@@ -464,7 +465,11 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
                 List<java.util.UUID> online = new ArrayList<>();
                 for (Player pl : Bukkit.getOnlinePlayers()) online.add(pl.getUniqueId());
                 network.heartbeat(online).thenAccept(r -> {
-                    if (!r.isOk()) getLogger().warning("Network heartbeat: " + r.message());
+                    long t = System.currentTimeMillis();
+                    if (!r.isOk() && t - lastHeartbeatWarning > 60_000L) { // one line a minute while the database is away, not one per beat
+                        lastHeartbeatWarning = t;
+                        getLogger().warning("Network heartbeat: " + r.message());
+                    }
                 });
             }, beatTicks, beatTicks));
         }

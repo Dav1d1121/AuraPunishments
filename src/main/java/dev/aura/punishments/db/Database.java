@@ -344,24 +344,30 @@ public final class Database implements AutoCloseable {
         if (storage.shared()) {
             if (pool == null) throw new UnavailableException("The shared database is not connected", null);
             long probe = System.currentTimeMillis();
-            if (poolDown && probe - lastProbe < 1000L) {
-                // already known to be away: fail at once instead of making every queued operation wait for a connection; one probe a second finds out when it is back
-                throw new UnavailableException("The shared database cannot be reached (retrying)", null);
+            if (poolDown) {
+                if (probe - lastProbe < 1000L) {
+                    // already known to be away: fail at once instead of making every queued operation wait for a connection
+                    throw new UnavailableException("The shared database cannot be reached (retrying)", null);
+                }
+                lastProbe = probe;
+                // once a second ask the server itself with a short connect timeout (the pool would make us wait its whole patience)
+                java.util.Properties props = new java.util.Properties();
+                props.setProperty("user", storage.username());
+                props.setProperty("password", storage.password());
+                props.setProperty("connectTimeout", "1000");
+                try (Connection c = new org.mariadb.jdbc.Driver().connect(storage.jdbcUrl(true), props)) {
+                    // reachable again: fall through to the pool
+                } catch (SQLException e) {
+                    throw new UnavailableException("The shared database cannot be reached: " + e.getMessage(), e);
+                }
             }
-            lastProbe = probe;
             try {
                 Connection c = pool.getConnection();
-                if (poolDown) {
-                    poolDown = false;
-                    pool.getHikariConfigMXBean().setConnectionTimeout(storage.connectionTimeoutMs()); // back to the configured patience
-                }
+                poolDown = false;
                 return c;
             } catch (SQLException e) {
-                if (!poolDown) {
-                    poolDown = true;
-                    // while the server is away every operation would wait the full timeout; give up quickly so nothing queues behind a dead connection
-                    pool.getHikariConfigMXBean().setConnectionTimeout(1000L);
-                }
+                poolDown = true;
+                lastProbe = System.currentTimeMillis();
                 throw new UnavailableException("The shared database cannot be reached: " + e.getMessage(), e);
             }
         }
@@ -443,6 +449,10 @@ public final class Database implements AutoCloseable {
             }
             if (t instanceof SQLException se) {
                 lastError.set(se.getMessage());
+                if (storage.shared() && se.getSQLState() != null && se.getSQLState().startsWith("08")) { // a connection-class failure: the server is gone
+                    poolDown = true;
+                    lastProbe = System.currentTimeMillis();
+                }
                 throw se;
             }
             throw t;

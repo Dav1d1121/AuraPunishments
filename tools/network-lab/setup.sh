@@ -28,6 +28,9 @@ rm -rf "$LAB"/*/ 2>/dev/null || true
 mysql -uroot -e "DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB CHARACTER SET utf8mb4; GRANT ALL ON $DB.* TO 'aura'@'%'; GRANT ALL ON $DB.* TO 'aura'@'localhost'; FLUSH PRIVILEGES;" 2>/dev/null \
   || mysql -e "DROP DATABASE IF EXISTS $DB; CREATE DATABASE $DB CHARACTER SET utf8mb4; GRANT ALL ON $DB.* TO 'aura'@'%'; GRANT ALL ON $DB.* TO 'aura'@'localhost'; FLUSH PRIVILEGES;"
 
+LUCKPERMS_LIBS=$PAPER263/plugins/LuckPerms/libs
+mysql -uroot -e "DROP DATABASE IF EXISTS aura_lp; CREATE DATABASE aura_lp CHARACTER SET utf8mb4; GRANT ALL ON aura_lp.* TO 'aura'@'%'; GRANT ALL ON aura_lp.* TO 'aura'@'localhost'; FLUSH PRIVILEGES;"
+
 # ---- Velocity
 mkdir -p "$LAB/velocity"
 if [ ! -f "$LAB/velocity.jar" ]; then
@@ -157,4 +160,21 @@ n=re.subn(r'(\n  jail:\n(?:    #.*\n)*    jail-name: )""', r'\1"netjail"', s, 1)
 if n[1]!=1: raise SystemExit("jail-name key not found")
 open(p,'w').write(n[0])
 PY
+# LuckPerms with ONE shared MariaDB storage on lobby, survival and towny: the staff levels are the same on every backend
+for n in lobby survival towny; do
+  mkdir -p "$LAB/$n/plugins/LuckPerms"
+  cp "$LUCKPERMS" "$LAB/$n/plugins/"
+  [ -d "$LUCKPERMS_LIBS" ] && cp -r "$LUCKPERMS_LIBS" "$LAB/$n/plugins/LuckPerms/libs"
+  cat > "$LAB/$n/plugins/LuckPerms/config.yml" <<LPCFG
+server: $n
+storage-method: MariaDB
+data:
+  address: 127.0.0.1:3306
+  database: aura_lp
+  username: aura
+  password: aurapass
+messaging-service: none
+sync-time: -1
+LPCFG
+done
 echo "lab ready in $LAB"
