@@ -106,7 +106,9 @@ database:
   pool:
     maximum-size: 4
     minimum-idle: 1
-    connection-timeout-seconds: 10
+    # How long an operation waits for a connection before it fails (and the staff member is told). Short on purpose: when the database is away
+    # nothing should queue up behind it.
+    connection-timeout-seconds: 5
     idle-timeout-seconds: 300
     # Keep this below the database server's wait_timeout.
     max-lifetime-seconds: 1500

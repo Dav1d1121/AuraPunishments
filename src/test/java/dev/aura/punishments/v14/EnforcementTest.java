@@ -170,6 +170,23 @@ class EnforcementTest {
         assertEquals(0, ActiveSnapshot.load(new File(dir, "missing.yml")).size());
     }
 
+    @Test
+    void aLoginNeverWaitsLongerThanItsBudgetForTheDatabase() throws Exception {
+        fx = new Fx();
+        long t0 = System.currentTimeMillis();
+        var e = assertThrows(dev.aura.punishments.db.Database.UnavailableException.class, () -> fx.db.txSync(c -> {
+            try {
+                Thread.sleep(600);
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+            }
+            return 1;
+        }, 80));
+        assertTrue(System.currentTimeMillis() - t0 < 500, "gave up at the budget, not when the work finished");
+        assertTrue(e.getMessage().contains("did not answer"), e.getMessage());
+        assertTrue(fx.db.reachable(), "a standalone database is always reachable");
+    }
+
     // ------------------------------------------------------------------ the database is gone
     @Test
     void whenTheDatabaseIsGoneKnownBansAreStillEnforcedAndStaffActionsAreRefusedHonestly() throws Exception {

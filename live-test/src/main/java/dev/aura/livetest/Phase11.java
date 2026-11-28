@@ -33,7 +33,7 @@ final class Phase11 {
         String originalConfigHash = exp.get(0);
         long activeBlocks = Long.parseLong(exp.get(1));
         t.check("the plugin enabled on the old data folder", t.ap.isEnabled(), "");
-        t.check("database migrated to schema v3", t.ap.core().db.schemaVersion() == 3, String.valueOf(t.ap.core().db.schemaVersion()));
+        t.check("database migrated to the latest schema", t.ap.core().db.schemaVersion() == dev.aura.punishments.db.Schema.latest(), String.valueOf(t.ap.core().db.schemaVersion()));
         t.check("the judicial system is ON (the old config.yml has no judicial.enabled line): behaviour is unchanged by the upgrade", t.ap.core().mode.enabled()
                 && t.ap.core().mode.state() == JudicialMode.State.ENABLED, "");
         byte[] cfg = Files.readAllBytes(new File(data, "config.yml").toPath());

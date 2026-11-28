@@ -220,7 +220,7 @@ public final class Settings {
             int minIdle = Math.min(max, range(y, "database.pool.minimum-idle", 1, 0, 32, p));
             this.storage = new dev.aura.punishments.db.StorageConfig(dbType, host, range(y, "database.port", 3306, 1, 65535, p), name, user,
                     resolveSecret(y.getString("database.password", ""), env), y.getBoolean("database.ssl", false), y.getBoolean("database.create-database", false), y.getBoolean("database.allow-migration", false), max, minIdle,
-                    1000L * range(y, "database.pool.connection-timeout-seconds", 10, 1, 120, p), 1000L * range(y, "database.pool.idle-timeout-seconds", 300, 10, 3600, p),
+                    1000L * range(y, "database.pool.connection-timeout-seconds", 5, 1, 120, p), 1000L * range(y, "database.pool.idle-timeout-seconds", 300, 10, 3600, p),
                     1000L * range(y, "database.pool.max-lifetime-seconds", 1500, 30, 86_400, p), 1000L * range(y, "database.pool.keepalive-seconds", 60, 0, 3600, p));
             if (this.storage.shared() && serverNameOf(y).isBlank()) {
                 p.add("network.server-name: required when database.type is " + dbType + " - every server of the network needs its own short name (lobby, survival, ...)");

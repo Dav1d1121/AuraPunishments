@@ -262,7 +262,7 @@ final class Phase8 {
         File cfg = new File(t.ap.getDataFolder(), "config.yml");
         String text = Files.readString(cfg.toPath());
         t.check("config.yml on disk contains the explicit 'enabled: false' line", text.contains("\n  enabled: false\n"), "");
-        t.check("schema is v3 with this server's name recorded", t.ap.core().db.schemaVersion() == 3 && t.ap.core().db.origin() != null && !t.ap.core().db.origin().isBlank(), t.ap.core().db.origin());
+        t.check("the schema is the latest, with this server's name recorded", t.ap.core().db.schemaVersion() == dev.aura.punishments.db.Schema.latest() && t.ap.core().db.origin() != null && !t.ap.core().db.origin().isBlank(), t.ap.core().db.origin());
         t.check("no judicial work is open", t.ap.core().mode.refresh().get().blocking() == 0, "");
         t.check("JailReloaded is detected and compatible", t.ap.core().jail.available(), t.ap.core().jail.status());
     }
@@ -565,7 +565,7 @@ final class Phase8 {
         String tOff = st.get(1);
         long muteId = Long.parseLong(st.get(3));
         long jailId = Long.parseLong(st.get(4));
-        t.check("schema v3 and the judicial system still OFF after the restart", t.ap.core().db.schemaVersion() == 3 && !t.ap.core().mode.enabled(), "");
+        t.check("the latest schema and the judicial system still OFF after the restart", t.ap.core().db.schemaVersion() == dev.aura.punishments.db.Schema.latest() && !t.ap.core().mode.enabled(), "");
         t.check("every record survived: punishments, evidence, appeals and audit entries are all still there",
                 count("SELECT COUNT(*) FROM punishments") == Long.parseLong(st.get(5)) && count("SELECT COUNT(*) FROM evidence") == Long.parseLong(st.get(6))
                         && count("SELECT COUNT(*) FROM appeals") == Long.parseLong(st.get(7)) && count("SELECT COUNT(*) FROM audit_log") >= Long.parseLong(st.get(8)), "");

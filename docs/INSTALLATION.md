@@ -58,7 +58,7 @@ and run `/ap reload`. Details: [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md). Rol
 
 ### A brand-new install of 1.3.0 / 1.3.1
 
-The shipped `config.yml` has `judicial.enabled: false` (and, from 1.3.1, `casework.enabled: true`: staff open a case and punish from it, no court): punishments are final and immediate, evidence and notes attach to punishments or to the case, jail is a punishment, appeals are recorded against punishments. Set `network.server-name` (for example `smp`) **before** first use if this server will ever join a network.
+The shipped `config.yml` has `judicial.enabled: false` (and, from 1.3.1, `casework.enabled: true`: staff open a case and punish from it, no court): punishments are final and immediate, evidence and notes attach to punishments or to the case, jail is a punishment, appeals are recorded against punishments. Set `network.server-name` (for example `smp`) **before** first use if this server will ever join a network. Running a proxy with several backends? Read [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md) (shared database, network jail, importing old servers); a single server needs nothing from it.
 
 ## Upgrade to 1.2.1 (from 1.2.0, 1.1.x or 1.0.0)
 

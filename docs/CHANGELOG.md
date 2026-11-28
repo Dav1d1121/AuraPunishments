@@ -2,6 +2,25 @@
 
 (This file was accidentally emptied in the 1.2.0 release commit; it is rebuilt here from the release notes and commit history. Nothing else was affected.)
 
+## 1.4.0 - network release: one shared database, network-wide enforcement, network jail
+Read [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md). **A single server changes nothing** (SQLite, no new required setting); everything below is opt-in with `database.type: mariadb | mysql`.
+
+**Added**
+* **Shared database.** MariaDB 10.6+ (primary target) or MySQL 8+, bundled (relocated) MariaDB driver and HikariCP pool, schema **v4**, version guard (a newer schema is refused, an older one is only upgraded by the server you allow), per-player row locks so two backends can never hold two active bans, one audit hash chain for the whole network.
+* **Network-wide enforcement.** A login asks the database, so a ban/IP ban made a moment ago on any backend counts at once; bans and kicks disconnect the player wherever they are connected; mutes, unmutes and warnings reach players on other backends within `network.sync-interval-ms`; a warning is shown once even if the player reconnects elsewhere meanwhile; revocations and modifications propagate; offline players are covered; history, evidence, appeals and audit are central.
+* **Registry and leases.** Every backend heartbeats under its own `network.server-name` (a duplicate name or a skewed clock refuses to start); network-wide jobs (housekeeping, Discord sending) run on one backend at a time; `/ap network`.
+* **Network jail.** One jail backend (`network.jail.backend`) holds JailReloaded; a jail ordered on any backend is carried out there, the player is held and moved through the proxy's plugin-message channel (retried until it works, also while the jail backend is down or frozen), and a release sends them back (original backend / lobby / fixed server). Time changes are applied once; a jail that never reached JailReloaded runs out by the clock.
+* **Outage policy.** Known bans and mutes keep being enforced (also across a restart, from `active-punishments.yml`); staff actions that cannot be saved are refused; `network.outage.policy: DENY_ALL` optionally refuses new connections; the plugin recovers by itself.
+* **Import of old SQLite databases** (`/ap migrate check|run`): dry run, one all-or-nothing transaction, remapped ids with references kept, safe to repeat, nothing that ended is reactivated, originals never touched.
+* **Discord once per event** across the network (single sender lease, claimed rows, shared dedupe).
+* **IP-ban safeguards** (`punishments.ip-bans`): private/loopback/proxy addresses and addresses shared by many accounts are refused; an IP ban recorded earlier on such an address is not enforced against everybody who shares it.
+
+**Changed**
+* The database is closed safely if closed twice; `/ap status` shows the storage; pretrial detention and court jail sentences run on the jail backend only (clear refusal elsewhere).
+* Schema v4 (new tables and columns; nothing rewritten). A 1.3.x plugin refuses to start on it.
+
+**Upgrade:** a standalone server: replace the jar and restart (a backup of the SQLite file is made first). A network: [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md) section 8.
+
 ## 1.3.2 - choose the punishment inside Create Case; Paper 1.21.11 and 26.3 from one jar; owner review off by default
 **Added**
 * **Punishment inside the New case screen** (case workflow). A **6. Punishment** button opens the same list and the same punishment screens used everywhere else (type, duration, reason, note); "Use this punishment" keeps the choice on the draft. **Submit case + punishment** opens the case and issues the punishment in **one transaction**: both exist afterwards or neither does. The offense decides what is possible (types and longest duration from `offenses.yml`) and its recommendation for the player's history is shown as a hint. With no punishment chosen only the case is opened (as in 1.3.1). One confirmation (type-the-name for bans and permanent punishments when configured).

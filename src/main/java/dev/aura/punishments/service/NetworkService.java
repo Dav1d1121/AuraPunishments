@@ -52,6 +52,7 @@ public final class NetworkService {
     private final long startedAt;
     private volatile long cursor = -1;
     private final AtomicBoolean polling = new AtomicBoolean();
+    private final AtomicBoolean beating = new AtomicBoolean();
     private volatile long lastPollOk;
     private volatile String lastProblem;
     private volatile long eventsApplied;
@@ -122,6 +123,7 @@ public final class NetworkService {
     // ------------------------------------------------------------------ heartbeat, presence, leases
     /** Every few seconds: prove this server is alive, refresh its players' presence and drop rows of servers that died. */
     public CompletableFuture<Result<Void>> heartbeat(Collection<UUID> localOnline) {
+        if (!beating.compareAndSet(false, true)) return CompletableFuture.completedFuture(Result.fail(Code.UNAVAILABLE, "the previous heartbeat has not finished")); // never queue them up behind a dead database
         return core.db.tx(c -> {
             long now = core.clock.now();
             if (!Repo.Net.heartbeat(c, name, instanceId, now)) {
@@ -131,6 +133,7 @@ public final class NetworkService {
             Repo.Net.purgePresence(c, now - PRESENCE_STALE_MS);
             return Result.<Void>ok();
         }).handle((r, ex) -> {
+            beating.set(false);
             if (ex != null) {
                 lastProblem = ex.getMessage();
                 return Result.<Void>fail(Code.UNAVAILABLE, ex.getMessage());

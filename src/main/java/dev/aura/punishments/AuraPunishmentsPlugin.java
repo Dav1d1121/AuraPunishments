@@ -414,13 +414,16 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         var log = getLogger();
         log.info("AuraPunishments " + getPluginMeta().getVersion() + " enabled in " + ms + "ms (schema v" + db.schemaVersion() + ", "
                 + punishments.cache().size() + " active punishments).");
-        log.info("JailReloaded: " + core.jail.status());
+        if (core.jail.authoritative()) log.info("JailReloaded: " + core.jail.status());
         log.info("Storage: " + (db.shared() ? "SHARED " + db.dialect().name() + " database " + db.storage() + " (network mode)" : "standalone SQLite file"));
         log.info("Server name (records are stamped with it): " + db.origin());
         log.info("Judicial system: " + (core.mode.enabled() ? "ENABLED (cases, pretrial detention, hearings, verdicts and sentencing are available)"
                 : core.mode.casework() ? "OFF (judicial.enabled: false), CASE WORKFLOW ON (casework.enabled: true) - cases are opened, investigated, punished from and closed; no court, punishments are final immediately"
                 : "DISABLED (judicial.enabled: false) - punishments are final and immediately enforceable"));
-        if (!core.jail.available()) {
+        if (core.netJail != null && !core.jail.authoritative()) {
+            log.info("Network jail: JailReloaded lives on the jail backend '" + core.netJail.backendName() + "'; a jail punishment ordered here is carried out there. "
+                    + "Pretrial detention and court jail sentences need that backend.");
+        } else if (!core.jail.available()) {
             log.warning("Pretrial custody and jail sentences are UNAVAILABLE until JailReloaded is present and compatible. Everything else works.");
         }
         var pm = getServer().getPluginManager();

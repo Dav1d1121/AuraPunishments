@@ -137,9 +137,9 @@ public final class NetworkJail {
 
     /** A login on this server: ask the database (not a cache) whether this player is serving a jail. Call off the main thread. */
     public void admit(UUID uuid) {
-        if (!enabled()) return;
+        if (!enabled() || !core.db.reachable()) return; // database away: what is already known keeps holding
         try {
-            Punishment p = core.db.txSync(c -> Repo.Punishments.liveStandaloneJailFor(c, uuid));
+            Punishment p = core.db.txSync(c -> Repo.Punishments.liveStandaloneJailFor(c, uuid), 1500L);
             if (p != null && p.status() == PunishStatus.ACTIVE) {
                 holds.put(uuid, new Hold(p.id(), p.expiresAt(), RemoteJailPort.placeholder(p.jailPrisonerId()) || p.jailPrisonerId() == null));
             } else {

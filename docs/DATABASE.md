@@ -1,4 +1,8 @@
-# Storage (schema v3) and the network foundation
+# Storage (schema v4), the shared database and the network foundation
+
+**1.4.0:** a network of backends shares ONE MariaDB/MySQL database - see [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md). A single server keeps using SQLite exactly as before. The 1.4.0 section is at the end of this page; the 1.3.0 foundation it builds on comes first.
+
+---
 
 AuraPunishments 1.3.0 still runs on SQLite (`plugins/AuraPunishments/punishments.db`, single owning thread, WAL). What changed is the foundation underneath, so that the network release (shared MariaDB/MySQL across Velocity-connected servers) can be built without rewriting the plugin. Everything works standalone today.
 
@@ -34,6 +38,16 @@ If anything fails the transaction rolls back and the plugin refuses to start wit
 
 Copy `punishments.db` while the server is stopped (or use the automatic pre-migration copy). Restore = stop, put the file back, start the matching plugin version. See [ROLLBACK.md](ROLLBACK.md).
 
-## Not in 1.3.0 (planned for the network release)
+## 1.4.0: the shared database (schema v4)
 
-Shared database, network-wide enforcement and cross-server sync, network jail, Velocity proxy support, MariaDB/MySQL drivers and pool, importing several servers' SQLite files, outage policies. 1.3.0 adds none of that, only the foundation described here.
+| Topic | How it works |
+|---|---|
+| Engines | `database.type: sqlite` (default, unchanged), `mariadb` (10.6+, primary test target) or `mysql` (8+). The MariaDB driver and the HikariCP pool are bundled in the jar (relocated, so they cannot clash with another plugin's copy). |
+| One schema, three dialects | The migrations are written once; the dialect layer rewrites them for MariaDB/MySQL (`INTEGER`->`BIGINT`, `AUTOINCREMENT`->`AUTO_INCREMENT`, keys on `VARCHAR(191)`, index prefixes on text columns, quoting of the reserved word `sensitive`, upsert and insert-ignore forms, UUID generation, the identity triggers). Anything else is refused at start. |
+| Schema v4 | `network_events` (what changed, written by database triggers so no code path can forget), `network_servers` (registry + heartbeat), `network_presence` (where a player is connected), `network_locks` (leases: who runs a network-wide job / sends Discord), `migration_runs` + `migration_map` (what an import did), claim columns on `player_notifications` and `discord_outbox`, `punishments.jail_origin`. |
+| Version guard | Newer schema -> refuse to start; older -> only a server with `database.allow-migration: true` upgrades it (under a database lock, recorded as `meta.migrating_to`; an interrupted upgrade blocks every server until looked at). |
+| Concurrency | Short transactions on a pool; deadlocks and lock waits are retried; a per-player row lock makes "one active ban/mute per player" hold when two backends act at once; one row serialises audit appends so the hash chain stays a chain. |
+| Admission | A login asks the database (not a cache) whether the player is banned, so a ban from a moment ago on another backend counts at once. The in-memory index serves chat/command checks and is refreshed from the change feed within `network.sync-interval-ms`. |
+| Time | Timestamps are milliseconds since the epoch written by each server; `network.max-clock-skew-seconds` stops a skewed server from starting. |
+
+**Backup:** `mysqldump --single-transaction --routines --triggers <db>` (the triggers are part of the schema). **Restore:** stop every backend, restore into an empty database, start one backend, then the rest. See [ROLLBACK.md](ROLLBACK.md) for going back a version.

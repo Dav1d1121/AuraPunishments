@@ -18,6 +18,7 @@ HOST263, HOST121 = "lobby", "towny"           # the JVMs that host the 26.3 / 1.
 PROXY_PORT = 25577
 
 results, ids = [], itertools.count(1)
+FROZEN = set()
 
 
 def check(name, cond, detail=""):
@@ -158,7 +159,7 @@ def quit_bot(name, version="26.3"):
 
 def here(name):
     """The backends the player is connected to right now."""
-    return [n for n, b in B.items() if b.alive() and b.netlab("here", name, timeout=10)[1] == "YES"]
+    return [n for n, b in B.items() if b.alive() and n not in FROZEN and b.netlab("here", name, timeout=10)[1] == "YES"]
 
 
 def bot_info(name, version="26.3"):
@@ -196,7 +197,8 @@ def boot():
         check(f"{n} ({b.version}) started", ok, b.text()[-600:])
     for n, b in B.items():
         t = b.text()
-        check(f"{n}: AuraPunishments enabled on the shared database", re.search(r"Storage: .*(MariaDB|mariadb)", t, re.I) or "joined" in t.lower() or "AuraPunishments" in t, t[-300:])
+        check(f"{n}: AuraPunishments enabled on the shared database", re.search(r"Storage: SHARED mariadb database .*network mode", t), t[-300:])
+        check(f"{n}: no AuraPunishments error or warning at start", not re.search(r"\[AuraPunishments\].*(SEVERE|WARN|ERROR)|WARN\]: \[AuraPunishments\]|ERROR\]: \[AuraPunishments\]", t), "\n".join(l for l in t.splitlines() if "AuraPunishments" in l and ("WARN" in l or "ERROR" in l))[:400])
     ok, msg = B["jail"].netlab("setupjail", "netjail")
     check("jail backend: JailReloaded jail built", ok, msg)
     time.sleep(6)
@@ -258,6 +260,8 @@ def s_mute():
 
 def s_warn():
     print("== warnings ==", flush=True)
+    check("Dana joins once and leaves (so every server knows her)", join("Dana", "lobby")[0])
+    quit_bot("Dana"); time.sleep(2)
     ap("lobby", "warn Dana Please stop spamming the chat", 1.0)
     check("warning stored for an offline player", int(sql("SELECT COUNT(*) FROM punishments WHERE target_name='Dana' AND type='WARN'") or 0) == 1)
     check("Dana joins survival", join("Dana", "survival")[0])
@@ -280,7 +284,7 @@ def s_jail():
     arrived = wait_until(lambda: here("Eve") == ["jail"], 40)
     check("Eve is moved to the jail backend through the proxy", arrived, f"{here('Eve')} {r}")
     check("JailReloaded holds her there", B["jail"].netlab("prisoner", "Eve")[1] == "YES")
-    check("the record says HELD", "HELD" in row("Eve", "JAIL"), row("Eve", "JAIL"))
+    check("the record says HELD", wait_until(lambda: "HELD" in row("Eve", "JAIL"), 20), row("Eve", "JAIL"))
     out = ap("towny", "unjail Eve Mistake was made", 2.0)
     back = wait_until(lambda: here("Eve") == ["survival"], 40)
     check("released from another backend: Eve is sent back to survival (where she came from)", back, f"{here('Eve')} {out[-300:]}")
@@ -300,6 +304,7 @@ def s_jail():
 def s_jail_unavailable():
     print("== jail backend unavailable: nobody escapes ==", flush=True)
     check("Ivan joins survival", join("Ivan", "survival")[0])
+    FROZEN.add("jail")
     os.killpg(B["jail"].p.pid, signal.SIGSTOP)          # the jail backend freezes (no heartbeat, no answers)
     try:
         ap("lobby", f"jail Ivan 30m Griefing the spawn area {EVID}", 1.5)
@@ -314,6 +319,7 @@ def s_jail_unavailable():
         check("his commands are refused with the reason", saw("Ivan", "cannot do that"), host_for("26.3").netlab("dump", "Ivan")[1])
     finally:
         os.killpg(B["jail"].p.pid, signal.SIGCONT)
+        FROZEN.discard("jail")
     moved = wait_until(lambda: here("Ivan") == ["jail"], 60)
     check("when the jail backend answers again Ivan is carried off and jailed", moved, here("Ivan"))
     ap("lobby", "unjail Ivan Test finished", 2.0)
@@ -323,6 +329,8 @@ def s_jail_unavailable():
 
 def s_concurrency():
     print("== simultaneous actions ==", flush=True)
+    check("Zoe joins lobby once", join("Zoe", "lobby")[0])
+    quit_bot("Zoe"); time.sleep(2)
     for p in ("Zoe",):
         B["lobby"].send(f"ap ban {p} 1d Griefing the spawn area {EVID}")
         B["survival"].send(f"ap ban {p} 2d Griefing the spawn area {EVID}")
@@ -332,6 +340,15 @@ def s_concurrency():
     out = ap("skyblock", "audit", 3)
     check("the audit hash chain is intact after concurrent writers", "intact" in out.lower(), out[-300:])
     # a burst from two servers
+    import hashlib, uuid as _uuid
+    vals = []
+    for prefix in ("Burst", "Spray"):
+        for i in range(60):
+            nm = f"{prefix}{i}"
+            u = _uuid.UUID(bytes=hashlib.md5(("OfflinePlayer:" + nm).encode()).digest(), version=3)
+            vals.append(f"('{u}','{nm}','{nm.lower()}',1,2,0)")
+    sql("INSERT INTO profiles(uuid,name,name_lower,first_seen,last_seen,level) VALUES " + ",".join(vals))
+    time.sleep(1)
     t0 = time.time()
     for i in range(60):
         B["lobby"].send(f"ap warn Burst{i} Burst test warning number {i}")
@@ -375,12 +392,15 @@ def s_rapid():
 
 def s_restart():
     print("== restart of a backend ==", flush=True)
+    check("Quinn joins lobby once", join("Quinn", "lobby")[0])
+    quit_bot("Quinn"); time.sleep(2)
     B["skyblock"].stop()
     check("skyblock stopped", not B["skyblock"].alive())
     time.sleep(1)
     out = ap("lobby", "network", 2)
     check("the registry shows skyblock stopped", re.search(r"- skyblock .* stopped", out), out)
     ap("lobby", f"ban Quinn 1d Griefing the spawn area {EVID}", 1.0)
+    check("a ban is accepted while skyblock is down", active("Quinn", "BAN") == 1)
     B["skyblock"].start()
     check("skyblock started again", B["skyblock"].wait_log(r"Done \(", 240))
     time.sleep(4)
@@ -393,6 +413,10 @@ def s_restart():
 def s_outage():
     print("== database outage and recovery ==", flush=True)
     check("Una joins survival", join("Una", "survival")[0])
+    for p in ("Vic", "Wade", "Xena"):
+        join(p, "lobby")
+        quit_bot(p)
+    time.sleep(2)
     ap("lobby", f"ban Vic 1d Griefing the spawn area {EVID}", 1.0)
     time.sleep(2)
     subprocess.run(["mysqladmin", "-uroot", "shutdown"], capture_output=True)
@@ -417,23 +441,38 @@ def s_outage():
 
 def s_migrate():
     print("== import of an old 1.0.0 SQLite database ==", flush=True)
+    import sqlite3, shutil
     src = "/tmp/claude-0/ap-1.0.0-data-backup/punishments.db"
     if not os.path.exists(src):
         check("1.0.0 database available", False, src)
         return
     d = os.path.join(LAB, "skyblock/plugins/AuraPunishments/migration")
     os.makedirs(d, exist_ok=True)
-    subprocess.run(["cp", src, os.path.join(d, "old100.db")])
+    shutil.copy(src, os.path.join(d, "old100.db"))
     before = sql("SELECT COUNT(*) FROM punishments")
     out = ap("skyblock", "migrate check old100.db old100", 8)
-    check("dry run reports the file", "DRY RUN" in out and "old100.db" in out, out[-600:])
+    check("a prisoner still held on the old server blocks the import", "ERROR" in out and ("still being served" in out or "Pretrial detention" in out), out[-700:])
+    check("and nothing was written", sql("SELECT COUNT(*) FROM punishments") == before)
+    # the operator releases the prisoner on the old server first (here: on the copy)
+    c = sqlite3.connect(os.path.join(d, "old100.db"))
+    c.execute("UPDATE custody SET status='RELEASED' WHERE status='SERVING'")
+    c.execute("UPDATE punishments SET status='SERVED' WHERE type='JAIL' AND status='ACTIVE'")
+    c.commit(); c.close()
+    ref = subprocess.run(["sha256sum", os.path.join(d, "old100.db")], capture_output=True, text=True).stdout.split()[0]
+    out = ap("skyblock", "migrate check old100.db old100", 8)
+    check("dry run reports the file and finds no problem", "DRY RUN" in out and "ERROR" not in out, out[-700:])
     check("dry run wrote nothing", sql("SELECT COUNT(*) FROM punishments") == before)
-    out = ap("skyblock", "migrate run old100.db old100 confirm", 10)
-    check("the real import is applied", "IMPORTED" in out, out[-600:])
+    out = ap("skyblock", "migrate run old100.db old100 confirm", 12)
+    check("the real import is applied", "IMPORTED" in out, out[-700:])
     check("it is recorded", sql("SELECT COUNT(*) FROM migration_runs") == "1")
+    check("the 10 old punishments and 14 cases arrived (plus what the lab made)", int(sql("SELECT COUNT(*) FROM punishments WHERE origin='old100'") or 0) == 10 and int(sql("SELECT COUNT(*) FROM cases WHERE origin='old100'") or 0) == 14,
+          sql("SELECT COUNT(*) FROM punishments WHERE origin='old100'"))
+    check("every imported punishment still points at a case that exists", sql("SELECT COUNT(*) FROM punishments p WHERE p.origin='old100' AND p.case_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.id=p.case_id)") == "0")
+    check("the audit chain verifies after 77 imported entries", "intact" in ap("lobby", "audit", 3).lower())
     out2 = ap("skyblock", "migrate run old100.db old100 confirm", 8)
     check("repeating it adds nothing", "imported before" in out2, out2[-400:])
-    check("the original file is untouched", subprocess.run(["cmp", src, os.path.join(d, "old100.db")]).returncode == 0)
+    after = subprocess.run(["sha256sum", os.path.join(d, "old100.db")], capture_output=True, text=True).stdout.split()[0]
+    check("the file in the migration folder is untouched by the import", after == ref)
 
 
 SCENARIOS = [("ban", s_ban), ("mute", s_mute), ("warn", s_warn), ("jail", s_jail), ("jail_unavailable", s_jail_unavailable), ("concurrency", s_concurrency),

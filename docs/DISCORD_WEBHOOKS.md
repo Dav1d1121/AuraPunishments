@@ -88,3 +88,7 @@ discord:
 * **The public log is sanitized by construction**: the renderer reads only player, type, duration/expiry, server and (if `show-reason`) the reason. It cannot show the issuing staff member, evidence, notes, internal ids, case numbers or addresses, and the config refuses `issuer`/`evidence`/`punishment-id`/... in its `fields`. No pings (`allowed_mentions` empty). IP addresses are scrubbed from every message anyway.
 * No duplicates: each fact is queued once per destination (a persisted key), whatever is retried or re-emitted; failed deliveries retry with back-off and honour Discord rate limits; a Discord outage never delays or blocks a punishment.
 * Judicial events are posted only while there are any (nothing is generated when the judicial system is off).
+
+## On a network (1.4.0)
+
+With a shared database every event is posted **once** for the whole network: one backend at a time sends (it holds a lease; `/ap network` shows which), rows are claimed before sending, and the same event reported by two backends is one row. Keep the `discord:` section identical on every backend. See [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md) section 7.

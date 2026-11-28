@@ -90,8 +90,12 @@ public final class PunishmentService extends Svc {
      * feed. If the database cannot answer, the in-memory index (loaded from it) decides: a known ban never silently disappears.
      * Called on the asynchronous login thread, never on the main thread.
      */
+    /** The longest a login waits for the database before it falls back to the known bans (Velocity gives up on a backend after a few seconds). */
+    static final long LOGIN_DB_WAIT_MS = 2500L;
+
     public Optional<Punishment> banForLogin(UUID uuid, String ip) {
         if (!core.db.shared()) return banFor(uuid, ip);
+        if (!core.db.reachable()) return banFor(uuid, ip); // the database is known to be away: decide at once from what is known (a login cannot wait)
         try {
             long now = core.clock.now();
             return core.db.txSync(c -> {
@@ -108,7 +112,7 @@ public final class PunishmentService extends Svc {
                     }
                 }
                 return Optional.<Punishment>empty();
-            });
+            }, LOGIN_DB_WAIT_MS);
         } catch (SQLException | RuntimeException e) {
             long t = System.currentTimeMillis();
             if (t - lastLoginWarning > 60_000L) {

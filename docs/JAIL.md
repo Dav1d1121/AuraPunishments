@@ -41,3 +41,7 @@ Three steps, each recoverable: (1) the punishment is recorded as PLACING togethe
 ## Requirements and limits
 
 JailReloaded 1.2.x must be present and compatible (`/ap status`). Online-player jailing and the release/timer paths were verified live against JailReloaded 1.2.2 (see [TEST_REPORT.md](TEST_REPORT.md)). JailReloaded's own behaviour (teleport, inventory, offline placement) is JailReloaded's.
+
+## On a network (1.4.0): one jail backend
+
+With a shared database JailReloaded is installed on **one** backend (`network.jail.backend`); a jail ordered anywhere is carried out there, the player is held where they stand until JailReloaded has them, and a release sends them back. Setup, behaviour and limits: [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md) section 5. Pretrial detention (judicial system) stays on the jail backend itself.

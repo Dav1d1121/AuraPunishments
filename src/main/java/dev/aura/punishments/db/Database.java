@@ -328,10 +328,42 @@ public final class Database implements AutoCloseable {
         }
     }
 
+    /** The pool could not hand out a connection (the database server is down or unreachable) and has not since. */
+    private volatile boolean poolDown;
+    private volatile long lastProbe;
+
+    /**
+     * False while the shared database server cannot be reached. Latency-critical callers (a login) check this first and use what they already
+     * know instead of waiting for a connection that is not coming. Always true for SQLite.
+     */
+    public boolean reachable() {
+        return !storage.shared() || !poolDown;
+    }
+
     private Connection ensure() throws SQLException {
         if (storage.shared()) {
             if (pool == null) throw new UnavailableException("The shared database is not connected", null);
-            return pool.getConnection();
+            long probe = System.currentTimeMillis();
+            if (poolDown && probe - lastProbe < 1000L) {
+                // already known to be away: fail at once instead of making every queued operation wait for a connection; one probe a second finds out when it is back
+                throw new UnavailableException("The shared database cannot be reached (retrying)", null);
+            }
+            lastProbe = probe;
+            try {
+                Connection c = pool.getConnection();
+                if (poolDown) {
+                    poolDown = false;
+                    pool.getHikariConfigMXBean().setConnectionTimeout(storage.connectionTimeoutMs()); // back to the configured patience
+                }
+                return c;
+            } catch (SQLException e) {
+                if (!poolDown) {
+                    poolDown = true;
+                    // while the server is away every operation would wait the full timeout; give up quickly so nothing queues behind a dead connection
+                    pool.getHikariConfigMXBean().setConnectionTimeout(1000L);
+                }
+                throw new UnavailableException("The shared database cannot be reached: " + e.getMessage(), e);
+            }
         }
         if (conn != null) {
             try {
@@ -438,6 +470,26 @@ public final class Database implements AutoCloseable {
     public <T> T txParallel(SqlFunction<T> work) throws SQLException {
         if (!storage.shared()) return txSync(work);
         return runTx(work);
+    }
+
+    /**
+     * Like {@link #txSync} but gives up after {@code timeoutMs}: for a login, which must never wait on a database that is slow or gone
+     * (the proxy gives up on a backend that takes longer than a few seconds). The work may still run later; it is only ever a read here.
+     */
+    public <T> T txSync(SqlFunction<T> work, long timeoutMs) throws SQLException {
+        try {
+            return tx(work).get(timeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (java.util.concurrent.TimeoutException e) {
+            throw new UnavailableException("The database did not answer within " + timeoutMs + " ms", e);
+        } catch (java.util.concurrent.ExecutionException e) {
+            Throwable c = e.getCause();
+            if (c instanceof SQLException se) throw se;
+            if (c instanceof RuntimeException re) throw re;
+            throw new SQLException(c);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException(e);
+        }
     }
 
     /** Blocking convenience for tests and off-thread callers (login thread). Never call from the server thread. */

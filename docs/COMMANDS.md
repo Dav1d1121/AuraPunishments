@@ -27,6 +27,8 @@ Every `/ap` subcommand re-checks the same permissions, hierarchy, limits and evi
 | `/ap export <case> [md\|txt]` | `export` | | historical cases | |
 | `/ap warnings <player>` | `history.view` | | | |
 | `/ap discord [status\|retry]` | `admin` | | | |
+| `/ap network` | `admin` | | | **1.4.0** (shared database only): registry, change feed, who sends Discord / runs housekeeping, the network jail |
+| `/ap migrate [check\|run <file> [label] [convert-jails] confirm]` | `admin` | | | **1.4.0** (shared database only): import an old server's SQLite database ([NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md)) |
 | `/ap admin`, `/ap status`, `/ap audit [verify]`, `/ap reload` | `admin` / `audit.view` / `admin.reload` | | | `/ap status` shows server name, schema, judicial state; a reload that flips `judicial.enabled` is audited |
 
 Legacy `/ban`, `/mute`, `/kick`... (EssentialsX and others) are still redirected to `/punish` (`legacy-commands`). JailReloaded commands that would free or alter a prisoner held for a case **or serving a jail punishment** are refused unless the sender has `aurapunishments.custody.override`.

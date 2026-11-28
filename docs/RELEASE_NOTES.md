@@ -1,3 +1,16 @@
+# AuraPunishments 1.4.0 - Release notes
+
+**One punishment system for the whole network.** Run the same jar on every backend, point them at one MariaDB/MySQL database, and a ban, mute, warning, kick or jail made on any server is in force on all of them - for players who are online, offline or about to log in. A single server keeps using SQLite and changes nothing. [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md)
+
+* **Backend-only.** No proxy plugin; the live lab (Velocity + five Paper backends on 26.3 and 1.21.11) found none necessary.
+* **Network jail.** JailReloaded on one backend only; players are held, moved there and sent back automatically; no escape while the jail backend is down.
+* **Database outage:** known bans and mutes stay enforced, staff actions are refused honestly, recovery is automatic.
+* **Import your old servers** with `/ap migrate check|run` (dry run, all-or-nothing, repeat-safe, nothing reactivated, originals untouched).
+* **Discord posts once** per event across the network.
+* Schema v4; no new permission nodes. Details: [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 # AuraPunishments 1.3.2 - Release notes
 
 * **Choose the punishment inside Create Case.** The New case screen has a Punishment button that opens the usual punishment screens; Submit opens the case and issues the punishment together (all or nothing). Final at once, no owner approval, no court. [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md)

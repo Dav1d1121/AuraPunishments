@@ -284,7 +284,7 @@ final class Phase12 {
         t.check("the case workflow is on: state CASEWORK", t.ap.core().mode.casework() && t.ap.core().mode.state() == JudicialMode.State.CASEWORK, String.valueOf(t.ap.core().mode.state()));
         String text = Files.readString(new File(t.ap.getDataFolder(), "config.yml").toPath());
         t.check("config.yml on disk contains the shipped 'casework: enabled: true' section", text.contains("\ncasework:\n  enabled: true\n"), "");
-        t.check("schema v3 and a server name are recorded", t.ap.core().db.schemaVersion() == 3 && t.ap.core().db.origin() != null, "");
+        t.check("the latest schema and a server name are recorded", t.ap.core().db.schemaVersion() == dev.aura.punishments.db.Schema.latest() && t.ap.core().db.origin() != null, "");
         t.check("JailReloaded is detected and compatible", t.ap.core().jail.available(), t.ap.core().jail.status());
         t.check("no court work is open", t.ap.core().mode.refresh().get().courtLeftover() == 0 && !t.ap.core().mode.judicialVisible(), "");
     }
