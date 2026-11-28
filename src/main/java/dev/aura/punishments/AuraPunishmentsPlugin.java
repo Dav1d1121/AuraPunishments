@@ -161,6 +161,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
                 : JailBootstrap.connect(getServer(), getLogger(), settings.jailEnabled);
         core = new Core(db, Clock.SYSTEM, getLogger(), main, settings, offenses, port, null, e -> { });
         core.messages = messages;
+        if (db.shared()) core.importer = new SqliteImport(core, getLogger(), getDataFolder());
         if (networkJail) {
             core.netJail = new NetworkJail(core);
             if (!jailBackend) core.jail = new dev.aura.punishments.integration.RemoteJailPort(core.netJail);

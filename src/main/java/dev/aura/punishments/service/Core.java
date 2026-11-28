@@ -27,6 +27,8 @@ public final class Core {
     public volatile NetworkService network;
     /** The network jail (hold, transfer, return); {@code null} unless network.jail.backend is set on a shared database. */
     public volatile NetworkJail netJail;
+    /** Imports old per-server SQLite databases into the shared database (shared databases only). */
+    public volatile SqliteImport importer;
     public final NotificationService notifications;
     public final JudicialMode mode;
 

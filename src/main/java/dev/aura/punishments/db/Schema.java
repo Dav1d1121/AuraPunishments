@@ -524,6 +524,29 @@ public final class Schema {
         // so a player who connects to two servers in quick succession is not shown it twice
         steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_by TEXT"));
         steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_at INTEGER"));
+        // what an import from the old per-server SQLite files did: every imported row remembers where it came from, so repeating an import
+        // (or importing a second copy of the same file) adds nothing, and references can always be traced back
+        steps.add(sql("""
+                CREATE TABLE migration_runs (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  source TEXT NOT NULL,
+                  file_name TEXT NOT NULL,
+                  sha256 TEXT NOT NULL,
+                  run_at INTEGER NOT NULL,
+                  run_by TEXT NOT NULL,
+                  summary TEXT
+                )"""));
+        steps.add(sql("CREATE INDEX idx_migruns_sha ON migration_runs(sha256)"));
+        steps.add(sql("""
+                CREATE TABLE migration_map (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  source TEXT NOT NULL,
+                  tbl TEXT NOT NULL,
+                  old_id INTEGER NOT NULL,
+                  new_id INTEGER NOT NULL,
+                  run_id INTEGER
+                )"""));
+        steps.add(sql("CREATE UNIQUE INDEX idx_migmap ON migration_map(source, tbl, old_id)"));
         // the row every audit append locks, so that servers writing the hash chain at the same moment take turns
         steps.add((c, ctx) -> {
             try (Statement st = c.createStatement()) {

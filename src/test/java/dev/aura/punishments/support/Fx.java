@@ -66,6 +66,8 @@ public final class Fx implements AutoCloseable {
         public boolean joinNetwork = false;
         /** The network jail: the server-name of the jail backend (this fixture is that backend when its serverName equals it). */
         public String jailBackend = null;
+        /** A standalone SQLite server even when the run is against MariaDB (the old servers an import reads from). */
+        public boolean forceSqlite = false;
     }
 
     /** Set with -Dap.test.db=mariadb (gradle testMariadb): the same tests run against a real MariaDB/MySQL server, one throw-away database each. */
@@ -80,7 +82,7 @@ public final class Fx implements AutoCloseable {
     }
 
     public Fx(Path file, Mutator m) throws Exception {
-        if (BACKEND.equals("sqlite") && !m.shared && m.sharedDatabase == null) {
+        if (m.forceSqlite || (BACKEND.equals("sqlite") && !m.shared && m.sharedDatabase == null)) {
             db = new Database(file, Logger.getLogger("test"), m.serverName);
         } else {
             String key = file == null ? null : file.toAbsolutePath().toString();

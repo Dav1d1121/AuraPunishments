@@ -430,6 +430,16 @@ public final class Database implements AutoCloseable {
         }
     }
 
+    /**
+     * Run a long transaction on its own pooled connection instead of the server's one database thread (shared databases only), so a big
+     * import does not make every login wait behind it. Standalone SQLite has one connection and runs it on the database thread as usual.
+     * Never call from the server thread.
+     */
+    public <T> T txParallel(SqlFunction<T> work) throws SQLException {
+        if (!storage.shared()) return txSync(work);
+        return runTx(work);
+    }
+
     /** Blocking convenience for tests and off-thread callers (login thread). Never call from the server thread. */
     public <T> T txSync(SqlFunction<T> work) throws SQLException {
         try {

@@ -74,6 +74,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                 new Sub("admin", "/ap admin", "Open the administration screen", s -> (has(s, Perms.ADMIN) || has(s, Perms.AUDIT_VIEW)) && s instanceof Player),
                 new Sub("judicial", "/ap judicial [status|recount]", "Judicial system switch and any open work still to finish", s -> has(s, Perms.ADMIN)),
                 new Sub("network", "/ap network", "The servers of the network, the sync state and the shared database", s -> has(s, Perms.ADMIN) && gui.core().network != null),
+                new Sub("migrate", "/ap migrate [check|run <file> [label]]", "Import an old server's SQLite database into the shared database", s -> has(s, Perms.ADMIN) && gui.core().importer != null),
                 new Sub("status", "/ap status", "Show system status and integrations", s -> has(s, Perms.ADMIN)),
                 new Sub("audit", "/ap audit [verify]", "Verify the audit log integrity", s -> has(s, Perms.ADMIN)),
                 new Sub("reload", "/ap reload", "Reload and validate the configuration", s -> has(s, Perms.ADMIN_RELOAD)));
@@ -143,6 +144,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
             case "appeal" -> appeal(sender, rest);
             case "unjail" -> unjail(sender, rest);
             case "judicial" -> judicial(sender, rest);
+            case "migrate" -> migrate(sender, rest);
             case "network" -> {
                 var net = gui.core().network;
                 if (net == null) gui.messages().sendInfo(sender, "This server uses a standalone SQLite file (database.type: sqlite); there is no network.");
@@ -241,6 +243,42 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
         };
         if (a.length > 0 && a[0].equalsIgnoreCase("recount")) mode.refresh().thenRun(() -> Bukkit.getScheduler().runTask(gui.plugin(), show));
         else show.run();
+    }
+
+    /** /ap migrate [check|run <file> [label] [convert-jails] confirm] - the old per-server SQLite databases, imported into the shared one. */
+    private void migrate(CommandSender sender, String[] a) {
+        var importer = gui.core().importer;
+        if (importer == null) {
+            gui.messages().sendInfo(sender, "An import goes into a shared database (database.type: mariadb | mysql); this server uses SQLite.");
+            return;
+        }
+        if (a.length == 0 || !(a[0].equalsIgnoreCase("check") || a[0].equalsIgnoreCase("run")) || a.length < 2) {
+            gui.messages().sendInfo(sender, "Put the old server's SQLite file(s) into plugins/AuraPunishments/migration/ (stop that server first, copy the .db file), then:");
+            gui.messages().sendInfo(sender, "  /ap migrate check <file> [label]   - a dry run: reads everything, writes nothing, reports problems");
+            gui.messages().sendInfo(sender, "  /ap migrate run <file> [label] [convert-jails] confirm   - the real import (all or nothing)");
+            var files = importer.available();
+            gui.messages().sendInfo(sender, files.isEmpty() ? "No files are waiting in the migration folder." : "Waiting: " + String.join(", ", files));
+            return;
+        }
+        boolean run = a[0].equalsIgnoreCase("run");
+        String file = a[1];
+        String label = a.length > 2 && !a[2].equalsIgnoreCase("confirm") && !a[2].equalsIgnoreCase("convert-jails") ? a[2]
+                : file.replaceFirst("\\.[A-Za-z0-9]+$", "");
+        boolean convert = java.util.Arrays.stream(a).skip(2).anyMatch(x -> x.equalsIgnoreCase("convert-jails"));
+        boolean confirmed = java.util.Arrays.stream(a).skip(2).anyMatch(x -> x.equalsIgnoreCase("confirm"));
+        if (run && !confirmed) {
+            gui.messages().sendError(sender, "Run the check first, then repeat the same command with 'confirm' at the end to import for real.");
+            return;
+        }
+        gui.messages().sendInfo(sender, (run ? "Importing " : "Checking ") + file + " as source '" + label + "' ... (this can take a while; the network keeps running)");
+        importer.run(file, new dev.aura.punishments.service.SqliteImport.Options(!run, label, convert), Actors.of(sender).name())
+                .whenComplete((report, ex) -> Bukkit.getScheduler().runTask(gui.plugin(), () -> {
+                    if (ex != null || report == null) {
+                        gui.messages().sendError(sender, "The import failed unexpectedly. Nothing was changed; see the console.");
+                        return;
+                    }
+                    for (String line : report.lines()) gui.messages().sendInfo(sender, line);
+                }));
     }
 
     private void unjail(CommandSender sender, String[] a) {
