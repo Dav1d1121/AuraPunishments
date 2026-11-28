@@ -32,6 +32,18 @@ Do this on the live server with two staff accounts and one test player before an
 8. `/ap status` and `/ap audit verify` report healthy.
 9. Restart the server; confirm bans/mutes/custody persisted and `/ap status` is clean.
 
+## Upgrade to 1.3.1 (from 1.3.0)
+
+Replace the jar and restart. **No database migration** (schema stays v3). Nothing changes by itself: your `config.yml` has no `casework` section, which means off. To get the case workflow add this at the top level of `config.yml` (same indentation as `judicial:`, not inside it):
+
+```yaml
+casework:
+  enabled: true
+  require-case-for: []
+```
+
+and run `/ap reload`. Details: [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md). Rollback: put the 1.3.0 jar back.
+
 ## Upgrade to 1.3.0 (from 1.2.x, 1.1.x or 1.0.0)
 
 1. Stop the server and **copy `plugins/AuraPunishments/`** (the plugin also makes its own backup, `backups/punishments.db.pre-v<N>-<time>` - N = 3 from 1.1.x/1.2.x, 2 from 1.0.0 - before migrating).
@@ -40,9 +52,9 @@ Do this on the live server with two staff accounts and one test player before an
 4. Optional, in your own time: give the server a name (`network.server-name`), decide whether to turn the judicial system off ([JUDICIAL-MODE.md](JUDICIAL-MODE.md) - read it first if you have open cases or detainees), grant `aurapunishments.appeal.decide` to appeal reviewers ([APPEALS.md](APPEALS.md)), grant `aurapunishments.punish.jail` for jail punishments ([JAIL.md](JAIL.md)), and look at the Discord punishment log options ([DISCORD_WEBHOOKS.md](DISCORD_WEBHOOKS.md)).
 5. Rollback: [ROLLBACK.md](ROLLBACK.md) - 1.2.x refuses to start on a v3 database, so restore the pre-migration backup with the old jar.
 
-### A brand-new install of 1.3.0
+### A brand-new install of 1.3.0 / 1.3.1
 
-The shipped `config.yml` has `judicial.enabled: false`: punishments are final and immediate, evidence and notes attach to punishments, jail is a punishment, appeals are recorded against punishments. Set `network.server-name` (for example `smp`) **before** first use if this server will ever join a network.
+The shipped `config.yml` has `judicial.enabled: false` (and, from 1.3.1, `casework.enabled: true`: staff open a case and punish from it, no court): punishments are final and immediate, evidence and notes attach to punishments or to the case, jail is a punishment, appeals are recorded against punishments. Set `network.server-name` (for example `smp`) **before** first use if this server will ever join a network.
 
 ## Upgrade to 1.2.1 (from 1.2.0, 1.1.x or 1.0.0)
 

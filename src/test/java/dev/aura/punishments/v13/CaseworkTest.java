@@ -173,6 +173,19 @@ class CaseworkTest {
     }
 
     @Test
+    void closingTheCaseNeverLiftsWhatWasIssuedFromIt() throws Exception {
+        Case cs = open("harassment");
+        Punishment mute = punish(cs, PunishType.MUTE, Durations.DAY).orThrow();
+        Punishment jail = punish(cs, PunishType.JAIL, Durations.HOUR).orThrow();
+        Case closed = r(fx.cases.transition(mod, cs.id(), cs.version(), CaseStatus.CLOSED, "Closing the case, the punishments run their course")).orThrow();
+        assertEquals(CaseStatus.CLOSED, closed.status());
+        assertTrue(fx.punishments.muteFor(steve.uuid()).isPresent(), "the mute is still enforced");
+        assertEquals(PunishStatus.ACTIVE, fx.db.<Punishment>txSync(c -> Repo.Punishments.get(c, mute.id())).status());
+        assertEquals(JailService.HELD, fx.db.<Punishment>txSync(c -> Repo.Punishments.get(c, jail.id())).jailState());
+        assertEquals(1, fx.jail.prisoners.size(), "the prisoner is still held by JailReloaded");
+    }
+
+    @Test
     void theAccusedIsNotToldAboutHearingsBecauseThereAreNone() throws Exception {
         Case cs = open("harassment");
         r(fx.cases.transition(mod, cs.id(), cs.version(), CaseStatus.UNDER_INVESTIGATION, null)).orThrow();

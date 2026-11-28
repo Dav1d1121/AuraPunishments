@@ -6,6 +6,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 
 * Main command: **`/punish <player>`** - the player's complete disciplinary GUI. Also `/punishments`, `/ap help|case|cases|history|judge|reload|...`.
 * **One jar, one switch (1.3.0): `judicial.enabled`.** Off (new installs): a punishment is final and immediate; evidence, notes, jail, appeals, emergency actions and owner review all work without cases. On (upgrades): the full judicial system, exactly as before. See [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md).
+* **The case workflow (1.3.1): `casework.enabled`.** With the judicial system off, staff still **open a case, add evidence and notes, and punish from it** - no court, no detention, no verdict; the punishment is final at once and the case stays open. Quick buttons stay for routine actions. See [docs/WORKFLOW_CASEWORK.md](docs/WORKFLOW_CASEWORK.md).
 * Judicial path (when on): **case -> pretrial detention (JailReloaded) -> Discord hearing -> verdict -> sentence** (owner is the judge).
 * **Jail is a punishment** (`/ap jail`, `/ap unjail`), **appeals** go through Discord Ticket Tool and are decided with `aurapunishments.appeal.decide`, and Discord punishment notifications are configurable (private log + optional sanitized public log).
 * Exception path: **direct punishment** for proven major offenses (evidence + justification) and **emergency actions**.
@@ -19,6 +20,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 | Document | For |
 |---|---|
 | [docs/JUDICIAL-MODE.md](docs/JUDICIAL-MODE.md) | The `judicial.enabled` switch: states, switching on/off safely (1.3.0) |
+| [docs/WORKFLOW_CASEWORK.md](docs/WORKFLOW_CASEWORK.md) | Cases without the court: open a case, punish from it, no verdict (1.3.1) |
 | [docs/WORKFLOW_NO_JUDICIAL.md](docs/WORKFLOW_NO_JUDICIAL.md) / [docs/JAIL.md](docs/JAIL.md) / [docs/APPEALS.md](docs/APPEALS.md) | Day-to-day with the judicial system off; jail punishments; appeals (1.3.0) |
 | [docs/DATABASE.md](docs/DATABASE.md) / [docs/ARCHITECTURE_DECISIONS.md](docs/ARCHITECTURE_DECISIONS.md) | Schema v3, network foundation; decisions, assumptions, limitations (1.3.0) |
 | [docs/COMMANDS.md](docs/COMMANDS.md) | Every command, with what changes when the judicial system is off (1.3.0) |
@@ -33,7 +35,7 @@ Paper **26.3** - Java **25** - integrates with **JailReloaded** (imprisonment), 
 | [docs/INTEGRATION_REPORT.md](docs/INTEGRATION_REPORT.md) | What was inspected in each plugin, how it is integrated, what was verified |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test evidence, results, limitations, readiness assessment |
 | [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Features and **known limitations** |
-| [release/](release/) | `AuraPunishments-1.3.0.jar`, its SHA-256 and the exact source commit it was built from |
+| [release/](release/) | `AuraPunishments-1.3.1.jar`, its SHA-256 and the exact source commit it was built from |
 
 ## Build and test
 

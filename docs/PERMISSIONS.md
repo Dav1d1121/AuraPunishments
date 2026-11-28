@@ -1,5 +1,7 @@
 # AuraPunishments 1.3.0 - Permission Matrix
 
+> **1.3.1 adds no permission nodes.** Punishing from a case needs `punish.<type>` (+ duration tier / `.permanent`) and permission to see the case (`case.view.all` or `case.view.own`); opening a case needs `case.create` (or `report`).
+
 Everything is **default-deny**, including for server operators, with one deliberate exception: `aurapunishments.command` (the bare `/ap` command, which only shows help and a list of the subcommands you separately hold) defaults to **op** so the server console can run `/ap`. The console is always trusted for `/ap` subcommands; players still need each node. Nothing in this plugin trusts a rank *name*;
 authority comes only from LuckPerms nodes, so your existing Trainee -> Owner groups keep working and you can
 adjust any single privilege without touching code.

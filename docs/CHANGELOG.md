@@ -2,6 +2,37 @@
 
 (This file was accidentally emptied in the 1.2.0 release commit; it is rebuilt here from the release notes and commit history. Nothing else was affected.)
 
+## 1.3.1 - the case workflow: cases without the court
+You liked opening a case first. With the judicial system off, **staff can still create a case, add evidence and notes, and punish from the case** - with no court: no pretrial detention, hearing, judge, verdict, sentencing or time-served credit. Read [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md).
+
+**Added**
+* `casework.enabled` (config.yml; new installs: `true`, a missing section = `false`, so an upgrade never changes behaviour by itself). Only used while `judicial.enabled` is `false`. A fourth state, **CASEWORK**, joins ENABLED / DISABLED / WIND_DOWN.
+* **Create Case is the first button** on the player screen; the quick buttons (Issue Warning / Kick / Mute / Ban / IP Ban / Jail) and `/ap warn|kick|mute|ban|ipban|jail` stay for routine actions.
+* **Punish** button on the case screen: Warning, Kick, Mute, Ban, IP Ban or Jail with the usual duration, reason, evidence, note and confirmation. The punishment is **final and immediate**, **linked to the case**, recorded on the case timeline, and **the case stays open** for more evidence, notes and appeals until staff close it. Closing a case never lifts what was issued from it; a closed case can be reopened (Under Review -> Open).
+* The case's rules are enforced when punishing from it: the case must be about that player and open; the offense must allow the punishment and its maximum duration (`offenses.yml`; a kick is always allowed); evidence already on the case counts toward `punishments.quick.require-evidence`; owner review works exactly as for quick punishments and points at the case.
+* `casework.require-case-for: [BAN, IPBAN, JAIL]` (optional): chosen types can only be issued from a case; the quick buttons and `/ap` commands refuse them with an explanation.
+* Appeals are filed against the **punishment** (Ticket Tool reference), as without cases; an overturned punishment is revoked and the case records it.
+* Leftover court work (pretrial detainees, cases awaiting a verdict or sentence, case appeals) from when the judicial system was on is **reported, never touched**: console, administrators on join, `/ap judicial`, the dashboard banner; the court screens stay reachable only until it is finished.
+* No new permission nodes.
+
+**Changed**
+* The case screen in casework hides judge, trial and hearing buttons; the owner of a case is shown as "Opened by" / "Reassign case owner"; the status chooser offers Open, Under Investigation, Under Review and Closed only; accused players are not sent hearing notices.
+* `/ap judicial` and `/ap status` show the CASEWORK state.
+* Evidence added to a punishment that has an open case lands on the case.
+
+**Not changed**
+* With `casework.enabled: false` and `judicial.enabled: false` everything behaves exactly as 1.3.0; with `judicial.enabled: true` exactly as 1.3.0. Schema, storage, permissions and Discord formats are unchanged.
+
+**Upgrade:** replace the jar and restart. No database migration. `config.yml` is never rewritten; to get the workflow on an existing server add this at the top level of `config.yml` (same indentation as `judicial:`, not inside it):
+
+```yaml
+casework:
+  enabled: true
+  require-case-for: []
+```
+
+then `/ap reload`. A reference copy of the new options is written once as `config-1.3.1-reference.yml`. Rollback: put the 1.3.0 jar back (nothing in the database changed; punishments linked to cases simply show as ordinary punishments).
+
 ## 1.3.0 - optional judicial system, case-free workflows, standalone jail, appeals, network-ready storage
 One jar, one switch. **`judicial.enabled`** turns the whole judicial system (cases, pretrial detention, hearings, verdicts, sentencing) on or off. New installs ship with it **off**: a punishment is final and enforced the moment staff issue it. An upgraded server keeps it **on** and behaves exactly as before until its administrator decides otherwise. Everything else (the `/punish` GUI, dialog text entry, confirmations, warnings, kicks, mutes, bans, IP bans, jail, emergency actions, owner review, evidence, staff notes, history, revoke, offline players, hierarchy, rank limits, LuckPerms, Discord logging, audit log) keeps working in both modes. Read [JUDICIAL-MODE.md](JUDICIAL-MODE.md) before switching a server that already has cases.
 

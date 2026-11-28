@@ -30,6 +30,19 @@
 | `/ap judge` etc. "hidden" | Hidden from help/tab-complete and refused with "no permission" while DISABLED; `case`, `cases`, `export` stay for historical access | "Historical judicial records remain accessible to authorized staff." |
 | "Pretrial vs punitive jail distinct" | Separate records, labels, commands and screens; the JailReloaded prisoner reason carries `[AP-0012]` (case) vs `[AP-J0012]` (jail punishment) | See [JAIL.md](JAIL.md). |
 
+## Decisions in 1.3.1 (the case workflow)
+
+| Decision | Choice | Why |
+|---|---|---|
+| Where the case workflow lives | A separate `casework.enabled`, read only while `judicial.enabled` is false; a fourth state CASEWORK in the same mode object | One place decides what is visible and refused; the court switch keeps its exact meaning; an existing config without the section changes nothing |
+| What a punishment from a case is | An ordinary final punishment (source STANDARD) with `case_id` set - **not** a judicial sentence or a direct punishment | No court was involved, so it must not look like one or count as a finding in escalation; it also keeps one code path for permissions, limits, jail, review and Discord |
+| What happens to the case | It stays open; closing is manual; closing never lifts anything | The case is the file on the matter, not an approval step; appeals and new evidence still belong on it |
+| Evidence and notes supplied while punishing | Stored on the case, never duplicated onto the punishment | One home for the facts; the punishment screen shows both |
+| Offense rules | The case's offense limits allowed types and duration (`offenses.yml`); a kick is exempt | Keeps the offense table meaningful without a court; a kick ends a session and is not a sentence |
+| Case appeals | None; appeals are filed against the punishment | Case-level appeals exist only to re-open a verdict |
+| Court work left over | Reported, never touched; court screens return only to finish it | Same rule as wind-down: a configuration change must never release or close anything |
+| Quick buttons | Stay by default; `require-case-for` can force types through a case | Routine actions should stay one click; the server decides what deserves a file |
+
 ## Known limitations (also in TEST_REPORT.md)
 
 * **No network-wide behaviour** (by design for this release): bans, mutes, jail and appeals apply to the server that issued them. Running 1.3.0 on several servers with separate databases works, but they do not see each other yet.

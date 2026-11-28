@@ -1,3 +1,14 @@
+# AuraPunishments 1.3.1 - Release notes
+
+**The case workflow: cases without the court.** With `judicial.enabled: false` and `casework.enabled: true` staff still **open a case** (offense, severity, description, evidence, notes) and **punish from it** - warning, kick, mute, ban, IP ban or jail. The punishment is final and immediate, linked to the case, and the **case stays open** for notes, evidence and appeals until it is closed. There is no pretrial detention, hearing, judge, verdict, sentencing or time-served credit. The quick buttons stay for routine actions. New installs get this by default; upgraded servers change nothing until the two config lines are added. [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md)
+
+* Create Case is the first button on `/punish <player>`; Punish is the button on the case screen.
+* `casework.require-case-for: [BAN, IPBAN, JAIL]` optionally forces chosen types through a case.
+* Court work left over from when the judicial system was on is reported and never touched.
+* No database migration, no new permission nodes. Details: [CHANGELOG.md](CHANGELOG.md).
+
+---
+
 # AuraPunishments 1.3.0 - Release notes
 
 **One jar, one switch: the judicial system is now optional.** `judicial.enabled` turns cases, pretrial detention, hearings, verdicts and sentencing on or off. New installs ship with it **off** - a punishment is final the moment staff issue it - and an upgraded server keeps it **on** and behaves exactly as before. Everything else (the `/punish` GUI and its dialog windows, confirmation screens, warnings, kicks, mutes, bans, IP bans, emergency actions, owner review, history, revoke, offline players, hierarchy, rank limits, LuckPerms, Discord logging, audit log) works in both modes.

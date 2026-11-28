@@ -264,3 +264,12 @@ New permission: `aurapunishments.appeal.decide` (never automatic, not in `aurapu
 Scheduled work while the judicial system is off: custody deadline sweeps and custody reconciliation are idle; jail-punishment reconciliation (every `custody.reconcile-interval-seconds`), release retries, emergency-review alerts, owner-review reminders, notification expiry and the Discord outbox keep running.
 
 Daily workflow without the judicial system: [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_NO_JUDICIAL.md).
+
+## 1.3.1 additions for administrators
+
+| Setting (config.yml) | Default (new install / upgrade) | What it does |
+|---|---|---|
+| `casework.enabled` | `true` / *missing = false* | The case workflow: with `judicial.enabled: false` staff still open cases and punish from them, with no court. Ignored while the judicial system is on. [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md) |
+| `casework.require-case-for` | `[]` | Punishment types that can only be issued from a case (for example `[BAN, IPBAN, JAIL]`); the quick buttons and `/ap` commands refuse them with an explanation. |
+
+No new permission nodes, no database migration. `/ap judicial` and `/ap status` show the state (ENABLED, CASEWORK, WIND_DOWN, DISABLED) and any court work left over from before. To adopt the workflow on an upgraded server add the `casework:` section shown in [INSTALLATION.md](INSTALLATION.md) and run `/ap reload`.

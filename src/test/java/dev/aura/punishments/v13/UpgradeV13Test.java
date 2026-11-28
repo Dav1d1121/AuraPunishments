@@ -122,4 +122,34 @@ class UpgradeV13Test {
             if (server != null) MockBukkit.unmock();
         }
     }
+
+    @Test
+    void aVersion130ServerIsToldAboutTheCaseWorkflowAndItsConfigIsNotTouched() throws Exception {
+        ServerMock server = MockBukkit.mock();
+        try {
+            String version = YamlConfiguration.loadConfiguration(new InputStreamReader(getClass().getResourceAsStream("/plugin.yml"), StandardCharsets.UTF_8)).getString("version");
+            File data = new File(server.getPluginsFolder(), "AuraPunishments-" + version);
+            data.mkdirs();
+            String shipped = new String(getClass().getResourceAsStream("/config.yml").readAllBytes(), StandardCharsets.UTF_8);
+            int from = shipped.indexOf("\n# CASE WORKFLOW");
+            int endMark = shipped.indexOf("  require-case-for: []\n", from);
+            assertTrue(from > 0 && endMark > from, "the shipped file contains the casework section");
+            String as130 = shipped.substring(0, from) + shipped.substring(endMark + "  require-case-for: []\n".length());
+            assertFalse(as130.contains("casework"), "the fixture looks like a 1.3.0 config");
+            byte[] cfg = as130.getBytes(StandardCharsets.UTF_8);
+            Files.write(new File(data, "config.yml").toPath(), cfg);
+
+            AuraPunishmentsPlugin plugin = MockBukkit.load(AuraPunishmentsPlugin.class);
+            assertTrue(plugin.isEnabled());
+            assertFalse(plugin.core().mode.casework(), "a missing casework section means off: upgrading changes nothing by itself");
+            assertArrayEquals(cfg, Files.readAllBytes(new File(data, "config.yml").toPath()), "config.yml is byte-for-byte untouched");
+            File ref = new File(data, "config-" + version + "-reference.yml");
+            assertTrue(ref.isFile(), "the reference file shows the new section");
+            assertTrue(Files.readString(ref.toPath()).contains("casework:"));
+            MockBukkit.unmock();
+            server = null;
+        } finally {
+            if (server != null) MockBukkit.unmock();
+        }
+    }
 }

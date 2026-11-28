@@ -62,6 +62,8 @@ Other commands: `/punishments` (your dashboard), `/ap help`, `/ap case <id>`, `/
 **Typing text:** when a button needs text (reason, description, evidence, note) the GUI closes and asks you to **type in
 chat**. Your line is captured privately (nobody else sees it). Type `cancel` to abort. You have 90 seconds.
 
+> **1.3.1:** on servers where the judicial system is off but the **case workflow** is on, you still *create a case* (this section), but there is no court: after the case exists, press **Punish** on the case screen to warn, kick, mute, ban, IP-ban or jail. The punishment is final at once, linked to the case, and the case stays open until you close it. See [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md). The sections about pretrial detention, trials and verdicts do not apply there.
+
 ## 3. Create a case (the normal path)
 
 1. `/punish <player>` -> **Create Case**.

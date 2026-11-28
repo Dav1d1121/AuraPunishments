@@ -1,5 +1,7 @@
 # AuraPunishments 1.3.0 - Commands
 
+**1.3.1:** with the case workflow on (`judicial.enabled: false`, `casework.enabled: true`) the "judicial off" column applies, plus: `/ap case`, `/ap cases` and the case screens are available and **create case / punish from the case** replaces nothing - the quick commands (`/ap warn|kick|mute|ban|ipban|jail`) keep working unless `casework.require-case-for` lists the type. There are no new commands; `/ap judicial` shows the CASEWORK state. See [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md).
+
 Every `/ap` subcommand re-checks the same permissions, hierarchy, limits and evidence rules as the GUI; the server console is trusted. Tab completion and `/ap help` list only what you may use. **New** = added in 1.3.0, **changed** = behaviour depends on `judicial.enabled`.
 
 | Command | Permission (any of) | Judicial on | Judicial off | Notes |

@@ -368,7 +368,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             YamlConfiguration current = load("config.yml");
             boolean has11 = current.isConfigurationSection("warnings") && current.isConfigurationSection("review");
             boolean has13 = current.contains("judicial.enabled");
-            if (has11 && has13) return;
+            boolean has131 = current.contains("casework.enabled");
+            if (has11 && has13 && has131) return;
             String name = "config-" + getPluginMeta().getVersion() + "-reference.yml";
             File ref = new File(getDataFolder(), name);
             if (ref.exists()) return;
@@ -378,6 +379,11 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             if (!has11) {
                 getLogger().info("Upgrade: your config.yml was NOT changed. New 1.1 options (warnings, review, dashboard, defendant, exports, "
                         + "discord channels...) use safe built-in defaults. See " + name + " for every new option and copy what you want.");
+            }
+            if (has13 && !has131) {
+                getLogger().info("Upgrade to 1.3.1: new optional 'casework' section (the case workflow: with the judicial system off, staff still open a case and punish from it, "
+                        + "with no court). Your config.yml was NOT changed and the workflow is OFF until you add 'casework:' / '  enabled: true' at the top level and run /ap reload - "
+                        + "see docs/WORKFLOW_CASEWORK.md. " + name + " shows the new section.");
             }
             if (!has13) {
                 getLogger().info("Upgrade to 1.3: your config.yml has no 'judicial.enabled' line, so the judicial system stays ON and everything behaves as before. "

@@ -7,6 +7,8 @@ judicial:
   enabled: false     # new installs      |   true  = exactly the behaviour of 1.0 - 1.2
 ```
 
+> **1.3.1:** "off" has two flavours. With `casework.enabled: true` (the default for new installs) staff still open cases and punish from them - just without the court. That is the CASEWORK state described in [WORKFLOW_CASEWORK.md](WORKFLOW_CASEWORK.md). Everything below describes the plain off mode (`casework.enabled: false`, or the section missing), which is exactly 1.3.0.
+
 ## Which value do I get?
 
 | Situation | Value |
