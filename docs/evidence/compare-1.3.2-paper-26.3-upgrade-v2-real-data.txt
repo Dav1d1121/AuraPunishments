@@ -1,0 +1,17 @@
+PASS profiles: 30 original rows, 30 after, 0 changed
+PASS cases: 24 original rows, 24 after, 0 changed
+PASS case_events: 107 original rows, 107 after, 0 changed
+PASS evidence: 24 original rows, 24 after, 0 changed
+PASS notes: 0 original rows, 0 after, 0 changed
+PASS custody: 12 original rows, 12 after, 0 changed
+PASS punishments: 42 original rows, 42 after, 0 changed
+PASS direct_actions: 1 original rows, 1 after, 0 changed
+PASS appeals: 0 original rows, 0 after, 0 changed
+PASS audit_log: 163 original rows, 163 after, 0 changed
+PASS audit_anchor: 0 original rows, 0 after, 0 changed
+PASS pending_ops: 21 original rows, 21 after, 0 changed
+PASS reviews: 12 original rows, 12 after, 0 changed
+PASS review_events: 12 original rows, 12 after, 0 changed
+PASS player_notifications: 44 original rows, 44 after, 0 changed
+PASS discord_outbox: 0 original rows, 0 after, 0 changed
+== 492 original rows compared across 16 tables; ALL IDENTICAL ==

@@ -1,3 +1,45 @@
+# AuraPunishments 1.3.2 - Test report
+
+1.3.2 adds the **punishment choice inside Create Case**, makes **owner review off by default** (and never applied to punishments from a case), and makes **one jar run on Paper 1.21.11 and Paper 26.3**. The 1.3.1 and 1.3.0 reports follow below unchanged; this section covers what 1.3.2 changed and the full re-run on the 1.3.2 jar, on both servers.
+
+## 1.3.2 summary
+
+| Category | Result |
+|---|---|
+| **A/B. Automated tests**, run on **both** API versions (`gradle test`: Paper API 26.3 + MockBukkit v26.3; `gradle test121`: Paper API 1.21.11 + MockBukkit v1.21) | **375 tests, 0 failures on each** (366 from 1.3.1, still asserting what they asserted, plus 9 new/changed: `CaseworkTest` 31, `CaseworkGuiTest` 8, `UpgradeV13Test` 6) |
+| **C1. Live, real Paper 26.3** (real JailReloaded 1.2.2, LuckPerms, Towny, TownyChat, EssentialsX + Chat, CoreProtect, AuraCommandFilter, DiscordSRV not connected; real TCP protocol clients) | **533/533 checks pass** in 10 phases: new phase 13 (punishment inside Create Case) **60/60**; phase 12 (case workflow) 115/115; 8/9/10 = 98/11/22; 7/6/1/2/3 = 91/65/54/9/8 |
+| **C2. Live, real Paper 1.21.11** (build 132; same plugins except AuraCommandFilter, see below) | **519/520**: phase 13 60/60; 12 = 115/115; 8/9/10 = 98/11/22; 7/6/1/2/3 = 91/51 of 52/54/9/8. **The one miss is "AuraCommandFilter present": your AuraCommandFilter plugin declares `api-version: 26.3` and Paper 1.21.11 refuses to load it. It is not part of AuraPunishments and nothing in AuraPunishments depends on it.** |
+| **D. Real-data upgrade** (data folders written by 1.0.0 and 1.x, booted with the 1.3.2 jar, compared row by row with the originals) | **26/26 runtime checks on each server**; 204 and 492 original rows across 12 and 16 tables: **all identical**, on 26.3 and on 1.21.11 |
+| **E. Not tested** | official game client rendering of dialogs; real Discord delivery; Velocity / multi-server (not part of this release); load/soak; other 1.21.x versions (only 1.21.11 and 26.3 were run); live phases 4 and 5 (incompatible JailReloaded jar, version drift - unchanged code path) |
+
+The jar that was tested on both servers is the jar that is delivered: SHA-256 `97bd8646f21f450d76fb14b54d79125e662a4e9b3f4d6836eec37d43a70668f0`. Its classes are Java 21 bytecode (class-file major version 65), compiled against the 1.21.11 API, `api-version: 1.21.11`. The separate live-test **drivers** (never shipped; `live-test` for 26.3, `live-test-121` for 1.21.11 - the latter differs only in the two classes that touch server internals, which Mojang renamed between the versions) were adjusted during the run, never the plugin (see "How the live run went").
+
+### What the new tests cover
+
+* `CaseworkTest` (31): everything from 1.3.1 plus - **a punishment from a case never creates an owner review, even with review on** (while a quick punishment without a case still does); **a case opened together with its punishment in one atomic step** (case OPEN, punishment linked, evidence and timeline, no review); the case's evidence satisfies a ban's evidence requirement; **a refused punishment leaves no case behind** (limit, offense disallows the type, an active ban already exists, JailReloaded missing) so the draft can be corrected and resubmitted; a report-only account cannot punish; the same player is required; judicial-on refuses it; **strikes for the recommendation** count case punishments that were not revoked and not kicks.
+* `CaseworkGuiTest` (8): the **Punishment button** under the steps on the New case screen; with no offense yet nothing opens; the usual list of punishments (a type the offense does not allow, here an IP ban for harassment, is greyed out); the usual punishment screen opened for the new case; "Use this punishment" returns to the draft **with nothing saved or issued yet**; Submit asks one confirmation and opens the case **and** issues the punishment (linked, case open, enforced, no review); Shift+Click removes the chosen punishment and the case is then opened alone.
+* `UpgradeV13Test`: unchanged (a 1.3.0 config keeps working and gets the reference file).
+
+### What live phase 13 proves, on a real server of each version (60 checks each)
+
+A fresh install as shipped is in the case workflow with **owner review off**; the staff dashboard has **no** owner-review buttons and `/ap help` does not list `/ap review`. Through the real wizard with real dialog windows: Create Case -> offense, description, evidence -> **6. Punishment** -> the usual list (IP Ban locked, Mute available) -> the usual Mute screen titled "for the new case" -> duration and reason -> "Use this punishment" -> **nothing exists yet** -> Submit -> one confirmation -> the new case opens; the case and the mute exist together, the mute ACTIVE, STANDARD (no court), linked, enforced (the muted player cannot chat and is told so), **no owner review row**, no custody and no verdict. The same for **Jail** (really held by the real JailReloaded, linked to the case and not pretrial custody; `/ap unjail` releases) and for a **Ban** (the case's evidence satisfied the ban's evidence rule; the online player is disconnected with the ban screen). Three cases, each open with exactly one linked punishment; audit chain intact; no pending operation left.
+
+### How the live run went (nothing hidden)
+
+* **No defect in the plugin was found by the 1.21.11 runs.** Every failure along the way was in the test setup: the new 1.21.11 test server was first left on default settings (wrong port, online mode on); the 1.21.11 driver needed its own `api-version` and a "Mojang mappings" manifest line; the driver now waits for the server's listener before a phase starts; and phase 13's first draft used player names that contained "Mute", "Jail" and "Ban", so button lookups hit the player's head, and logged one player in twice (which Minecraft answers by kicking the first connection). All fixed in the driver; the whole suite was then run on both servers on the unchanged plugin jar.
+* The plugin jar also gained one manifest line (`paperweight-mappings-namespace: mojang`): it uses no server internals, so Paper 1.21.11 has nothing to remap, and without it Paper remaps the jar on every first load.
+* A worker restart interrupted the first 1.21.11 run during phase 6; phases 13, 12, 8, 9, 10 and 7 had already finished (results kept) and phases 6, 1, 2 and 3 were re-run from a clean state.
+* **AuraCommandFilter** (a separate plugin) cannot run on 1.21.11 while its `plugin.yml` says `api-version: 26.3`; AuraPunishments detects it only to say so in the console and does not need it.
+
+### Known limitations of 1.3.2
+
+* The Create Case punishment step always goes through the same checks as a quick punishment plus the offense's limits; an offense that does not allow the type you want must be changed in `offenses.yml` or the case punished differently.
+* A punishment chosen on the New case screen applies the staff note only to the case (there is no separate punishment note in the case workflow).
+* Only Paper 1.21.11 and 26.3 were run; other 1.21.x versions should work (the plugin uses the 1.21.11 API) but are not claimed.
+* Everything listed under "Not tested" above, and every limitation in the 1.3.1 and 1.3.0 reports below, still applies.
+
+---
+
 # AuraPunishments 1.3.1 - Test report
 
 1.3.1 adds the **case workflow** (open a case, punish from it, no court) on top of 1.3.0. The 1.3.0 report follows below unchanged; this section covers what 1.3.1 changed and the full re-run on the 1.3.1 jar.

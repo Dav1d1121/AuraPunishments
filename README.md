@@ -37,7 +37,7 @@ Paper **1.21.11 or 26.3** (one jar for both) - Java **21 or newer** - integrates
 | [docs/INTEGRATION_REPORT.md](docs/INTEGRATION_REPORT.md) | What was inspected in each plugin, how it is integrated, what was verified |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test evidence, results, limitations, readiness assessment |
 | [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) | Features and **known limitations** |
-| [release/](release/) | `AuraPunishments-1.3.1.jar`, its SHA-256 and the exact source commit it was built from |
+| [release/](release/) | `AuraPunishments-1.3.2.jar`, its SHA-256 and the exact source commit it was built from |
 
 ## Build and test
 

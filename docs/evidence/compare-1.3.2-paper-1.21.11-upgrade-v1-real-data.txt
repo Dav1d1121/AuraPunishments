@@ -1,0 +1,13 @@
+PASS profiles: 12 original rows, 12 after, 0 changed
+PASS cases: 14 original rows, 14 after, 0 changed
+PASS case_events: 58 original rows, 58 after, 0 changed
+PASS evidence: 14 original rows, 14 after, 0 changed
+PASS notes: 0 original rows, 0 after, 0 changed
+PASS custody: 7 original rows, 7 after, 0 changed
+PASS punishments: 10 original rows, 10 after, 0 changed
+PASS direct_actions: 1 original rows, 1 after, 0 changed
+PASS appeals: 0 original rows, 0 after, 0 changed
+PASS audit_log: 77 original rows, 77 after, 0 changed
+PASS audit_anchor: 0 original rows, 0 after, 0 changed
+PASS pending_ops: 11 original rows, 11 after, 0 changed
+== 204 original rows compared across 12 tables; ALL IDENTICAL ==
