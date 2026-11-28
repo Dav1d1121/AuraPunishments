@@ -35,8 +35,15 @@ public final class Sql {
         }
     }
 
+    /** MariaDB / MySQL reserve a word the schema uses as a column name ("sensitive"): it is quoted for those engines only. */
+    private static String adapt(Connection c, String sql) throws SQLException {
+        if (sql.indexOf("ensitive") < 0 && sql.indexOf("ENSITIVE") < 0) return sql;
+        String url = c.getMetaData().getURL();
+        return url != null && url.startsWith("jdbc:mariadb:") ? Dialect.MariaDb.quoteReserved(sql) : sql;
+    }
+
     public static <T> List<T> query(Connection c, String sql, RowMapper<T> m, Object... args) throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
+        try (PreparedStatement ps = c.prepareStatement(adapt(c, sql))) {
             bind(ps, args);
             try (ResultSet rs = ps.executeQuery()) {
                 List<T> out = new ArrayList<>();
@@ -52,7 +59,7 @@ public final class Sql {
     }
 
     public static int update(Connection c, String sql, Object... args) throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement(sql)) {
+        try (PreparedStatement ps = c.prepareStatement(adapt(c, sql))) {
             bind(ps, args);
             return ps.executeUpdate();
         }
@@ -60,7 +67,7 @@ public final class Sql {
 
     /** Insert and return the generated key. */
     public static long insert(Connection c, String sql, Object... args) throws SQLException {
-        try (PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try (PreparedStatement ps = c.prepareStatement(adapt(c, sql), Statement.RETURN_GENERATED_KEYS)) {
             bind(ps, args);
             ps.executeUpdate();
             try (ResultSet rs = ps.getGeneratedKeys()) {

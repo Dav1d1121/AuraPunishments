@@ -93,11 +93,13 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             return;
         }
 
-        db = new Database(new File(getDataFolder(), settings.dbFile).toPath(), getLogger(), settings.network.serverName());
+        db = settings.storage.shared()
+                ? Database.shared(settings.storage, getLogger(), settings.network.serverName())
+                : new Database(new File(getDataFolder(), settings.dbFile).toPath(), getLogger(), settings.network.serverName());
         try {
             db.open();
         } catch (java.sql.SQLException e) {
-            getLogger().severe("AuraPunishments cannot open its database: " + e.getMessage());
+            getLogger().severe("AuraPunishments cannot open its database (" + settings.storage + "): " + e.getMessage());
             getLogger().severe("No punishment can be enforced without it, so the plugin is disabling itself. Existing data is untouched.");
             Bukkit.getPluginManager().disablePlugin(this);
             return;
@@ -305,6 +307,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         log.info("AuraPunishments " + getPluginMeta().getVersion() + " enabled in " + ms + "ms (schema v" + db.schemaVersion() + ", "
                 + punishments.cache().size() + " active punishments).");
         log.info("JailReloaded: " + core.jail.status());
+        log.info("Storage: " + (db.shared() ? "SHARED " + db.dialect().name() + " database " + db.storage() + " (network mode)" : "standalone SQLite file"));
         log.info("Server name (records are stamped with it): " + db.origin());
         log.info("Judicial system: " + (core.mode.enabled() ? "ENABLED (cases, pretrial detention, hearings, verdicts and sentencing are available)"
                 : core.mode.casework() ? "OFF (judicial.enabled: false), CASE WORKFLOW ON (casework.enabled: true) - cases are opened, investigated, punished from and closed; no court, punishments are final immediately"
@@ -462,7 +465,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         l.add("Database: " + (db.healthy() ? "healthy" : "PROBLEM: " + db.lastError()));
         l.add("Active bans/mutes cached: " + punishments.cache().size());
         l.add("JailReloaded: " + core.jail.status());
-        l.add("Server name: " + db.origin() + ", database schema v" + db.schemaVersion());
+        l.add("Storage: " + (db.shared() ? "shared " + db.dialect().name() + " " + db.storage() : "standalone SQLite") + "; server name: " + db.origin()
+                + ", database schema v" + db.schemaVersion());
         l.add("Judicial system: " + core.mode.state() + (core.mode.state() == JudicialMode.State.WIND_DOWN ? " - " + String.join("; ", core.mode.report().lines())
                 : windDownWarning() ? " - court work left over: " + String.join("; ", core.mode.report().courtLines()) : ""));
         l.add("LuckPerms: " + (luckPerms != null ? "connected" : "not connected"));

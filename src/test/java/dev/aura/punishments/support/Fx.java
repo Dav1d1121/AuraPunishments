@@ -51,8 +51,34 @@ public final class Fx implements AutoCloseable {
         public String serverName = null;
     }
 
+    /** Set with -Dap.test.db=mariadb (gradle testMariadb): the same tests run against a real MariaDB/MySQL server, one throw-away database each. */
+    public static final String BACKEND = System.getProperty("ap.test.db", "sqlite");
+    private String sharedDatabaseName;
+    private boolean dropOnClose = true;
+    /** file path -> database name: a "restart" (a second fixture over the same file) must see the first one's data. */
+    private static final Map<String, String> SHARED_BY_FILE = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final java.util.Set<String> CREATED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    static {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> CREATED.forEach(Fx::dropDatabase)));
+    }
+
     public Fx(Path file, Mutator m) throws Exception {
-        db = new Database(file, Logger.getLogger("test"), m.serverName);
+        if (BACKEND.equals("sqlite")) {
+            db = new Database(file, Logger.getLogger("test"), m.serverName);
+        } else {
+            String key = file == null ? null : file.toAbsolutePath().toString();
+            sharedDatabaseName = key == null ? null : SHARED_BY_FILE.get(key);
+            if (sharedDatabaseName == null) {
+                sharedDatabaseName = "aura_t_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+                if (key != null) SHARED_BY_FILE.put(key, sharedDatabaseName);
+            }
+            dropOnClose = key == null; // a database a later restart needs is dropped when the JVM ends
+            CREATED.add(sharedDatabaseName);
+            String host = System.getProperty("ap.test.db.host", "127.0.0.1");
+            db = Database.shared(new dev.aura.punishments.db.StorageConfig(BACKEND, host, Integer.getInteger("ap.test.db.port", 3306), sharedDatabaseName,
+                    System.getProperty("ap.test.db.user", "aura"), System.getProperty("ap.test.db.password", "aurapass"), false, true, true, 4, 1,
+                    10_000, 300_000, 1_500_000, 60_000), Logger.getLogger("test"), m.serverName == null ? "testsrv" : m.serverName);
+        }
         db.open();
         YamlConfiguration cfg = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/config.yml"), StandardCharsets.UTF_8));
         YamlConfiguration off = YamlConfiguration.loadConfiguration(new InputStreamReader(Fx.class.getResourceAsStream("/offenses.yml"), StandardCharsets.UTF_8));
@@ -137,5 +163,26 @@ public final class Fx implements AutoCloseable {
     @Override
     public void close() {
         db.close();
+        if (sharedDatabaseName != null && dropOnClose) {
+            dropDatabase(sharedDatabaseName);
+            CREATED.remove(sharedDatabaseName);
+        }
+    }
+
+    private static void dropDatabase(String name) {
+        try (java.sql.Connection c = new org.mariadb.jdbc.Driver().connect("jdbc:mariadb://" + System.getProperty("ap.test.db.host", "127.0.0.1") + ":"
+                + Integer.getInteger("ap.test.db.port", 3306) + "/", propertiesOf());
+             java.sql.Statement st = c.createStatement()) {
+            st.execute("DROP DATABASE IF EXISTS `" + name + "`");
+        } catch (java.sql.SQLException ignored) {
+            // a leftover throw-away test database is harmless
+        }
+    }
+
+    private static java.util.Properties propertiesOf() {
+        java.util.Properties p = new java.util.Properties();
+        p.setProperty("user", System.getProperty("ap.test.db.user", "aura"));
+        p.setProperty("password", System.getProperty("ap.test.db.password", "aurapass"));
+        return p;
     }
 }

@@ -269,6 +269,7 @@ class MigrationV3Test {
 
     @Test
     void theUpgradedDatabaseWorksWithTheServices() throws Exception {
+        org.junit.jupiter.api.Assumptions.assumeTrue(Fx.BACKEND.equals("sqlite"), "this upgrades a 1.x SQLite FILE; the shared database has its own migration (see the network tests)");
         Path file = buildV2();
         Fx.Mutator m = new Fx.Mutator();
         m.set.put("judicial.enabled", true);

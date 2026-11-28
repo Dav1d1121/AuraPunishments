@@ -493,7 +493,9 @@ public final class Repo {
 
         /** Review modification: new expiry/reason; the first original expiry is preserved. */
         public static boolean modify(Connection c, long id, Long newExpires, String newReason, String by, long now) throws SQLException {
-            return update(c, "UPDATE punishments SET expires_at=?, reason=COALESCE(?,reason), modified_at=?, modified_by=?, original_expires_at=COALESCE(original_expires_at, expires_at) WHERE id=? AND status='ACTIVE'",
+            // original_expires_at is assigned FIRST: MariaDB / MySQL evaluate the assignments of an UPDATE left to right, so a later
+            // assignment would see the new expires_at (SQLite sees the old one in every position).
+            return update(c, "UPDATE punishments SET original_expires_at=COALESCE(original_expires_at, expires_at), expires_at=?, reason=COALESCE(?,reason), modified_at=?, modified_by=? WHERE id=? AND status='ACTIVE'",
                     newExpires, newReason, now, by, id) == 1;
         }
 

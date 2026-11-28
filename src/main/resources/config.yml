@@ -32,13 +32,37 @@ network:
 #  Database  [RESTART]
 # ---------------------------------------------------------------------------
 database:
-  # Only "sqlite" is implemented in 1.0.0. The schema and data layer are written so a
-  # MySQL/MariaDB dialect can be added later without changing the services.
+  # sqlite   - ONE server, one file (the default; exactly as in 1.0 - 1.3).
+  # mariadb  - a SHARED database used by every server of a network (MariaDB 10.6+); mysql = MySQL 8+. Every server then needs its own
+  #            network.server-name above. Read docs/NETWORK_DEPLOYMENT.md before switching a server over.
   type: sqlite
-  # File inside plugins/AuraPunishments/
+  # SQLite: file inside plugins/AuraPunishments/
   file: punishments.db
   # How long a database operation may take before the staff member is told it failed.
   timeout-seconds: 15
+
+  # ----- Shared database (type: mariadb | mysql). Ignored for sqlite. Use a DEDICATED database, not the LuckPerms one. -----
+  host: 127.0.0.1
+  port: 3306
+  name: aurapunishments
+  username: aurapunishments
+  # Keep the password out of this file if you like: "${env:AP_DB_PASSWORD}" reads it from an environment variable.
+  password: ""
+  # TLS to the database server.
+  ssl: false
+  # Create the database (utf8mb4) when it does not exist. Needs the CREATE privilege; otherwise create it yourself.
+  create-database: false
+  # Upgrading the shared schema is only allowed on a server you tell it to. Stop EVERY server of the network, take a backup, set this to
+  # true on ONE server, start it, then set it back to false and start the others. A brand-new empty database never needs it.
+  allow-migration: false
+  pool:
+    maximum-size: 4
+    minimum-idle: 1
+    connection-timeout-seconds: 10
+    idle-timeout-seconds: 300
+    # Keep this below the database server's wait_timeout.
+    max-lifetime-seconds: 1500
+    keepalive-seconds: 60
 
 # ---------------------------------------------------------------------------
 #  GUI behaviour

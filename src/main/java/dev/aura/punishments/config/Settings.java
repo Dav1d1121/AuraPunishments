@@ -118,6 +118,8 @@ public final class Settings {
 
     public final boolean debug;
     public final String dbFile;
+    /** Where the data lives (1.4.0): the standalone SQLite file, or a shared MariaDB/MySQL database. */
+    public final dev.aura.punishments.db.StorageConfig storage;
     public final int dbTimeoutSeconds;
     public final Gui gui;
     public final Cases cases;
@@ -151,8 +153,30 @@ public final class Settings {
 
     private Settings(YamlConfiguration y, YamlConfiguration secrets, java.util.function.UnaryOperator<String> env, List<String> p) {
         this.debug = y.getBoolean("general.debug", false);
-        String dbType = y.getString("database.type", "sqlite");
-        if (!"sqlite".equalsIgnoreCase(dbType)) p.add("database.type: only 'sqlite' is supported in 1.0.0 (got '" + dbType + "')");
+        String dbType = y.getString("database.type", "sqlite").trim().toLowerCase(java.util.Locale.ROOT);
+        if (!dbType.equals("sqlite") && !dbType.equals("mariadb") && !dbType.equals("mysql")) {
+            p.add("database.type: must be sqlite, mariadb or mysql (got '" + dbType + "')");
+            dbType = "sqlite";
+        }
+        if (dbType.equals("sqlite")) {
+            this.storage = dev.aura.punishments.db.StorageConfig.sqlite();
+        } else {
+            String host = y.getString("database.host", "127.0.0.1").trim();
+            String name = y.getString("database.name", "aurapunishments").trim();
+            String user = y.getString("database.username", "").trim();
+            if (host.isEmpty()) p.add("database.host: required when database.type is " + dbType);
+            if (!name.matches("[A-Za-z0-9_$-]{1,64}")) p.add("database.name: 1-64 letters, digits, _ $ - (got '" + name + "')");
+            if (user.isEmpty()) p.add("database.username: required when database.type is " + dbType);
+            int max = range(y, "database.pool.maximum-size", 4, 1, 32, p);
+            int minIdle = Math.min(max, range(y, "database.pool.minimum-idle", 1, 0, 32, p));
+            this.storage = new dev.aura.punishments.db.StorageConfig(dbType, host, range(y, "database.port", 3306, 1, 65535, p), name, user,
+                    resolveSecret(y.getString("database.password", ""), env), y.getBoolean("database.ssl", false), y.getBoolean("database.create-database", false), y.getBoolean("database.allow-migration", false), max, minIdle,
+                    1000L * range(y, "database.pool.connection-timeout-seconds", 10, 1, 120, p), 1000L * range(y, "database.pool.idle-timeout-seconds", 300, 10, 3600, p),
+                    1000L * range(y, "database.pool.max-lifetime-seconds", 1500, 30, 86_400, p), 1000L * range(y, "database.pool.keepalive-seconds", 60, 0, 3600, p));
+            if (this.storage.shared() && serverNameOf(y).isBlank()) {
+                p.add("network.server-name: required when database.type is " + dbType + " - every server of the network needs its own short name (lobby, survival, ...)");
+            }
+        }
         this.dbFile = safeFile(y.getString("database.file", "punishments.db"), p);
         this.dbTimeoutSeconds = range(y, "database.timeout-seconds", 15, 1, 120, p);
 
@@ -590,6 +614,10 @@ public final class Settings {
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
         for (String s : in) out.add(s.toLowerCase(Locale.ROOT).trim());
         return Set.copyOf(out);
+    }
+
+    private static String serverNameOf(org.bukkit.configuration.file.YamlConfiguration y) {
+        return y.getString("network.server-name", "").trim();
     }
 
     private static String safeFile(String name, List<String> p) {

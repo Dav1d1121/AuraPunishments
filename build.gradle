@@ -1,9 +1,11 @@
 plugins {
     id 'java'
+    // bundles (and relocates) the MariaDB/MySQL driver and the connection pool into the one deliverable jar
+    id 'com.gradleup.shadow' version '9.0.0'
 }
 
 group = 'dev.aura'
-version = '1.3.2'
+version = '1.4.0'
 
 java {
     // Built with JDK 25, but the bytecode targets Java 21 (options.release below) so that ONE jar runs on Paper 1.21.11 (Java 21+) and Paper 26.3 (Java 25).
@@ -26,6 +28,11 @@ configurations {
 
 dependencies {
     compileOnly "io.papermc.paper:paper-api:${paperVersion}"
+    // Network storage (1.4.0). Bundled into the jar and relocated, so a server needs nothing downloaded at start-up and cannot clash with
+    // another plugin's copy. Only loaded when storage.type is mariadb or mysql; a standalone SQLite server never touches them.
+    implementation 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
+    implementation 'com.zaxxer:HikariCP:6.3.0'
+    compileOnly 'org.slf4j:slf4j-api:2.0.17' // provided by Paper
     compileOnly 'net.luckperms:api:5.5'
     // Custom plugin, inspected and compiled against. Never shaded into our jar.
     compileOnly files('libs/JailReloaded-1.2.2.jar')
@@ -33,6 +40,7 @@ dependencies {
 
     testImplementation "io.papermc.paper:paper-api:26.3.build.230-stable"
     testImplementation 'net.luckperms:api:5.5'
+    testImplementation 'org.slf4j:slf4j-api:2.0.17'
     testImplementation files('libs/JailReloaded-1.2.2.jar')
     testImplementation files('libs/CoreProtect-25.1.jar')
     testImplementation 'org.xerial:sqlite-jdbc:3.49.1.0'
@@ -44,6 +52,9 @@ dependencies {
     test121Runtime "io.papermc.paper:paper-api:${paperVersion}"
     test121Runtime 'org.mockbukkit.mockbukkit:mockbukkit-v1.21:4.116.3'
     test121Runtime 'net.luckperms:api:5.5'
+    test121Runtime 'org.mariadb.jdbc:mariadb-java-client:3.5.3'
+    test121Runtime 'com.zaxxer:HikariCP:6.3.0'
+    test121Runtime 'org.slf4j:slf4j-api:2.0.17'
     test121Runtime files('libs/JailReloaded-1.2.2.jar')
     test121Runtime files('libs/CoreProtect-25.1.jar')
     test121Runtime 'org.xerial:sqlite-jdbc:3.49.1.0'
@@ -74,6 +85,17 @@ tasks.test {
     testLogging { events 'failed', 'skipped'; exceptionFormat = 'full'; showStandardStreams = false }
 }
 
+// The same tests with a real MariaDB (or MySQL) server behind every service fixture: -Dap.test.db.* chooses it (defaults: 127.0.0.1:3306, user aura).
+tasks.register('testMariadb', Test) {
+    group = 'verification'
+    description = 'Runs the service-level tests against a real MariaDB/MySQL server'
+    useJUnitPlatform()
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    systemProperty 'ap.test.db', findProperty('apDb') ?: 'mariadb'
+    testLogging { events 'failed', 'skipped'; exceptionFormat = 'full'; showStandardStreams = false }
+}
+
 // The same tests on the Paper 1.21.11 API + MockBukkit v1.21 (the default `test` runs them on 26.3 + MockBukkit v26.3).
 tasks.register('test121', Test) {
     group = 'verification'
@@ -84,9 +106,22 @@ tasks.register('test121', Test) {
     testLogging { events 'failed', 'skipped'; exceptionFormat = 'full'; showStandardStreams = false }
 }
 
+// The deliverable is the shaded jar: AuraPunishments-<version>.jar. The plain jar (classes only) is what the live-test modules compile against.
 jar {
     archiveBaseName = 'AuraPunishments'
-    archiveVersion = project.version
+    archiveClassifier = 'plain'
     // no server internals are used, so Paper 1.21.11 has nothing to remap (it would otherwise remap the jar from Spigot to Mojang mappings on first load)
     manifest { attributes 'Implementation-Version': project.version, 'paperweight-mappings-namespace': 'mojang' }
 }
+
+shadowJar {
+    archiveBaseName = 'AuraPunishments'
+    archiveClassifier = ''
+    relocate 'org.mariadb.jdbc', 'dev.aura.punishments.libs.mariadb'
+    relocate 'com.zaxxer.hikari', 'dev.aura.punishments.libs.hikari'
+    dependencies { exclude(dependency('org.slf4j:.*')) } // Paper provides slf4j
+    exclude 'META-INF/maven/**', 'META-INF/*.SF', 'META-INF/*.DSA', 'META-INF/*.RSA', 'META-INF/versions/*/module-info.class', 'module-info.class'
+    mergeServiceFiles()
+    manifest { attributes 'Implementation-Version': project.version, 'paperweight-mappings-namespace': 'mojang' }
+}
+tasks.named('build') { dependsOn 'shadowJar' }
