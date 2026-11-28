@@ -1,0 +1,112 @@
+PASS velocity started
+PASS lobby (26.3) started
+PASS survival (26.3) started
+PASS towny (1.21.11) started
+PASS skyblock (1.21.11) started
+PASS jail (26.3) started
+PASS lobby: AuraPunishments enabled on the shared database
+PASS lobby: no AuraPunishments error or warning at start
+PASS survival: AuraPunishments enabled on the shared database
+PASS survival: no AuraPunishments error or warning at start
+PASS towny: AuraPunishments enabled on the shared database
+PASS towny: no AuraPunishments error or warning at start
+PASS skyblock: AuraPunishments enabled on the shared database
+PASS skyblock: no AuraPunishments error or warning at start
+PASS jail: AuraPunishments enabled on the shared database
+PASS jail: no AuraPunishments error or warning at start
+PASS jail backend: JailReloaded jail built
+PASS registry shows lobby running
+PASS registry shows survival running
+PASS registry shows towny running
+PASS registry shows skyblock running
+PASS registry shows jail running
+PASS registry marks the jail backend
+PASS shared schema is the latest (v4)
+PASS lobby sees the jail backend as the network jail
+PASS Steve (26.3 client) joins survival through the proxy
+PASS Tom (1.21.11 client) joins towny through the proxy
+PASS Steve is on survival only
+PASS ban issued on skyblock (1.21.11)
+PASS Steve is disconnected from survival (26.3) within the sync interval
+PASS Steve cannot log in again anywhere (database decides at login)
+PASS ... not on the lobby either
+PASS unban on towny (1.21.11) ends it
+PASS Steve can join again after the unban
+PASS Tom (1.21.11) is disconnected by a ban from the lobby (26.3)
+PASS Mia joins survival
+PASS Ben joins survival
+PASS mute issued on the jail backend
+PASS a muted player's chat on survival is cancelled
+PASS after the unmute (issued on towny) chat works again
+PASS Dana joins once and leaves (so every server knows her)
+PASS warning stored for an offline player
+PASS Dana joins survival
+PASS the warning reaches Dana at login
+PASS and exactly once
+PASS the notification is recorded as delivered once
+PASS Eve joins survival
+PASS jail ordered on the lobby (no JailReloaded there) is recorded
+PASS it is recorded with where Eve was
+PASS Eve is moved to the jail backend through the proxy
+PASS JailReloaded holds her there
+PASS the record says HELD
+PASS released from another backend: Eve is sent back to survival (where she came from)
+PASS JailReloaded no longer holds her
+PASS Frank joins lobby then leaves
+PASS Frank (jailed while offline) logs in
+PASS ... and ends up on the jail backend
+PASS Ivan joins survival
+PASS the jail is accepted while the registry still says the jail backend is running
+PASS Ivan could not be moved: still on survival
+PASS his chat is cancelled while he waits for the jail
+PASS his commands are refused with the reason
+PASS when the jail backend answers again Ivan is carried off and jailed
+PASS Zoe joins lobby once
+PASS three servers ban the same player in the same instant: exactly ONE active ban
+PASS the audit hash chain is intact after concurrent writers
+PASS 120 warnings from two servers all stored
+PASS audit chain intact after the burst
+PASS Olga joins survival
+PASS the backend records the PLAYER's address from the proxy's forwarding
+PASS an IP ban on a loopback/private address is refused (never the proxy's own address)
+PASS and nothing was recorded
+PASS Rex joins lobby
+PASS Rex is on exactly one backend after hopping
+PASS a ban while the player has been hopping still reaches them
+PASS Quinn joins lobby once
+PASS skyblock stopped
+PASS the registry shows skyblock stopped
+PASS a ban is accepted while skyblock is down
+PASS skyblock started again
+PASS the registry shows it running again
+PASS a ban issued while skyblock was down is enforced the moment it is back
+PASS Boss (an administrator) joins survival
+PASS Moda (a moderator) joins lobby
+PASS Pip (a player) joins survival
+PASS a moderator cannot ban an offline administrator (hierarchy, from the lobby)
+PASS and nothing was recorded
+PASS the same moderator can ban an ordinary player
+PASS Pip is removed from survival (another backend)
+PASS Moda (1.21.11 client) joins towny
+PASS the same refusal on towny (1.21.11)
+PASS Una joins survival
+PASS MariaDB is down
+PASS a staff action that cannot be saved is refused honestly
+PASS a ban the server already knew is still enforced during the outage
+PASS players can still connect (ENFORCE_KNOWN policy)
+PASS MariaDB is back
+PASS the refused ban was never recorded
+PASS staff actions work again without restarting anything
+PASS every server is back in the registry
+PASS a prisoner still held on the old server blocks the import
+PASS and nothing was written
+PASS dry run reports the file and finds no problem
+PASS dry run wrote nothing
+PASS the real import is applied
+PASS it is recorded
+PASS the 10 old punishments and 14 cases arrived (plus what the lab made)
+PASS every imported punishment still points at a case that exists
+PASS the audit chain verifies after 77 imported entries
+PASS repeating it adds nothing
+PASS the file in the migration folder is untouched by the import
+111/111 checks passed
