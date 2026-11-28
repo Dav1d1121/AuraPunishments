@@ -38,7 +38,7 @@ final class Phase11 {
                 && t.ap.core().mode.state() == JudicialMode.State.ENABLED, "");
         byte[] cfg = Files.readAllBytes(new File(data, "config.yml").toPath());
         t.check("config.yml was not modified by the upgrade", HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(cfg)).equals(originalConfigHash), "");
-        t.check("a reference copy of the new options was written next to it", new File(data, "config-1.3.0-reference.yml").isFile(), "");
+        t.check("a reference copy of the new options was written next to it", new File(data, "config-" + t.ap.getPluginMeta().getVersion() + "-reference.yml").isFile(), "");
         t.check("a pre-migration backup of the database exists", new File(data, "backups").isDirectory()
                 && java.util.Arrays.stream(new File(data, "backups").list()).anyMatch(n -> n.contains("pre-v2") || n.contains("pre-v3")), String.join(",", new File(data, "backups").list())); // named after the first migration step taken
         t.check("every row has a unique id and the server name", count("SELECT COUNT(*) FROM punishments WHERE uid IS NULL OR origin IS NULL") == 0
