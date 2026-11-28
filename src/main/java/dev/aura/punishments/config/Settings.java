@@ -53,7 +53,15 @@ public final class Settings {
     public record Casework(boolean enabled, Set<PunishType> requireCaseFor) {}
 
     /** Which server this is; stamped on every record so a shared network database can tell them apart. */
-    public record Network(String serverName) {}
+    /**
+     * @param serverName          this server's unique name in the network (required with a shared database)
+     * @param syncIntervalMs      how often the change feed from the other servers is read
+     * @param heartbeatSeconds    how often this server proves it is alive and refreshes where its players are
+     * @param eventRetentionDays  change events older than this are deleted
+     * @param maxClockSkewSeconds refuse to start when this server's clock and the database server's differ by more than this (0 = do not check)
+     * @param allowDuplicateName  start even if another live server uses the same name (never for production)
+     */
+    public record Network(String serverName, int syncIntervalMs, int heartbeatSeconds, int eventRetentionDays, int maxClockSkewSeconds, boolean allowDuplicateName) {}
 
     /** Appeals filed against punishments (Discord Ticket Tool tickets are referenced, never created, by this plugin). */
     public record Appeals(boolean requireTicket, int minReason) {}
@@ -240,7 +248,9 @@ public final class Settings {
             p.add("network.server-name: use 1-40 letters, digits, '.', '_' or '-' (for example smp, towny, skyblock, lobby)");
             srv = "";
         }
-        this.network = new Network(srv);
+        this.network = new Network(srv, range(y, "network.sync-interval-ms", 1000, 250, 30_000, p), range(y, "network.heartbeat-seconds", 15, 5, 120, p),
+                range(y, "network.event-retention-days", 7, 1, 365, p), range(y, "network.max-clock-skew-seconds", 10, 0, 3600, p),
+                y.getBoolean("network.allow-duplicate-name", false));
         this.casework = new Casework(y.getBoolean("casework.enabled", false), types(y.getStringList("casework.require-case-for"), "casework.require-case-for", p));
         this.appeals = new Appeals(y.getBoolean("appeals.require-ticket", false), range(y, "appeals.min-reason-length", 10, 1, 500, p));
         this.jail = new JailCfg(y.getString("punishments.jail.jail-name", "").trim(), y.getString("punishments.jail.cell-name", "").trim(),

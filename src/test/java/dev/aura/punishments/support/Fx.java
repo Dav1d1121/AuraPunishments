@@ -41,6 +41,11 @@ public final class Fx implements AutoCloseable {
     /** Players the fake server considers connected. */
     public final Set<UUID> online = new HashSet<>();
     public long now = 1_800_000_000_000L;
+    /** Network mode (a shared database): this server's side of the network, and what it did to the players connected to it. */
+    public NetworkService network;
+    public final List<UUID> disconnected = new java.util.concurrent.CopyOnWriteArrayList<>();
+    public final List<UUID> muteNotices = new java.util.concurrent.CopyOnWriteArrayList<>();
+    public final List<UUID> unmuteNotices = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     public Fx() throws Exception { this(null, new Mutator()); }
 
@@ -49,6 +54,12 @@ public final class Fx implements AutoCloseable {
         /** Config overrides applied on top of the shipped config.yml (path -> value). */
         public final Map<String, Object> set = new HashMap<>();
         public String serverName = null;
+        /** Use the shared MariaDB database even when the run is the default SQLite one (network tests). */
+        public boolean shared = false;
+        /** Attach to a database another fixture created (a second server of the same network). */
+        public String sharedDatabase = null;
+        /** Join the network registry (heartbeat, change feed) like a real server does. */
+        public boolean joinNetwork = false;
     }
 
     /** Set with -Dap.test.db=mariadb (gradle testMariadb): the same tests run against a real MariaDB/MySQL server, one throw-away database each. */
@@ -63,19 +74,20 @@ public final class Fx implements AutoCloseable {
     }
 
     public Fx(Path file, Mutator m) throws Exception {
-        if (BACKEND.equals("sqlite")) {
+        if (BACKEND.equals("sqlite") && !m.shared && m.sharedDatabase == null) {
             db = new Database(file, Logger.getLogger("test"), m.serverName);
         } else {
             String key = file == null ? null : file.toAbsolutePath().toString();
-            sharedDatabaseName = key == null ? null : SHARED_BY_FILE.get(key);
+            sharedDatabaseName = m.sharedDatabase != null ? m.sharedDatabase : key == null ? null : SHARED_BY_FILE.get(key);
             if (sharedDatabaseName == null) {
                 sharedDatabaseName = "aura_t_" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 16);
                 if (key != null) SHARED_BY_FILE.put(key, sharedDatabaseName);
             }
-            dropOnClose = key == null; // a database a later restart needs is dropped when the JVM ends
+            dropOnClose = key == null && m.sharedDatabase == null; // a database a later restart (or a second server) needs is dropped when the JVM ends
             CREATED.add(sharedDatabaseName);
             String host = System.getProperty("ap.test.db.host", "127.0.0.1");
-            db = Database.shared(new dev.aura.punishments.db.StorageConfig(BACKEND, host, Integer.getInteger("ap.test.db.port", 3306), sharedDatabaseName,
+            String backend = BACKEND.equals("sqlite") ? "mariadb" : BACKEND;
+            db = Database.shared(new dev.aura.punishments.db.StorageConfig(backend, host, Integer.getInteger("ap.test.db.port", 3306), sharedDatabaseName,
                     System.getProperty("ap.test.db.user", "aura"), System.getProperty("ap.test.db.password", "aurapass"), false, true, true, 4, 1,
                     10_000, 300_000, 1_500_000, 60_000), Logger.getLogger("test"), m.serverName == null ? "testsrv" : m.serverName);
         }
@@ -98,9 +110,9 @@ public final class Fx implements AutoCloseable {
         core = new Core(db, () -> now, Logger.getLogger("test"), MainThread.INLINE, s, oc, jail, lr, events::add);
         core.enforcement = new Enforcement() {
             @Override public boolean isOnline(UUID uuid) { return online.contains(uuid); }
-            @Override public void disconnect(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
-            @Override public void noticeMute(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { }
-            @Override public void noticeUnmute(UUID uuid) { }
+            @Override public void disconnect(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { disconnected.add(uuid); }
+            @Override public void noticeMute(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { muteNotices.add(uuid); }
+            @Override public void noticeUnmute(UUID uuid) { unmuteNotices.add(uuid); }
             @Override public boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late) { if (!online.contains(uuid)) return false; delivered.add(n); return true; }
         };
         punishments = new PunishmentService(core);
@@ -114,6 +126,12 @@ public final class Fx implements AutoCloseable {
         appeals = new PunishmentAppeals(core, punishments);
         judicial = new JudicialService(core, custody, punishments);
         direct = new DirectService(core, punishments);
+        if (db.shared() && m.joinNetwork) {
+            network = new NetworkService(core, punishments);
+            core.network = network;
+            var joined = network.start("test", false, 0, false).get();
+            if (!joined.isOk()) throw new IllegalStateException(joined.message());
+        }
         punishments.loadCache().get();
     }
 
@@ -167,6 +185,11 @@ public final class Fx implements AutoCloseable {
             dropDatabase(sharedDatabaseName);
             CREATED.remove(sharedDatabaseName);
         }
+    }
+
+    /** The name of the shared database (to attach a second server to it). */
+    public String sharedDatabaseName() {
+        return sharedDatabaseName;
     }
 
     private static void dropDatabase(String name) {

@@ -27,6 +27,19 @@ general:
 # ---------------------------------------------------------------------------
 network:
   server-name: ""
+  # ----- Only used with a shared database (database.type: mariadb | mysql); ignored on a standalone server. -----
+  # How often a server reads what the other servers changed (bans, mutes, kicks, revocations) and applies it to its own players.
+  # A LOGIN never waits for this: it asks the database directly. This only keeps chat/command checks and notices current.
+  sync-interval-ms: 1000
+  # How often this server proves it is alive and refreshes where its players are connected.
+  heartbeat-seconds: 15
+  # Change events older than this are deleted.
+  event-retention-days: 7
+  # Refuse to start when this server's clock differs from the database server's by more than this (0 = do not check). Expiry times are
+  # absolute timestamps, so every server of the network needs synchronised time (NTP).
+  max-clock-skew-seconds: 10
+  # Start even if another running server uses the same server-name. Never turn this on in production.
+  allow-duplicate-name: false
 
 # ---------------------------------------------------------------------------
 #  Database  [RESTART]

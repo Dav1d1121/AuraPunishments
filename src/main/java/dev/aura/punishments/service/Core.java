@@ -23,6 +23,8 @@ public final class Core {
     public volatile DomainEvent.Sink events;
     public volatile Messages messages;
     public volatile Enforcement enforcement = Enforcement.NONE;
+    /** The network side (shared database only): change sync, presence, registry. {@code null} on a standalone server. */
+    public volatile NetworkService network;
     public final NotificationService notifications;
     public final JudicialMode mode;
 

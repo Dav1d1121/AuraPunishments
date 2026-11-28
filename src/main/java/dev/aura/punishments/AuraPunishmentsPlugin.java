@@ -190,6 +190,25 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         }
         PlayerResolver resolver = new PlayerResolver(core);
 
+        // Network mode: join the registry and take the change-feed cursor BEFORE the in-memory index is loaded, so a change made in
+        // between is read from the feed instead of being lost.
+        if (db.shared()) {
+            NetworkService network = new NetworkService(core, punishments);
+            try {
+                var joined = network.start(getPluginMeta().getVersion(), false, settings.network.maxClockSkewSeconds() * 1000L, settings.network.allowDuplicateName()).get(30, TimeUnit.SECONDS);
+                if (!joined.isOk()) {
+                    getLogger().severe("AuraPunishments cannot join the network: " + joined.message());
+                    Bukkit.getPluginManager().disablePlugin(this);
+                    return;
+                }
+            } catch (Exception e) {
+                getLogger().severe("AuraPunishments cannot join the network: " + e.getMessage());
+                Bukkit.getPluginManager().disablePlugin(this);
+                return;
+            }
+            core.network = network;
+        }
+
         try {
             var loaded = punishments.loadCache().get(30, TimeUnit.SECONDS);
             if (!loaded.isOk()) throw new IllegalStateException(loaded.message());
@@ -253,6 +272,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         if (luckPerms != null) luckPerms.shutdown();
         if (discord != null) discord.shutdown();
         if (coreProtect != null) coreProtect.shutdown();
+        if (core != null && core.network != null) core.network.stop();
         if (db != null) db.close();
     }
 
@@ -325,24 +345,46 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
 
     // ------------------------------------------------------------------ timers
     private void startTasks() {
+        NetworkService network = core.network;
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
             punishments.expireDue();
             custody.refreshIndex();
             jails.refreshIndex();
         }, 100L, 200L));
+        if (network != null) {
+            // what the other servers changed, applied here (a login never waits for this: it asks the database directly)
+            long syncTicks = Math.max(5L, core.settings.network.syncIntervalMs() / 50L);
+            tasks.add(Bukkit.getScheduler().runTaskTimerAsynchronously(this, network::poll, syncTicks, syncTicks));
+            long beatTicks = core.settings.network.heartbeatSeconds() * 20L;
+            tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
+                List<java.util.UUID> online = new ArrayList<>();
+                for (Player pl : Bukkit.getOnlinePlayers()) online.add(pl.getUniqueId());
+                network.heartbeat(online).thenAccept(r -> {
+                    if (!r.isOk()) getLogger().warning("Network heartbeat: " + r.message());
+                });
+            }, beatTicks, beatTicks));
+        }
         tasks.add(Bukkit.getScheduler().runTaskTimer(this, () -> {
-            // Judicial housekeeping only runs while there is judicial work (switch on, or open items still being wound down).
-            if (core.mode.judicialVisible()) {
-                custody.sweepDeadlines();
-                custody.retryStuckReleases();
-            }
             core.mode.refresh();
-            direct.sweepReviews();
-            jails.retryStuckReleases();
-            reviews.remind();
-            core.notifications.expireStale();
             admin.counts(Actor.system()).thenAccept(r -> {
                 if (r.isOk()) lastCounts = r.value();
+            });
+            jails.retryStuckReleases();
+            // Jobs that must run once per network (not once per server) run on whichever server holds their lease.
+            Runnable once = () -> {
+                // Judicial housekeeping only runs while there is judicial work (switch on, or open items still being wound down).
+                if (core.mode.judicialVisible()) {
+                    custody.sweepDeadlines();
+                    custody.retryStuckReleases();
+                }
+                direct.sweepReviews();
+                reviews.remind();
+                core.notifications.expireStale();
+                if (network != null) network.purgeOldEvents(core.settings.network.eventRetentionDays() * Durations.DAY);
+            };
+            if (network == null) once.run();
+            else network.lead("housekeeping", 90_000L).thenAccept(leader -> {
+                if (leader) Bukkit.getScheduler().runTask(this, once);
             });
         }, 400L, 1200L));
         long reconcileTicks = Math.max(5, core.settings.custody.reconcileSeconds()) * 20L;

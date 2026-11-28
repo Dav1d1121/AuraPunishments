@@ -33,7 +33,8 @@ public final class ConnectionListener implements Listener {
     public void onPreLogin(AsyncPlayerPreLoginEvent e) {
         if (e.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) return;
         String ip = e.getAddress() == null ? null : e.getAddress().getHostAddress();
-        Optional<Punishment> ban = punishments.banFor(e.getUniqueId(), ip);
+        // standalone: a memory lookup; network: the shared database decides (a ban issued a moment ago on another backend counts at once)
+        Optional<Punishment> ban = punishments.banForLogin(e.getUniqueId(), ip);
         if (ban.isPresent()) {
             e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, enforcement.banScreen(ban.get()));
         }
@@ -44,6 +45,10 @@ public final class ConnectionListener implements Listener {
         var p = e.getPlayer();
         String ip = p.getAddress() == null || p.getAddress().getAddress() == null ? null : p.getAddress().getAddress().getHostAddress();
         resolver.recordJoin(p.getUniqueId(), p.getName(), ip, Actors.levelOf(p));
+        if (core.network != null) {
+            core.network.playerJoined(p.getUniqueId(), p.getName());
+            punishments.refreshPlayer(p.getUniqueId()); // a mute issued elsewhere a moment ago applies to this server's chat from the first message
+        }
         punishments.deliverPending(p.getUniqueId());
     }
 
@@ -51,5 +56,6 @@ public final class ConnectionListener implements Listener {
     public void onQuit(PlayerQuitEvent e) {
         // Remember the staff level so offline protection works without a permission backend.
         resolver.recordLevel(e.getPlayer().getUniqueId(), Actors.levelOf(e.getPlayer()));
+        if (core.network != null) core.network.playerLeft(e.getPlayer().getUniqueId());
     }
 }

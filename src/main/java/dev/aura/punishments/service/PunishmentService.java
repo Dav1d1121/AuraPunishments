@@ -74,6 +74,52 @@ public final class PunishmentService extends Svc {
         });
     }
 
+    /** Re-read every active punishment into the index in one swap (a change another server of the network made). */
+    public CompletableFuture<Result<Integer>> reloadCache() {
+        return db(c -> {
+            List<Punishment> active = Repo.Punishments.active(c);
+            cache.replaceAll(active);
+            return Result.ok(active.size());
+        });
+    }
+
+    /**
+     * The login decision. On a standalone server it is a memory lookup. On a network it asks the database - the one authority every
+     * server shares - so a ban issued a moment ago on another backend is honoured on the very next connection, without waiting for the change
+     * feed. If the database cannot answer, the in-memory index (loaded from it) decides: a known ban never silently disappears.
+     * Called on the asynchronous login thread, never on the main thread.
+     */
+    public Optional<Punishment> banForLogin(UUID uuid, String ip) {
+        if (!core.db.shared()) return banFor(uuid, ip);
+        try {
+            long now = core.clock.now();
+            return core.db.txSync(c -> {
+                List<Punishment> mine = Repo.Punishments.activeFor(c, uuid);
+                cache.syncPlayer(uuid, mine);
+                for (Punishment p : mine) {
+                    if ((p.type() == PunishType.BAN || p.type() == PunishType.IPBAN) && p.activeAt(now)) return Optional.of(p);
+                }
+                if (ip != null && !ip.isBlank()) {
+                    Punishment byIp = Repo.Punishments.activeIpBan(c, ip);
+                    if (byIp != null && byIp.activeAt(now)) {
+                        cache.add(byIp);
+                        return Optional.of(byIp);
+                    }
+                }
+                return Optional.<Punishment>empty();
+            });
+        } catch (SQLException | RuntimeException e) {
+            core.log.warning("Login check could not reach the shared database (" + e.getMessage() + "); using the last known bans.");
+            return banFor(uuid, ip);
+        }
+    }
+
+    /** Bring one player's cached mute/ban in line with the database (when they connect to this server). */
+    public CompletableFuture<Void> refreshPlayer(UUID uuid) {
+        if (!core.db.shared()) return CompletableFuture.completedFuture(null);
+        return core.db.tx(c -> Repo.Punishments.activeFor(c, uuid)).thenAccept(list -> cache.syncPlayer(uuid, list)).exceptionally(t -> null);
+    }
+
     // ------------------------------------------------------------------ quick pathway
     public CompletableFuture<Result<Punishment>> issueQuick(Actor actor, Request r) {
         return issue(actor, r, null);
@@ -195,7 +241,9 @@ public final class PunishmentService extends Svc {
         final long dur2 = duration;
         // A kick needs a connected player; recording one against an offline player would do nothing.
         CompletableFuture<Boolean> online = type == PunishType.KICK
-                ? core.main.call(() -> core.enforcement.isOnline(r.target().uuid())) : CompletableFuture.completedFuture(true);
+                ? core.main.call(() -> core.enforcement.isOnline(r.target().uuid())).thenCompose(local -> local || core.network == null
+                        ? CompletableFuture.completedFuture(local) : core.network.isOnlineElsewhere(r.target().uuid()))
+                : CompletableFuture.completedFuture(true);
         return online.thenCompose(isOn -> {
             if (!isOn) return done(Result.<Void>fail(Code.INVALID, r.target().name() + " is not online, so there is nobody to kick."));
             return checkTarget(actor, r.target().uuid());
@@ -324,6 +372,8 @@ public final class PunishmentService extends Svc {
                               Source source, Long caseId, String offense, Long reviewDeadline, Long custodyId,
                               boolean audit) throws SQLException {
         long now = core.clock.now();
+        // across servers: take the player's row lock first, so two servers punishing the same player at the same moment take turns
+        Repo.Profiles.lockPlayer(c, target.uuid(), target.name(), now);
         if (type == PunishType.MUTE || type == PunishType.BAN || type == PunishType.IPBAN) {
             for (Punishment active : Repo.Punishments.activeFor(c, target.uuid())) {
                 boolean banLike = (type == PunishType.BAN || type == PunishType.IPBAN)

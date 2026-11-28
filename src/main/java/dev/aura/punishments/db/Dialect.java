@@ -44,6 +44,19 @@ public interface Dialect {
     /** Same for a table that only carries the origin (the audit log). */
     String originTrigger(String table);
 
+    /** True for the engines that serve several servers at once (row locks and change-event triggers are needed there). */
+    default boolean shared() {
+        return false;
+    }
+
+    /**
+     * Triggers that write a row into {@code network_events} whenever a punishment or a custody record changes, whichever code or tool
+     * changed it. Only the shared engines need them (one server has nobody to tell).
+     */
+    default List<String> networkTriggers() {
+        return List.of();
+    }
+
     final class SQLite implements Dialect {
         @Override
         public String name() {
@@ -257,6 +270,28 @@ public interface Dialect {
         @Override
         public String randomId() {
             return "UUID()";
+        }
+
+        @Override
+        public boolean shared() {
+            return true;
+        }
+
+        @Override
+        public List<String> networkTriggers() {
+            String event = "INSERT INTO network_events(ts,origin,kind,subject_uuid,ref_id,detail) VALUES (UNIX_TIMESTAMP(NOW(3))*1000, IFNULL(@ap_origin,'?'), ";
+            return List.of(
+                    "CREATE TRIGGER trg_punishments_net_ins AFTER INSERT ON punishments FOR EACH ROW "
+                            + event + "'PUNISHMENT', NEW.target_uuid, NEW.id, CONCAT(NEW.type, ':', NEW.status))",
+                    // only changes another server can care about: not "delivered", not bookkeeping
+                    "CREATE TRIGGER trg_punishments_net_upd AFTER UPDATE ON punishments FOR EACH ROW BEGIN "
+                            + "IF NOT (OLD.status <=> NEW.status AND OLD.expires_at <=> NEW.expires_at AND OLD.jail_state <=> NEW.jail_state AND OLD.reason <=> NEW.reason) THEN "
+                            + event + "'PUNISHMENT', NEW.target_uuid, NEW.id, CONCAT(NEW.type, ':', NEW.status)); END IF; END",
+                    "CREATE TRIGGER trg_custody_net_ins AFTER INSERT ON custody FOR EACH ROW "
+                            + event + "'CUSTODY', NEW.uuid, NEW.id, NEW.status)",
+                    "CREATE TRIGGER trg_custody_net_upd AFTER UPDATE ON custody FOR EACH ROW BEGIN "
+                            + "IF NOT (OLD.status <=> NEW.status AND OLD.deadline <=> NEW.deadline) THEN "
+                            + event + "'CUSTODY', NEW.uuid, NEW.id, NEW.status); END IF; END");
         }
 
         /** The inserting connection carries the server's name in {@code @ap_origin} (set when the connection is opened). */

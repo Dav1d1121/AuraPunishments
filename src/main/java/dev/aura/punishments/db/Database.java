@@ -98,6 +98,18 @@ public final class Database implements AutoCloseable {
         return storage;
     }
 
+    /** Same as {@link #databaseTimeMillis()} inside a running transaction. */
+    public long databaseTimeMillisIn(Connection c) throws SQLException {
+        if (!storage.shared()) return System.currentTimeMillis();
+        return Sql.count(c, "SELECT CAST(UNIX_TIMESTAMP(NOW(3))*1000 AS SIGNED)");
+    }
+
+    /** The database server's clock in epoch milliseconds (shared mode), to notice a server whose own clock has drifted. */
+    public long databaseTimeMillis() throws SQLException {
+        if (!storage.shared()) return System.currentTimeMillis();
+        return txSync(c -> Sql.count(c, "SELECT CAST(UNIX_TIMESTAMP(NOW(3))*1000 AS SIGNED)"));
+    }
+
     /** Open the connection pool of a shared database (creating the database first when configured to). */
     private void connectShared() throws SQLException {
         if (storage.createDatabase()) {

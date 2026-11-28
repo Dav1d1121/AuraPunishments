@@ -347,7 +347,8 @@ public final class Schema {
                     SELECT id, issued_at, 'Migration', 'MIGRATED', 'Imported from AuraPunishments 1.0.0; issued before reviews existed'
                     FROM reviews WHERE migrated=1"""
             )),
-            migration3()
+            migration3(),
+            migration4()
     );
 
     // ------------------------------------------------------------------ 1.3.0
@@ -468,6 +469,68 @@ public final class Schema {
         });
         steps.add(sql("CREATE INDEX idx_pun_jail ON punishments(type, status, jail_prisoner_id)"));
         return new Migration(3, "1.3.0: optional judicial system, case-free evidence/notes/appeals, standalone jail, network identifiers", steps);
+    }
+
+    // ------------------------------------------------------------------ 1.4.0
+
+    /**
+     * 1.4.0: what a network of servers sharing one database needs. Harmless (and unused) on a standalone SQLite server.
+     * {@code network_events} says what changed (written by triggers on the shared engines), {@code network_servers} is the registry
+     * every server keeps a heartbeat in, {@code network_presence} tells where a player is connected, and {@code network_locks} lets
+     * exactly one server run a background job at a time.
+     */
+    private static Migration migration4() {
+        List<Step> steps = new ArrayList<>();
+        steps.add(sql("""
+                CREATE TABLE network_events (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  ts INTEGER NOT NULL,
+                  origin TEXT NOT NULL,
+                  kind TEXT NOT NULL,
+                  subject_uuid TEXT,
+                  ref_id INTEGER,
+                  detail TEXT
+                )"""));
+        steps.add(sql("CREATE INDEX idx_netev_ts ON network_events(ts)"));
+        steps.add(sql("""
+                CREATE TABLE network_servers (
+                  name TEXT PRIMARY KEY,
+                  instance_id TEXT NOT NULL,
+                  plugin_version TEXT NOT NULL,
+                  schema_version INTEGER NOT NULL,
+                  started_at INTEGER NOT NULL,
+                  seen_at INTEGER NOT NULL,
+                  jail_backend INTEGER NOT NULL DEFAULT 0
+                )"""));
+        steps.add(sql("""
+                CREATE TABLE network_presence (
+                  uuid TEXT PRIMARY KEY,
+                  name TEXT NOT NULL,
+                  server TEXT NOT NULL,
+                  joined_at INTEGER NOT NULL,
+                  seen_at INTEGER NOT NULL
+                )"""));
+        steps.add(sql("CREATE INDEX idx_presence_server ON network_presence(server)"));
+        steps.add(sql("""
+                CREATE TABLE network_locks (
+                  name TEXT PRIMARY KEY,
+                  owner TEXT NOT NULL,
+                  lease_until INTEGER NOT NULL
+                )"""));
+        // the row every audit append locks, so that servers writing the hash chain at the same moment take turns
+        steps.add((c, ctx) -> {
+            try (Statement st = c.createStatement()) {
+                st.execute(ctx.dialect().insertIgnore("meta(k,v) VALUES('audit_lock','1')"));
+            }
+        });
+        steps.add((c, ctx) -> {
+            for (String trigger : ctx.dialect().networkTriggers()) {
+                try (Statement st = c.createStatement()) {
+                    st.execute(trigger);
+                }
+            }
+        });
+        return new Migration(4, "1.4.0: network events, server registry, presence and leader locks", steps);
     }
 
     public static int latest() {

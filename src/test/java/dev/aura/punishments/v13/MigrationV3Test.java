@@ -133,7 +133,7 @@ class MigrationV3Test {
         Path file = buildV2();
         Database db = new Database(file, Logger.getLogger("test"), "smp");
         db.open();
-        assertEquals(3, db.schemaVersion());
+        assertEquals(dev.aura.punishments.db.Schema.latest(), db.schemaVersion());
         assertEquals("smp", db.origin());
         db.close();
         try (Connection c = DriverManager.getConnection("jdbc:sqlite:" + file)) {
@@ -246,7 +246,7 @@ class MigrationV3Test {
         Database again = new Database(file, Logger.getLogger("test"), "smp");
         again.open();
         assertEquals(uidBefore, again.<String>txSync(c -> Repo.Punishments.get(c, 1).uid()), "ids never change");
-        assertEquals(3, again.schemaVersion());
+        assertEquals(dev.aura.punishments.db.Schema.latest(), again.schemaVersion());
         again.close();
         try (Stream<Path> s = Files.list(dir.resolve("backups"))) {
             assertEquals(1, s.filter(p -> p.getFileName().toString().contains("pre-v3")).count(), "no second backup when nothing was migrated");
@@ -306,7 +306,7 @@ class MigrationV3Test {
         }
         Database db = new Database(file, Logger.getLogger("test"), "lobby");
         db.open();
-        assertEquals(3, db.schemaVersion());
+        assertEquals(dev.aura.punishments.db.Schema.latest(), db.schemaVersion());
         assertEquals("lobby", db.<String>txSync(c -> Repo.Punishments.get(c, 1).origin()));
         assertEquals(1L, (long) db.<Long>txSync(c -> Repo.Appeals.countPending(c)));
         db.close();

@@ -39,6 +39,17 @@ public final class Repo {
                     id, name, name.toLowerCase(Locale.ROOT), now, now, ip, level);
         }
 
+        /**
+         * Serialise everything that decides "may this player get another punishment" across servers: make sure the player has a row and
+         * lock it until the transaction ends. A single server needs nothing (its own thread already takes turns).
+         */
+        public static void lockPlayer(Connection c, UUID id, String name, long now) throws SQLException {
+            Dialect d = Dialect.of(c);
+            if (!d.shared()) return;
+            update(c, d.insertIgnore("profiles(uuid,name,name_lower,first_seen,last_seen,level) VALUES(?,?,?,?,?,0)"), id, name, name.toLowerCase(Locale.ROOT), now, now);
+            one(c, "SELECT uuid FROM profiles WHERE uuid=? FOR UPDATE", rs -> rs.getString(1), id);
+        }
+
         public static void updateLevel(Connection c, UUID id, int level, long now) throws SQLException {
             update(c, "UPDATE profiles SET level=?, last_seen=? WHERE uuid=?", level, now, id);
         }
@@ -455,6 +466,11 @@ public final class Repo {
 
         public static List<Punishment> active(Connection c) throws SQLException {
             return query(c, "SELECT * FROM punishments WHERE status='ACTIVE' ORDER BY id ASC", MAP);
+        }
+
+        /** The active IP ban for an address, if any. */
+        public static Punishment activeIpBan(Connection c, String ip) throws SQLException {
+            return one(c, "SELECT * FROM punishments WHERE type='IPBAN' AND status='ACTIVE' AND ip=? ORDER BY id DESC LIMIT 1", MAP, ip);
         }
 
         public static List<Punishment> activeFor(Connection c, UUID target) throws SQLException {
@@ -915,6 +931,9 @@ public final class Repo {
         /** @param opId the operation (one service call = one transaction) this entry belongs to; not part of the hash chain. */
         public static void append(Connection c, long ts, UUID actor, String actorName, String action, UUID target,
                                   Long caseId, String detail, boolean elevated, String opId) throws SQLException {
+            // Several servers append to one hash chain: take the chain's lock first (held until this transaction ends), so each entry
+            // is chained to the one before it, never to a sibling written at the same moment.
+            if (Dialect.of(c).shared()) one(c, "SELECT v FROM meta WHERE k='audit_lock' FOR UPDATE", rs -> rs.getString(1));
             String prev = lastHash(c);
             String hash = digest(prev, ts, actor, actorName, action, target, caseId, detail, elevated);
             update(c, "INSERT INTO audit_log(ts,actor_uuid,actor_name,action,target_uuid,case_id,detail,elevated,prev_hash,hash,op_id) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
@@ -955,6 +974,110 @@ public final class Repo {
             update(c, Dialect.of(c).upsert("audit_anchor(id,hash,seq) VALUES(1,?,?)", List.of("id"), List.of("hash={new:hash}", "seq={new:seq}")),
                     lastOld.hash(), lastOld.id());
             return update(c, "DELETE FROM audit_log WHERE id<=?", lastOld.id());
+        }
+    }
+
+    // ------------------------------------------------------------------ 1.4.0: the network
+    /** What a network of servers sharing this database needs: change events, a server registry, presence, background-job leases. */
+    public static final class Net {
+        private Net() {}
+
+        public record Event(long id, long ts, String origin, String kind, UUID subject, Long ref, String detail) {}
+
+        public record Server(String name, String instanceId, String version, int schema, long startedAt, long seenAt, boolean jailBackend) {}
+
+        public record Presence(UUID uuid, String name, String server, long joinedAt, long seenAt) {}
+
+        private static final RowMapper<Event> EVENT = rs -> new Event(rs.getLong("id"), rs.getLong("ts"), rs.getString("origin"), rs.getString("kind"),
+                uuid(rs, "subject_uuid"), longOrNull(rs, "ref_id"), rs.getString("detail"));
+        private static final RowMapper<Server> SERVER = rs -> new Server(rs.getString("name"), rs.getString("instance_id"), rs.getString("plugin_version"),
+                rs.getInt("schema_version"), rs.getLong("started_at"), rs.getLong("seen_at"), bool(rs, "jail_backend"));
+
+        // ---- events
+        public static long lastEventId(Connection c) throws SQLException {
+            return count(c, "SELECT COALESCE(MAX(id),0) FROM network_events");
+        }
+
+        public static List<Event> eventsAfter(Connection c, long cursor, int limit) throws SQLException {
+            return query(c, "SELECT * FROM network_events WHERE id>? ORDER BY id ASC LIMIT ?", EVENT, cursor, limit);
+        }
+
+        public static int purgeEvents(Connection c, long olderThan) throws SQLException {
+            return update(c, "DELETE FROM network_events WHERE ts<?", olderThan);
+        }
+
+        // ---- registry
+        public static Server server(Connection c, String name) throws SQLException {
+            return one(c, "SELECT * FROM network_servers WHERE name=?", SERVER, name);
+        }
+
+        public static List<Server> servers(Connection c) throws SQLException {
+            return query(c, "SELECT * FROM network_servers ORDER BY name", SERVER);
+        }
+
+        public static void register(Connection c, String name, String instance, String version, int schema, long now, boolean jail) throws SQLException {
+            update(c, Dialect.of(c).upsert("network_servers(name,instance_id,plugin_version,schema_version,started_at,seen_at,jail_backend) VALUES(?,?,?,?,?,?,?)",
+                    List.of("name"), List.of("instance_id={new:instance_id}", "plugin_version={new:plugin_version}", "schema_version={new:schema_version}",
+                            "started_at={new:started_at}", "seen_at={new:seen_at}", "jail_backend={new:jail_backend}")),
+                    name, instance, version, schema, now, now, jail ? 1 : 0);
+        }
+
+        /** @return false when another instance has taken this name over (two servers configured with the same server-name) */
+        public static boolean heartbeat(Connection c, String name, String instance, long now) throws SQLException {
+            return update(c, "UPDATE network_servers SET seen_at=? WHERE name=? AND instance_id=?", now, name, instance) == 1;
+        }
+
+        public static void unregister(Connection c, String name, String instance) throws SQLException {
+            update(c, "UPDATE network_servers SET seen_at=0 WHERE name=? AND instance_id=?", name, instance);
+        }
+
+        // ---- presence
+        public static void join(Connection c, UUID id, String name, String server, long now) throws SQLException {
+            update(c, Dialect.of(c).upsert("network_presence(uuid,name,server,joined_at,seen_at) VALUES(?,?,?,?,?)", List.of("uuid"),
+                    List.of("name={new:name}", "server={new:server}", "joined_at={new:joined_at}", "seen_at={new:seen_at}")), id, name, server, now, now);
+        }
+
+        public static void leave(Connection c, UUID id, String server) throws SQLException {
+            update(c, "DELETE FROM network_presence WHERE uuid=? AND server=?", id, server);
+        }
+
+        public static void touch(Connection c, String server, java.util.Collection<UUID> online, long now) throws SQLException {
+            if (online.isEmpty()) return;
+            StringBuilder in = new StringBuilder();
+            List<Object> args = new java.util.ArrayList<>();
+            args.add(now);
+            args.add(server);
+            for (UUID u : online) {
+                if (in.length() > 0) in.append(',');
+                in.append('?');
+                args.add(u);
+            }
+            update(c, "UPDATE network_presence SET seen_at=? WHERE server=? AND uuid IN (" + in + ")", args.toArray());
+        }
+
+        /** Where the player is connected right now (a row nobody refreshed for {@code staleAfter} ms is a crashed server's leftover). */
+        public static Presence presence(Connection c, UUID id, long now, long staleAfter) throws SQLException {
+            return one(c, "SELECT * FROM network_presence WHERE uuid=? AND seen_at>?", rs -> new Presence(uuid(rs, "uuid"), rs.getString("name"), rs.getString("server"),
+                    rs.getLong("joined_at"), rs.getLong("seen_at")), id, now - staleAfter);
+        }
+
+        public static int purgePresence(Connection c, long olderThan) throws SQLException {
+            return update(c, "DELETE FROM network_presence WHERE seen_at<?", olderThan);
+        }
+
+        // ---- leases: exactly one server runs a background job at a time
+        /** @return true when {@code owner} holds (or just took) the lease named {@code name} until now+ttl */
+        public static boolean lease(Connection c, String name, String owner, long now, long ttl) throws SQLException {
+            Dialect d = Dialect.of(c);
+            int taken = update(c, "UPDATE network_locks SET owner=?, lease_until=? WHERE name=? AND (owner=? OR lease_until<?)", owner, now + ttl, name, owner, now);
+            if (taken == 1) return true;
+            update(c, d.insertIgnore("network_locks(name,owner,lease_until) VALUES(?,?,?)"), name, owner, now + ttl);
+            String holder = one(c, "SELECT owner FROM network_locks WHERE name=?", rs -> rs.getString(1), name);
+            return owner.equals(holder);
+        }
+
+        public static void releaseLease(Connection c, String name, String owner) throws SQLException {
+            update(c, "UPDATE network_locks SET lease_until=0 WHERE name=? AND owner=?", name, owner);
         }
     }
 }

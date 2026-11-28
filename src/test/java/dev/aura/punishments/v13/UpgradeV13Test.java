@@ -111,7 +111,7 @@ class UpgradeV13Test {
             assertTrue(ref.isFile(), "the new options are documented in a reference file");
             assertTrue(Files.readString(ref.toPath()).contains("MASTER SWITCH"));
             // data migrated and loaded
-            assertEquals(3, plugin.core().db.schemaVersion());
+            assertEquals(dev.aura.punishments.db.Schema.latest(), plugin.core().db.schemaVersion());
             assertTrue(plugin.punishments().banFor(UUID.fromString(MigrationV3Test.ALEX), null).isPresent(), "bans from before the upgrade are enforced");
             assertTrue(plugin.punishments().cache().size() >= 4, "the active bans and mutes were loaded into the enforcement cache: " + plugin.punishments().cache().size());
             // new message keys fall back to the built-in text even though the old messages.yml lacks them

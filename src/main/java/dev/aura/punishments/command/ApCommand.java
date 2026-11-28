@@ -73,6 +73,7 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
                 new Sub("discord", "/ap discord [status|retry]", "Discord delivery status / re-queue failed messages", s -> has(s, Perms.ADMIN)),
                 new Sub("admin", "/ap admin", "Open the administration screen", s -> (has(s, Perms.ADMIN) || has(s, Perms.AUDIT_VIEW)) && s instanceof Player),
                 new Sub("judicial", "/ap judicial [status|recount]", "Judicial system switch and any open work still to finish", s -> has(s, Perms.ADMIN)),
+                new Sub("network", "/ap network", "The servers of the network, the sync state and the shared database", s -> has(s, Perms.ADMIN) && gui.core().network != null),
                 new Sub("status", "/ap status", "Show system status and integrations", s -> has(s, Perms.ADMIN)),
                 new Sub("audit", "/ap audit [verify]", "Verify the audit log integrity", s -> has(s, Perms.ADMIN)),
                 new Sub("reload", "/ap reload", "Reload and validate the configuration", s -> has(s, Perms.ADMIN_RELOAD)));
@@ -142,6 +143,11 @@ public final class ApCommand implements CommandExecutor, TabCompleter {
             case "appeal" -> appeal(sender, rest);
             case "unjail" -> unjail(sender, rest);
             case "judicial" -> judicial(sender, rest);
+            case "network" -> {
+                var net = gui.core().network;
+                if (net == null) gui.messages().sendInfo(sender, "This server uses a standalone SQLite file (database.type: sqlite); there is no network.");
+                else for (String line : net.describe()) gui.messages().sendInfo(sender, line);
+            }
             case "admin" -> {
                 Player p = player(sender);
                 if (p != null) Menus.openAdmin(gui, p);
