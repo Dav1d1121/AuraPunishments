@@ -268,6 +268,10 @@ public final class NetworkService {
                 out.add("  - " + s.name() + " v" + s.version() + " (schema " + s.schema() + ")" + (s.seenAt() == 0 ? " stopped" : age < SERVER_STALE_MS ? " running" : " silent " + age / 1000 + "s")
                         + (s.jailBackend() ? " [jail]" : "") + (s.name().equals(name) ? " <- this server" : ""));
             }
+            for (String job : new String[]{"housekeeping", "discord-sender"}) {
+                String holder = core.db.txSync(c -> Repo.Net.leaseHolder(c, job, core.clock.now()));
+                out.add("  " + (job.equals("discord-sender") ? "Discord messages are sent by: " : "Network-wide housekeeping runs on: ") + (holder == null ? "(nobody yet)" : holder));
+            }
         } catch (SQLException e) {
             out.add("  (registry unavailable: " + e.getMessage() + ")");
         }

@@ -522,6 +522,9 @@ public final class Schema {
                 )"""));
         // a queued player notice (a warning for someone who was offline) is CLAIMED by one server for a short lease before it is shown,
         // so a player who connects to two servers in quick succession is not shown it twice
+        // the same for the Discord outbox: a row is CLAIMED by one server for a lease before it is sent
+        steps.add(sql("ALTER TABLE discord_outbox ADD COLUMN claimed_by TEXT"));
+        steps.add(sql("ALTER TABLE discord_outbox ADD COLUMN claimed_until INTEGER"));
         steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_by TEXT"));
         steps.add(sql("ALTER TABLE player_notifications ADD COLUMN claimed_at INTEGER"));
         // what an import from the old per-server SQLite files did: every imported row remembers where it came from, so repeating an import

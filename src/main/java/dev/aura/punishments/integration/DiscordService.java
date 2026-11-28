@@ -519,10 +519,38 @@ public class DiscordService {
     // ------------------------------------------------------------------ stores
     /** SQLite-backed outbox: survives restarts, so unsent review/custody events are recovered. */
     public static final class DbStore implements Store {
+        /** How long a server that is sending keeps the "sender" role without renewing it. */
+        public static final long SENDER_LEASE_MS = 30_000L;
+        /** How long a claimed row stays claimed (covers the HTTP timeout and retries of one delivery). */
+        public static final long CLAIM_MS = 60_000L;
+
         private final Database db;
+        private final long senderLeaseMs;
+        private volatile long senderUntil;
+        private volatile long nextSenderCheck;
 
         public DbStore(Database db) {
+            this(db, SENDER_LEASE_MS);
+        }
+
+        /** @param senderLeaseMs how long the sender role survives its holder (tests use a short one) */
+        public DbStore(Database db, long senderLeaseMs) {
             this.db = db;
+            this.senderLeaseMs = senderLeaseMs;
+        }
+
+        /**
+         * On a network exactly ONE server sends at a time (it holds the {@code discord-sender} lease), so Discord's rate limit is paced by a
+         * single sender and nothing is posted twice; if it dies another server takes over once the lease runs out. A standalone server always sends.
+         */
+        private boolean sender(long now) throws Exception {
+            if (!db.shared()) return true;
+            if (now < senderUntil - senderLeaseMs / 3) return true;          // still comfortably the sender
+            if (now < nextSenderCheck && now >= senderUntil) return false;   // somebody else is; look again in a moment
+            boolean got = db.txSync(c -> Repo.Net.lease(c, "discord-sender", db.origin(), now, senderLeaseMs));
+            senderUntil = got ? now + senderLeaseMs : 0;
+            nextSenderCheck = now + Math.max(500L, senderLeaseMs / 6);
+            return got;
         }
 
         @Override
@@ -533,7 +561,9 @@ public class DiscordService {
 
         @Override
         public List<OutboxRow> due(long now, int limit) throws Exception {
-            return db.txSync(c -> Repo.Outbox.due(c, now, limit));
+            if (!db.shared()) return db.txSync(c -> Repo.Outbox.due(c, now, limit));
+            if (!sender(now)) return List.of();
+            return db.txSync(c -> Repo.Outbox.claim(c, db.origin(), now, limit, CLAIM_MS)); // belt and braces: a row is never held by two servers
         }
 
         @Override

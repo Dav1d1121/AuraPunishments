@@ -889,16 +889,30 @@ public final class Repo {
             return query(c, "SELECT * FROM discord_outbox WHERE state='PENDING' AND next_attempt<=? ORDER BY id ASC LIMIT ?", MAP, now, limit);
         }
 
+        /**
+         * Shared database: take up to {@code limit} due rows for {@code owner} for {@code leaseMs}. A row another server holds a lease on is left
+         * alone; the lease running out (that server died mid-delivery) makes it due again. The claim is one atomic UPDATE per row.
+         */
+        public static List<OutboxRow> claim(Connection c, String owner, long now, int limit, long leaseMs) throws SQLException {
+            List<OutboxRow> out = new java.util.ArrayList<>();
+            for (OutboxRow r : query(c, "SELECT * FROM discord_outbox WHERE state='PENDING' AND next_attempt<=? AND (claimed_until IS NULL OR claimed_until<?) ORDER BY id ASC LIMIT ?",
+                    MAP, now, now, limit)) {
+                if (update(c, "UPDATE discord_outbox SET claimed_by=?, claimed_until=? WHERE id=? AND state='PENDING' AND (claimed_until IS NULL OR claimed_until<?)",
+                        owner, now + leaseMs, r.id(), now) == 1) out.add(r);
+            }
+            return out;
+        }
+
         public static void markSent(Connection c, long id, long now) throws SQLException {
-            update(c, "UPDATE discord_outbox SET state='SENT', sent_at=?, attempts=attempts+1, last_error=NULL WHERE id=?", now, id);
+            update(c, "UPDATE discord_outbox SET state='SENT', sent_at=?, attempts=attempts+1, last_error=NULL, claimed_by=NULL, claimed_until=NULL WHERE id=?", now, id);
         }
 
         public static void retryLater(Connection c, long id, long next, String error) throws SQLException {
-            update(c, "UPDATE discord_outbox SET attempts=attempts+1, next_attempt=?, last_error=? WHERE id=?", next, error, id);
+            update(c, "UPDATE discord_outbox SET attempts=attempts+1, next_attempt=?, last_error=?, claimed_by=NULL, claimed_until=NULL WHERE id=?", next, error, id);
         }
 
         public static void markDead(Connection c, long id, String error) throws SQLException {
-            update(c, "UPDATE discord_outbox SET state='DEAD', attempts=attempts+1, last_error=? WHERE id=?", error, id);
+            update(c, "UPDATE discord_outbox SET state='DEAD', attempts=attempts+1, last_error=?, claimed_by=NULL, claimed_until=NULL WHERE id=?", error, id);
         }
 
         public static long count(Connection c, OutboxState st) throws SQLException {
@@ -910,7 +924,7 @@ public final class Repo {
         }
 
         public static int requeueDead(Connection c, long now) throws SQLException {
-            return update(c, "UPDATE discord_outbox SET state='PENDING', next_attempt=?, attempts=0 WHERE state='DEAD'", now);
+            return update(c, "UPDATE discord_outbox SET state='PENDING', next_attempt=?, attempts=0, claimed_by=NULL, claimed_until=NULL WHERE state='DEAD'", now);
         }
 
         public static List<OutboxRow> recentDead(Connection c, int limit) throws SQLException {
@@ -1105,6 +1119,11 @@ public final class Repo {
             update(c, d.insertIgnore("network_locks(name,owner,lease_until) VALUES(?,?,?)"), name, owner, now + ttl);
             String holder = one(c, "SELECT owner FROM network_locks WHERE name=?", rs -> rs.getString(1), name);
             return owner.equals(holder);
+        }
+
+        /** Who holds the lease right now (null when nobody does). */
+        public static String leaseHolder(Connection c, String name, long now) throws SQLException {
+            return one(c, "SELECT owner FROM network_locks WHERE name=? AND lease_until>?", rs -> rs.getString(1), name, now);
         }
 
         public static void releaseLease(Connection c, String name, String owner) throws SQLException {
