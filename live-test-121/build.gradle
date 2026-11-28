@@ -15,6 +15,8 @@ tasks.register('syncShared', Sync) {
     into sharedSrc
 }
 sourceSets.main.java.srcDir(sharedSrc)
+sourceSets.main.resources.srcDir('../live-test/src/main/resources')
+processResources { filesMatching('plugin.yml') { filter { it.replace("api-version: '26.3'", "api-version: '1.21.11'") } } }
 tasks.named('compileJava') { dependsOn 'syncShared' }
 
 dependencies {
@@ -34,4 +36,8 @@ if (file("$serverDir/versions/1.21.11/paper-1.21.11.jar").exists()) {
 }
 
 tasks.withType(JavaCompile).configureEach { options.release = 21 }
-jar { archiveBaseName = 'APLiveTest121' }
+jar {
+    archiveBaseName = 'APLiveTest121'
+    // compiled against the Mojang-mapped 1.21.11 server: tell Paper not to remap it as a Spigot-mapped plugin
+    manifest { attributes 'paperweight-mappings-namespace': 'mojang' }
+}

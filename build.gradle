@@ -87,5 +87,6 @@ tasks.register('test121', Test) {
 jar {
     archiveBaseName = 'AuraPunishments'
     archiveVersion = project.version
-    manifest { attributes 'Implementation-Version': project.version }
+    // no server internals are used, so Paper 1.21.11 has nothing to remap (it would otherwise remap the jar from Spigot to Mojang mappings on first load)
+    manifest { attributes 'Implementation-Version': project.version, 'paperweight-mappings-namespace': 'mojang' }
 }
