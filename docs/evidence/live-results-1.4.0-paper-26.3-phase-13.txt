@@ -1,0 +1,68 @@
+== phase 13 ==
+PASS a fresh install is in the case workflow  -- CASEWORK
+PASS owner review is OFF on a fresh install (review.enabled: false)
+PASS the staff dashboard opened  -- Punishments dashboard
+PASS its owner-review buttons are out of the way
+PASS /ap help does not list /ap review while review is off
+PASS target screen for LiveAlpha66462  -- Punish: LiveAlpha66462
+PASS the New case screen opened  -- New case: LiveAlpha66462
+PASS dialog is waiting for the incident description  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS in the punishment list the IP Ban entry is a locked (grey) button  -- slot 14 GRAY_DYE
+PASS while Mute is available
+PASS dialog is waiting for the incident description  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the usual list of punishments opened for the new case  -- Punishment for the new case
+PASS the usual Mute screen opened, tied to the new case  -- Mute for the new case: LiveAlpha66462
+PASS dialog is waiting for the duration  -- screen: 
+PASS dialog is waiting for the reason  -- screen: 
+PASS back on the New case screen  -- New case: LiveAlpha66462
+PASS nothing has been issued yet
+PASS one confirmation for the case and the punishment  -- Confirm: Mute LiveAlpha66462
+PASS the new case opened  -- Case AP-0001
+PASS the case and the mute exist together; the mute is ACTIVE, STANDARD (no court), linked to the case  -- Punishment[id=1, type=MUTE, status=ACTIVE, targetUuid=3bf040cb-923e-350f-ac70-d24153b19783, targetName=LiveAlpha66462, ip=null, reason=Harassing other players in global chat 66462, issuerUuid=fe54f99b-d87b-3b8e-9611-aca1d668546f, issuerName=LiveStaff1366462, issuedAt=1795857227877, expiresAt=1795860827877, endedAt=null, endedBy=null, endReason=null, caseId=1, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=586242d0-a9ef-4957-b7e5-0c6f5e215443, origin=srv-e23c2384, opId=5d590239-95a4-485a-868c-2d439ee00f1d, jailPrisonerId=null, jailName=null, jailState=null, jailError=null, jailOrigin=null]
+PASS the case is OPEN with its evidence  -- Case[id=1, status=OPEN, kind=STANDARD, accusedUuid=3bf040cb-923e-350f-ac70-d24153b19783, accusedName=LiveAlpha66462, offenseKey=harassment, severity=MODERATE, description=Repeatedly harassed other players in the global chat 66462, context=null, prosecutorUuid=fe54f99b-d87b-3b8e-9611-aca1d668546f, prosecutorName=LiveStaff1366462, judgeUuid=null, judgeName=null, trialAt=null, hearingRef=null, verdict=null, verdictReason=null, verdictByName=null, verdictAt=null, overturned=false, createdAt=1795857227866, updatedAt=1795857227866, closedAt=null, version=0, appealTicket=null, uid=2a84fd91-f093-4400-9954-1d6c04e1666e, origin=srv-e23c2384]
+PASS the mute is enforced at once
+PASS the muted player cannot chat and is told so  -- [ClientboundSystemChatPacket|[AuraPunishments] You are muted and cannot do that. (Expires: 2026-11-28 10:13 UTC (59m left)), ClientboundLevelParticlesPacket]
+PASS NO owner review was created
+PASS the case timeline shows the case being opened and the punishment issued
+PASS no court rows: no custody, no verdict
+PASS target screen for LiveBravo66462  -- Punish: LiveBravo66462
+PASS the New case screen opened  -- New case: LiveBravo66462
+PASS dialog is waiting for the incident description  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the usual list of punishments opened for the new case  -- Punishment for the new case
+PASS the usual Jail screen opened, tied to the new case  -- Jail Sentence for the new case: LiveBravo66462
+PASS dialog is waiting for the duration  -- screen: 
+PASS dialog is waiting for the reason  -- screen: 
+PASS back on the New case screen  -- New case: LiveBravo66462
+PASS confirmation  -- Confirm: Jail Sentence LiveBravo66462
+PASS the jail punishment is recorded as HELD  -- Punishment[id=2, type=JAIL, status=ACTIVE, targetUuid=177d740b-35ce-3755-afe7-b02c6c1fc168, targetName=LiveBravo66462, ip=null, reason=Griefing the shared farm area 66462, issuerUuid=fe54f99b-d87b-3b8e-9611-aca1d668546f, issuerName=LiveStaff1366462, issuedAt=1795857254912, expiresAt=1795859054912, endedAt=null, endedBy=null, endReason=null, caseId=2, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=d7c59b96-a554-4a97-8da3-95ad179f6a8e, origin=srv-e23c2384, opId=e24c6bf4-9da4-46fe-ab7d-642bb6b8d374, jailPrisonerId=058b5f31-022f-42f5-8aa0-2d1f4767efe0, jailName=testjail, jailState=HELD, jailError=null, jailOrigin=null]
+PASS JailReloaded really holds the player (its own API says so)
+PASS linked to the new case, not pretrial custody  -- Punishment[id=2, type=JAIL, status=ACTIVE, targetUuid=177d740b-35ce-3755-afe7-b02c6c1fc168, targetName=LiveBravo66462, ip=null, reason=Griefing the shared farm area 66462, issuerUuid=fe54f99b-d87b-3b8e-9611-aca1d668546f, issuerName=LiveStaff1366462, issuedAt=1795857254912, expiresAt=1795859054912, endedAt=null, endedBy=null, endReason=null, caseId=2, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=d7c59b96-a554-4a97-8da3-95ad179f6a8e, origin=srv-e23c2384, opId=e24c6bf4-9da4-46fe-ab7d-642bb6b8d374, jailPrisonerId=058b5f31-022f-42f5-8aa0-2d1f4767efe0, jailName=testjail, jailState=HELD, jailError=null, jailOrigin=null]
+PASS still no owner review
+PASS /ap unjail releases the player  -- [ClientboundLevelParticlesPacket, ClientboundSystemChatPacket|[AuraPunishments] Reversal on case AP-0002 (LiveBravo66462): Jail Sentence #2 revoked: Released at the end of the live test 66462, ClientboundDamageEventPacket, ClientboundSetEquipmentPacket, ClientboundSystemChatPacket|[AuraPunishments] Custody ended: LiveBravo66462 (case -) - Released from jail, ClientboundSystemChatPacket|[AuraPunishments] LiveBravo66462 released from jail (punishment #2)., ClientboundSetEntityDataPacket, ClientboundUpdateAttributesPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundTrackedWaypointPacket, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundEntityPositionSyncPacket, ClientboundSetEntityDataPacket, ClientboundDamageEventPacket, ClientboundSetEntityDataPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundSetTimePacket, ClientboundLevelParticlesPacket, Pos, ClientboundSetEntityDataPacket]
+PASS target screen for LiveCharlie66462  -- Punish: LiveCharlie66462
+PASS the New case screen opened  -- New case: LiveCharlie66462
+PASS dialog is waiting for the incident description  -- screen: 
+PASS dialog is waiting for the evidence link  -- screen: 
+PASS the usual list of punishments opened for the new case  -- Punishment for the new case
+PASS the usual Ban screen opened, tied to the new case  -- Ban for the new case: LiveCharlie66462
+PASS dialog is waiting for the duration  -- screen: 
+PASS dialog is waiting for the reason  -- screen: 
+PASS back on the New case screen  -- New case: LiveCharlie66462
+PASS confirmation  -- Confirm: Ban LiveCharlie66462
+PASS the ban was recorded
+PASS the case's evidence satisfied the ban's evidence requirement; ban ACTIVE and linked  -- Punishment[id=3, type=BAN, status=ACTIVE, targetUuid=337fce48-bfcb-3322-9e95-5bfdd7ca2d34, targetName=LiveCharlie66462, ip=null, reason=Repeated harassment of other players 66462, issuerUuid=fe54f99b-d87b-3b8e-9611-aca1d668546f, issuerName=LiveStaff1366462, issuedAt=1795857282917, expiresAt=1796462082917, endedAt=null, endedBy=null, endReason=null, caseId=3, source=STANDARD, offenseKey=harassment, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=12982a54-f1ee-432e-9dcf-451e38bd9952, origin=srv-e23c2384, opId=3cbf9d55-6bbb-41b9-adbe-1c1d50e36fbf, jailPrisonerId=null, jailName=null, jailState=null, jailError=null, jailOrigin=null]
+PASS the online player was disconnected with the ban screen  -- ClientboundDisconnectPacket ClientboundDisconnectPacket[reason=empty[siblings=[literal{You are banned from Aurehaven}[style={color=red,bold}], literal{
+}, literal{
+}, literal{Reason: }[style={color=gray}, siblings=[literal{Repeated harassment of other players 66462}[style={color=white}]]], literal{
+}, literal{Expires: }[style={color=gray}, siblings=[literal{2026-12-05 09:14 UTC (6d23h59m left)}[style={color=white}]]], literal{
+}, literal{Reference: }[style={color=gray}, siblings=[literal{#3}[style={color=white}]]], literal{
+}, literal{
+}, literal{If you believe this is a mistake, appeal in our Discord.}[style={color=gray}]]]]
+PASS and no owner review exists for it
+PASS three cases exist, each open, each with exactly one linked punishment
+PASS the audit chain is intact
+PASS no pending operation is left over
+== phase 13: 60 passed, 0 failed ==

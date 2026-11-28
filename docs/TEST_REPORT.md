@@ -1,3 +1,56 @@
+# AuraPunishments 1.4.0 - Test report
+
+1.4.0 is the **network release**: one shared MariaDB/MySQL database, network-wide enforcement, the network jail, outage behaviour, import of old SQLite databases, Discord once per event. This section covers what 1.4.0 added and the full re-run on the 1.4.0 jar; the 1.3.2, 1.3.1 and 1.3.0 reports follow unchanged.
+
+## 1.4.0 summary
+
+| Category | Result |
+|---|---|
+| **A. Automated tests, standalone SQLite**, on **both** API versions (`gradle test`: Paper API 26.3 + MockBukkit v26.3; `gradle test121`: Paper API 1.21.11 + MockBukkit v1.21) | **457 tests, 0 failures on each** (375 from 1.3.2, all still asserting what they asserted, plus 82 new) |
+| **B. The same 457 tests against a real MariaDB 10.11** (`gradle testMariadb`: every fixture creates its own throw-away database on the shared engine) | **457 run, 0 failures, 1 skipped** (a test that is SQLite-only by definition) |
+| **C. Live network lab** (`tools/network-lab`): MariaDB 10.11.14, **Velocity 4.3.1** (modern forwarding), **five real Paper backends**: lobby, survival, jail on **26.3**; towny, skyblock on **1.21.11**; real TCP protocol clients of **both versions** connecting **through the proxy**; LuckPerms 5.5.71 with one shared MariaDB storage on lobby/survival/towny; JailReloaded 1.2.2 on the jail backend only | **111/111 checks pass** (one run, [evidence](evidence/live-network-lab-1.4.0-results.txt)) |
+| **D. Live regression of everything from 1.3.x on a standalone server** (SQLite, real JailReloaded, LuckPerms, Towny, TownyChat, EssentialsX + Chat, CoreProtect, AuraCommandFilter; real protocol clients) | **Paper 26.3: 533/533** (phases 13/12/8/9/10/7/6/1/2/3 = 60/115/98/11/22/91/65/54/9/8, identical to 1.3.2). **Paper 1.21.11: @@R121@@** |
+| **E. Real-data upgrade** (data folders written by 1.0.0 and 1.x booted with the 1.4.0 jar, compared row by row with the originals) | **26.3: @@UP26@@; 1.21.11: @@UP121@@** |
+| **Build** | one shaded jar (1.84 MB): MariaDB driver and HikariCP relocated under `dev.aura.punishments.libs`, class-file version 65 (Java 21), `api-version: 1.21.11`, verified outside the test framework against MariaDB |
+
+### What the live network lab exercised (all passing)
+
+| Area | Checks |
+|---|---|
+| Boot | all five backends and the proxy start; every backend reports the shared MariaDB, schema v4, no AuraPunishments warning at start; the registry lists all five and flags the jail backend |
+| **Bans across servers and versions** | a ban issued on skyblock (1.21.11) disconnects the player on survival (26.3) in **2.0 s**; the database decides at login on every backend; an unban on towny lifts it everywhere; a ban from the lobby (26.3) disconnects a 1.21.11 client |
+| Mutes | a mute from the jail backend cancels the player's chat on survival; an unmute from towny lifts it |
+| Warnings | a warning for an offline player reaches them at login, once |
+| **Network jail** | ordered on the lobby for a player on survival: the origin is recorded, the player is moved to the jail backend through the proxy, JailReloaded holds them, the record turns HELD; `/ap unjail` from towny frees them and sends them back to survival; a player jailed while offline lands in jail at their next login on any backend |
+| **Jail backend frozen** (SIGSTOP) | the jail is still accepted (heartbeat fresh); the player cannot be moved so stays **held** on survival: chat cancelled, commands refused with the reason; when the backend answers again the player is carried off and jailed |
+| Concurrency | three backends ban the same player at the same instant: **exactly one** active ban; 120 warnings from two backends stored in 0.6 s; the shared audit hash chain verifies after both |
+| Forwarded addresses | the backend records the player's own address from the proxy's forwarding; an IP ban on a loopback/private address is refused and nothing is recorded |
+| Rapid switching | six server hops in 6.5 s; the player is on exactly one backend afterwards; a later ban still reaches them |
+| Restart | skyblock stopped: the registry shows it stopped; a ban issued meanwhile is enforced the moment it is back |
+| **Hierarchy across backends** (LuckPerms, shared storage) | a moderator cannot ban an **offline** administrator from the lobby (26.3) nor from towny (1.21.11); can ban an ordinary player, who is removed from another backend |
+| **Database outage** (MariaDB shut down, later restarted) | a ban the server already knew is still enforced at login; players can still connect (ENFORCE_KNOWN); a staff action is **refused** and nothing is recorded; after the restart every backend is back in the registry and staff actions work **without restarting anything** |
+| **Import of a real 1.0.0 database** | a prisoner still held on the old server **blocks** the import and nothing is written; after the operator releases the prisoner: dry run, then the real import (10 punishments, 14 cases, 77 audit entries), every imported punishment still points at its case, the audit chain verifies, repeating adds nothing, the file in the migration folder is untouched |
+
+### Defects found by the 1.4.0 tests and fixed in 1.4.0 (none was left documented)
+
+| Found by | Defect | Fix |
+|---|---|---|
+| MariaDB test run | `sensitive` is a reserved word on MariaDB (notes table) | quoted in DDL and in every statement |
+| MariaDB test run | an `UPDATE` that read a column it also changed saw the new value (MariaDB evaluates assignments left to right, SQLite does not): the original expiry was lost | assignment order fixed |
+| Network tests | two backends could both pass the "no active ban yet" check | per-player row lock taken before the check |
+| Network tests | audit entries written by two backends at once could chain to the same predecessor | one lock row serialises appends |
+| Network jail tests | a time change racing a placement could be applied twice or not at all | row lock; the placement re-reads the end after locking |
+| Live lab (outage) | **logins stalled for 30 s while the database was away** (the proxy gave up on the backend) | a login waits at most 2.5 s and skips the database while it is known to be away |
+| Live lab (outage) | heartbeats queued up behind the dead database | at most one in flight; the pool refuses quickly and probes the server once a second |
+| Live lab | a network backend without JailReloaded logged "pretrial custody UNAVAILABLE" | informative message instead |
+| Unit test | `Database.close()` threw when called twice | idempotent |
+
+### Not tested (said plainly)
+
+MySQL 8 as the server (only MariaDB was available; the SQL is the same and the unit suite is engine-parameterised); BungeeCord (Velocity only); CrossChat and other cross-server chat plugins (not available); real Discord delivery (a local HTTP stand-in; no route to discord.com from the build environment); official-client rendering of dialogs; mixed-version *players* moving between 1.21.11 and 26.3 backends (needs ViaVersion on a real network; the lab keeps each client on backends of its own version, the data layer is exercised across versions); long soak / load tests beyond the 120-warning burst.
+
+---
+
 # AuraPunishments 1.3.2 - Test report
 
 1.3.2 adds the **punishment choice inside Create Case**, makes **owner review off by default** (and never applied to punishments from a case), and makes **one jar run on Paper 1.21.11 and Paper 26.3**. The 1.3.1 and 1.3.0 reports follow below unchanged; this section covers what 1.3.2 changed and the full re-run on the 1.3.2 jar, on both servers.

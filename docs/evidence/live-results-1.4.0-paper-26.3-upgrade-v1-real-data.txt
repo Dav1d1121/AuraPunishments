@@ -1,0 +1,15 @@
+== phase 11 ==
+PASS the plugin enabled on the old data folder
+PASS database migrated to the latest schema  -- 4
+PASS the judicial system is ON (the old config.yml has no judicial.enabled line): behaviour is unchanged by the upgrade
+PASS config.yml was not modified by the upgrade
+PASS a reference copy of the new options was written next to it
+PASS a pre-migration backup of the database exists  -- punishments.db.pre-v2-1795860519401
+PASS every row has a unique id and the server name
+PASS the audit hash chain still verifies after the migration
+PASS every ban/IP ban/mute that was running before the upgrade is enforced right after it (1 expected)  -- 1 enforced
+PASS nothing that had already run out is enforced  -- 0 expired punishments still enforced
+PASS the open-work report agrees with the data (7 open cases)  -- Report[known=true, openCases=7, awaitingVerdict=0, awaitingSentencing=0, pretrialDetainees=0, caseAppeals=0, openEmergencyCases=1, judicialPunishmentsInForce=4]
+PASS old cases are readable through the services
+PASS old punishments are readable through the punishment screen service
+== phase 11: 13 passed, 0 failed ==

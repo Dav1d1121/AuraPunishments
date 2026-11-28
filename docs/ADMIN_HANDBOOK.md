@@ -283,3 +283,16 @@ No new permission nodes, no database migration. `/ap judicial` and `/ap status` 
 | Review screens | The dashboard's owner-review buttons and `/ap review` appear only while `review.enabled` is true or reviews from before are still open. |
 | Punishments from a case | Never create an owner review (the case workflow), whatever `review.enabled` says. |
 
+## Running a network (1.4.0)
+
+Checklist (details in [NETWORK_DEPLOYMENT.md](NETWORK_DEPLOYMENT.md)):
+
+1. One dedicated MariaDB 10.6+/MySQL 8+ database and user; NTP on every machine.
+2. The same jar on every backend; each with its own `network.server-name`; `database.type: mariadb|mysql` and the connection settings.
+3. First backend with `database.allow-migration: true` (creates the schema), then the others.
+4. Velocity modern forwarding, backends reachable only through the proxy (so IP bans see real player addresses).
+5. Optional: `network.jail.backend` and JailReloaded on that one backend only.
+6. `/ap network` shows every backend, the change-feed state, who sends Discord and who runs housekeeping; `/ap status` shows the storage and any outage.
+7. Importing old servers: `/ap migrate check <file> <label>`, then `run ... confirm`.
+
+What to expect during a database outage: known bans and mutes keep being enforced, staff actions are refused with "Nothing was changed", and everything resumes by itself when the database is back.

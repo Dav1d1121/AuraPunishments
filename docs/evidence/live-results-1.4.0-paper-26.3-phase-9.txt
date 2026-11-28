@@ -1,0 +1,13 @@
+== phase 9 ==
+PASS the latest schema and the judicial system still OFF after the restart
+PASS every record survived: punishments, evidence, appeals and audit entries are all still there
+PASS the audit chain still verifies
+PASS the mute is still enforced (loaded into the cache at start)
+PASS the offline player's jail punishment is still live after the restart (reconciled against JailReloaded, not guessed)  -- Punishment[id=6, type=JAIL, status=ACTIVE, targetUuid=57f03716-7998-3815-bc49-9be7567a258b, targetName=LiveOffJ6106, ip=null, reason=Jailing an offline player before the restart, issuerUuid=22b15e61-2752-3451-af79-e996f76edb73, issuerName=LiveStaff86106, issuedAt=1795857521902, expiresAt=1795879121902, endedAt=null, endedBy=null, endReason=null, caseId=null, source=STANDARD, offenseKey=null, delivered=true, reviewDeadline=null, reviewed=false, custodyId=null, modifiedAt=null, modifiedBy=null, originalExpiresAt=null, uid=57280f30-d490-4f51-90f7-21669e403656, origin=srv-7830c37b, opId=7a143af2-226d-4416-8707-bbeaed8f0091, jailPrisonerId=cbb08669-3a64-4b2a-afa6-8ec3ca7837da, jailName=testjail, jailState=PENDING_PLACEMENT, jailError=null, jailOrigin=null]
+PASS JailReloaded still holds them
+PASS no pending operation is stuck
+PASS when the jailed player logs in, JailReloaded places them in the jail
+PASS the record now says HELD  -- HELD
+PASS an unjail after the restart works
+PASS the mute from before the restart is still blocking chat
+== phase 9: 11 passed, 0 failed ==

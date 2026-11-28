@@ -173,3 +173,11 @@ player when a later sentence is recommended.
 ## 1.3.0: when your server has the judicial system switched off
 
 Punishments are final the moment you issue them, and you will not see Create Case, Pretrial Detention, Direct Punishment or Judicial Review. You can still add **evidence** and a **staff note** while issuing a punishment, and afterwards from the history screen (click the punishment). **Jail** is an ordinary punishment (`/punish <player>` -> Issue Jail, `/ap jail`, release with `/ap unjail`). **Appeals** come from Discord Ticket Tool: record them on the punishment and reference the ticket. Full guide: [WORKFLOW_NO_JUDICIAL.md](WORKFLOW_NO_JUDICIAL.md), [JAIL.md](JAIL.md), [APPEALS.md](APPEALS.md).
+
+## On a network (1.4.0)
+
+* A punishment you issue applies on **every** server of the network, whether the player is online (on any server), offline, or logs in later.
+* If a player you want to punish is not found by name, they have never joined any server of the network.
+* A **jailed** player is moved to the jail server automatically and cannot move, build, fight, chat or use commands until the jail has them; releasing them (`/ap unjail`) works from any server and sends them back.
+* If you see *"The database is unavailable right now. Nothing was changed."*, nothing was recorded: wait a minute and try again.
+* If the jail server is down you are told *"Nobody was jailed"*; use another punishment for now.

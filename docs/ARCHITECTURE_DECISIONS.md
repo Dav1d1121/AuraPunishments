@@ -1,3 +1,29 @@
+# 1.4.0 - the network release: decisions, assumptions, limitations
+
+1. **Backend-only, no proxy plugin.** Everything a network needs is done by the backends and the database: a login asks the database, a change is a row plus an event every backend reads, a transfer to the jail is a plugin message the proxy already understands. A proxy plugin would add a second thing to deploy and secure, with nothing to gain: the live lab (Velocity + five backends) found no behaviour that needed one.
+2. **The database decides at login, the cache decides everywhere else.** Admission asks MariaDB (bounded to 2.5 s, skipped while the server is known to be away); chat, commands and the hot paths use the in-memory index refreshed from the change feed (default 1 s). A ban can never be missed at login because a poll has not run yet; a mute is at most one sync interval late.
+3. **A change feed written by triggers, not by code.** `network_events` rows come from database triggers on the shared engines, so no code path (including a future one, or a manual SQL fix) can forget to tell the other servers. Each server applies only what concerns its own players, and never re-applies its own changes.
+4. **Rows are locked, not hoped about.** One active ban/mute per player is kept by a per-player row lock taken before the check; audit appends take one row so the hash chain stays a chain. Deadlocks are retried, never swallowed.
+5. **Outage: known stays enforced, new refused.** The in-memory index (saved to `active-punishments.yml`) keeps enforcing what it knows; staff actions that cannot be stored are refused, never queued and replayed later, so nobody is surprised by an action that happens after they stopped looking. Only a *connectivity* failure counts as an outage; schema, version and configuration problems stop the plugin with the reason.
+6. **One jail backend; the punishment row is the queue.** A jail ordered elsewhere is a punishment in state `PENDING_PLACEMENT` with a placeholder prisoner id; the jail backend turns it into a real JailReloaded record and replaces the id. Everything is idempotent: a crash between JailReloaded and the database is adopted, never repeated. Nothing is ever reported as jailed until JailReloaded has them.
+7. **Held means held.** Until JailReloaded holds a jailed player, any backend restrains them (movement, building, fighting, chat, commands). That makes "the jail backend is down/frozen/slow" and "they logged in elsewhere" the same, safe, case.
+8. **Court jail stays on the jail backend.** Pretrial detention and judicial sentences have their own state machines tied to JailReloaded on the same server; making them remote is possible but it is the rarely used court system, and a clear refusal is better than a half-remote saga.
+9. **Discord: one sender, claimed rows.** A lease picks one sender (rate limit paced once); rows are claimed with a lease so a stuck sender never blocks and never double-sends in the normal case.
+10. **Import is a transaction.** A dry run is the real code rolled back, so its report is exactly what the real run does; the originals are never opened (a copy is upgraded); repeats are recognised by source+old id, stable uid, content and file hash.
+
+## Known limitations (1.4.0)
+
+* **MySQL 8** is supported by the SQL and the dialect layer but was not available to test; **MariaDB 10.6+** (10.11 tested) is the verified engine.
+* **Proxy:** tested with Velocity (modern forwarding) only. BungeeCord uses the same plugin-message channel but was not run.
+* **Mixed Minecraft versions** across backends need ViaVersion/ViaBackwards for the *players* (Velocity does not translate); the plugin runs on both. A client of one version cannot be sent to a jail backend of another.
+* **Court (judicial) pretrial detention and jail sentences** work on the jail backend only.
+* **CrossChat** and other cross-server chat plugins were not available to test. Mutes are enforced at the chat event of the backend the player speaks on, so a muted player's message is never created for a relay to forward; plugins that inject messages without a chat event are outside the plugin's reach.
+* **Discord delivery** was exercised against a local HTTP stand-in (the build environment has no route to discord.com); a crash between Discord accepting a message and the database recording it can repeat that one message.
+* Clocks must be synchronised (NTP); skew beyond `network.max-clock-skew-seconds` refuses to start.
+* The import needs a quiet moment for the audit entries (it holds the audit chain's lock while appending them).
+
+---
+
 # 1.3.0 - architectural decisions, assumptions, deviations
 
 ## Decisions

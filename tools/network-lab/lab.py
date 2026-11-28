@@ -268,10 +268,13 @@ def s_warn():
     ok = wait_until(lambda: saw("Dana", "Please stop spamming"), 15)
     check("the warning reaches Dana at login", ok, host_for("26.3").netlab("dump", "Dana")[1])
     time.sleep(2)
-    dump = host_for("26.3").netlab("dump", "Dana")[1]
-    check("and exactly once", dump.count("Please stop spamming") <= 2, dump)  # a title + a chat line are the same warning
-    check("the notification is recorded as delivered once", sql("SELECT COUNT(*) FROM player_notifications WHERE state='DELIVERED'") != "", "")
-    quit_bot("Dana")
+    check("it is recorded as delivered", sql("SELECT delivered FROM punishments WHERE target_name='Dana' AND type='WARN'") == "1")
+    quit_bot("Dana"); time.sleep(2)
+    ok, msg = join("Dana", "skyblock")
+    time.sleep(4)
+    check("Dana connects to another server (1.21.11)", ok, msg)
+    check("and the warning is NOT shown to her again", not saw("Dana", "Please stop spamming", "1.21.11"), host_for("1.21.11").netlab("dump", "Dana")[1])
+    quit_bot("Dana", "1.21.11")
 
 
 def s_jail():

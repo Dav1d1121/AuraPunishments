@@ -1,0 +1,24 @@
+== phase 10 ==
+PASS the server runs with the judicial system ON (upgraded-install configuration)
+PASS a REAL online player is held in pretrial detention by the real JailReloaded
+PASS config.yml contains the judicial switch line to edit
+PASS the reload is accepted and the switch is now off
+PASS the state is WIND_DOWN: work is open, so the system is not silently 'disabled'  -- WIND_DOWN
+PASS it counted the 2 open cases and 1 detainee  -- Report[known=true, openCases=2, awaitingVerdict=0, awaitingSentencing=0, pretrialDetainees=1, caseAppeals=0, openEmergencyCases=0, judicialPunishmentsInForce=0]
+PASS NOTHING was released by the switch: the detainee is still held by JailReloaded
+PASS NOTHING was closed or deleted: both cases are still open and the custody is live
+PASS the staff member who reloaded was told what is still open  -- [ClientboundSystemChatPacket|[AuraPunishments] Case AP-0002 opened against LiveOther70453 (Other / Custom) by LiveOwner10., ClientboundSystemChatPacket|[AuraPunishments] Configuration reloaded and validated., ClientboundSystemChatPacket|[AuraPunishments] Admin: Configuration reloaded, ClientboundEntityPositionSyncPacket, ClientboundUpdateAttributesPacket, ClientboundSystemChatPacket|[AuraPunishments] Judicial system switched OFF: new punishments are final and immediately enforceable., ClientboundSystemChatPacket|[AuraPunishments] The judicial system is switched OFF but court work is still open. NOTHING has been released, closed or deleted automatically:, ClientboundSystemChatPacket|[AuraPunishments]   - 1 player(s) still held in pretrial detention - release or sentence them (/ap custody), ClientboundSystemChatPacket|[AuraPunishments]   - 2 open case(s) (0 awaiting a verdict, 0 awaiting sentencing, 0 emergency) - close, dismiss or sentence them (/ap cases open), ClientboundSystemChatPacket|[AuraPunishments] Finish them with the normal tools (/ap judge, /ap cases open). Details and the resolution steps: docs/JUDICIAL-MODE.md. Switching judicial.enabled back to true at any time restores everything., Pos, ClientboundEntityPositionSyncPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundSetTimePacket, ClientboundSetEntityMotionPacket, Pos, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, ClientboundLevelParticlesPacket, ClientboundLevelParticlesPacket, ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSetEntityMotionPacket, Pos, ClientboundRotateHeadPacket, ClientboundLevelParticlesPacket]
+PASS a NEW case is refused with an explanation  -- The judicial system is switched off on this server and the case workflow (casework.enabled) is off too, so opening a case is not available. Punishments are issued and final immediately (judicial.enabled / casework.enabled in config.yml).
+PASS a NEW pretrial detention is refused
+PASS /ap judicial explains the open work  -- [ClientboundSetEntityMotionPacket, PosRot, ClientboundRotateHeadPacket, ClientboundSystemChatPacket|[AuraPunishments] Judicial system: WIND_DOWN (judicial.enabled: false, casework.enabled: false), ClientboundSystemChatPacket|[AuraPunishments] Judicial work is still open. Nothing is released, closed or deleted automatically:, ClientboundSystemChatPacket|[AuraPunishments]  - 1 player(s) still held in pretrial detention - release or sentence them (/ap custody), ClientboundSystemChatPacket|[AuraPunishments]  - 2 open case(s) (0 awaiting a verdict, 0 awaiting sentencing, 0 emergency) - close, dismiss or sentence them (/ap cases open), ClientboundSystemChatPacket|[AuraPunishments] Finish them with /ap judge and /ap cases open (see docs/JUDICIAL-MODE.md). Setting judicial.enabled: true restores everything.]
+PASS the staff dashboard shows the 'Judicial wind-down' banner
+PASS the detainee is released through the normal custody tool
+PASS both cases can still be closed
+PASS with nothing open the state becomes DISABLED  -- DISABLED
+PASS historical cases are still readable
+PASS a closed case cannot be reopened while the system is off
+PASS config.yml contains the judicial switch line to edit
+PASS switched back ON
+PASS cases can be opened again
+PASS audit chain intact and the switch changes were audited
+== phase 10: 22 passed, 0 failed ==
