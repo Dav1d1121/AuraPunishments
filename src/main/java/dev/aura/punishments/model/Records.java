@@ -52,7 +52,7 @@ public final class Records {
                              Long reviewDeadline, boolean reviewed, Long custodyId,
                              Long modifiedAt, String modifiedBy, Long originalExpiresAt,
                              String uid, String origin, String opId,
-                             String jailPrisonerId, String jailName, String jailState, String jailError) {
+                             String jailPrisonerId, String jailName, String jailState, String jailError, String jailOrigin) {
         public boolean permanent() {
             return expiresAt == null;
         }

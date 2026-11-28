@@ -67,7 +67,7 @@ public final class ActiveSnapshot {
                         UUID.fromString(String.valueOf(m.get("target-uuid"))), String.valueOf(m.get("target-name")), m.get("ip") == null ? null : String.valueOf(m.get("ip")),
                         String.valueOf(m.get("reason")), null, String.valueOf(m.get("issuer-name")), ((Number) m.get("issued-at")).longValue(),
                         exp == null ? null : ((Number) exp).longValue(), null, null, null, null, Source.STANDARD, null, true, null, false, null, null, null, null,
-                        null, m.get("origin") == null ? null : String.valueOf(m.get("origin")), null, null, null, null, null));
+                        null, m.get("origin") == null ? null : String.valueOf(m.get("origin")), null, null, null, null, null, null));
             } catch (RuntimeException e) {
                 // one unreadable row must not discard the others
             }

@@ -27,6 +27,9 @@ general:
 # ---------------------------------------------------------------------------
 network:
   server-name: ""
+  # The name your proxy (Velocity / BungeeCord) gives THIS backend. Only needed when it differs from server-name; it is what the
+  # "send the player to ..." messages use. Blank = same as server-name.
+  proxy-name: ""
   # ----- Only used with a shared database (database.type: mariadb | mysql); ignored on a standalone server. -----
   # How often a server reads what the other servers changed (bans, mutes, kicks, revocations) and applies it to its own players.
   # A LOGIN never waits for this: it asks the database directly. This only keeps chat/command checks and notices current.
@@ -51,6 +54,27 @@ network:
     # Start with the saved copy when the database is unreachable at start-up (instead of disabling the plugin) and keep retrying.
     start-without-database: true
     retry-seconds: 15
+  # ----- The network jail (shared database only) -----
+  # Install JailReloaded and build the jail on ONE backend only, and put that backend's network.server-name here (the same value on EVERY
+  # server). A jail punishment issued anywhere is then carried out there: the player is sent to that backend (through the proxy's plugin
+  # message channel - Velocity: bungee-plugin-message-channel = true, the default) and JailReloaded jails them. Blank = no network jail.
+  jail:
+    backend: ""
+    # Where a released prisoner is sent.
+    #   ORIGINAL - back to the backend they were on when they were jailed (the lobby below when that is not possible)
+    #   LOBBY    - the lobby server below
+    #   FIXED    - the fixed server below
+    return:
+      mode: ORIGINAL
+      lobby-server: lobby       # the PROXY's name for the lobby (also the fallback of ORIGINAL)
+      fixed-server: ""
+    # A jailed player who is not (yet) held by JailReloaded - the jail backend is down, the transfer is still running - can neither move,
+    # build, fight, chat nor run commands, on any backend. This is what stops a jail from being escaped by an unavailable jail backend.
+    hold:
+      enabled: true
+      allowed-commands: []      # commands (without the slash) a held player may still use, e.g. [help, rules]
+    # While a jailed player is on the wrong backend the transfer is repeated this often.
+    transfer-retry-seconds: 5
 
 # ---------------------------------------------------------------------------
 #  Database  [RESTART]

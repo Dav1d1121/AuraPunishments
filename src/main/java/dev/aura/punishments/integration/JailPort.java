@@ -54,6 +54,14 @@ public interface JailPort {
 
     boolean available();
 
+    /**
+     * True when this port really talks to JailReloaded on this server (and so knows who is held). The network's remote port is not
+     * authoritative: it only queues work for the jail backend, so nothing may be concluded from what it does not list.
+     */
+    default boolean authoritative() {
+        return true;
+    }
+
     /** Human-readable status for diagnostics: detected version, compatibility, last problem. */
     String status();
 

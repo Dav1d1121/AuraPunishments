@@ -46,6 +46,8 @@ public final class NetworkService {
     private final Core core;
     private final PunishmentService punishments;
     private final String name;
+    /** What the proxy (Velocity/BungeeCord) calls this backend: the name its Connect message must use. */
+    private final String proxyName;
     private final String instanceId = UUID.randomUUID().toString();
     private final long startedAt;
     private volatile long cursor = -1;
@@ -53,11 +55,18 @@ public final class NetworkService {
     private volatile long lastPollOk;
     private volatile String lastProblem;
     private volatile long eventsApplied;
+    /** Called (off the main thread) when another server changed a jail punishment: the network jail re-reads who is held and, on the jail backend, carries out the queue. */
+    private volatile Runnable jailChange = () -> { };
+
+    public void onJailChange(Runnable r) {
+        this.jailChange = r == null ? () -> { } : r;
+    }
 
     public NetworkService(Core core, PunishmentService punishments) {
         this.core = core;
         this.punishments = punishments;
         this.name = core.db.origin();
+        this.proxyName = core.settings.network.proxyName().isBlank() ? core.db.origin() : core.settings.network.proxyName();
         this.startedAt = core.clock.now();
     }
 
@@ -87,7 +96,7 @@ public final class NetworkService {
                         + " s ago, v" + existing.version() + "). Every server of the network needs its own network.server-name. If that server just crashed, wait "
                         + SERVER_STALE_MS / 1000 + " s and start again.");
             }
-            Repo.Net.register(c, name, instanceId, pluginVersion, Schema.latest(), now, jailBackend);
+            Repo.Net.register(c, name, instanceId, pluginVersion, Schema.latest(), now, jailBackend, proxyName);
             Repo.Net.purgePresence(c, now - PRESENCE_STALE_MS);
             cursor = Repo.Net.lastEventId(c);
             return Result.<Void>ok();
@@ -192,6 +201,17 @@ public final class NetworkService {
     /** The effects on players connected to THIS server of changes other servers made. */
     private CompletableFuture<Void> applyLocally(List<Repo.Net.Event> events) {
         Set<Long> punishmentIds = new LinkedHashSet<>();
+        boolean jails = false;
+        for (Repo.Net.Event e : events) {
+            if (!e.origin().equals(name) && "PUNISHMENT".equals(e.kind()) && e.detail() != null && e.detail().startsWith("JAIL:")) jails = true;
+        }
+        if (jails) {
+            try {
+                jailChange.run();
+            } catch (RuntimeException ex) {
+                core.log.warning("Network jail update failed: " + ex.getMessage());
+            }
+        }
         for (Repo.Net.Event e : events) {
             if (e.origin().equals(name) || e.ref() == null || !"PUNISHMENT".equals(e.kind())) continue; // this server did it itself
             punishmentIds.add(e.ref());
@@ -241,6 +261,7 @@ public final class NetworkService {
         List<String> out = new ArrayList<>();
         out.add("Network: server '" + name + "' (instance " + instanceId.substring(0, 8) + "), change feed at event " + cursor + ", " + eventsApplied + " applied"
                 + (lastProblem == null ? "" : ", PROBLEM: " + lastProblem));
+        if (core.netJail != null) out.addAll(core.netJail.describe());
         try {
             for (Repo.Net.Server s : core.db.txSync(Repo.Net::servers)) {
                 long age = core.clock.now() - s.seenAt();

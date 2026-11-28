@@ -62,7 +62,24 @@ public final class Settings {
      * @param allowDuplicateName  start even if another live server uses the same name (never for production)
      */
     public record Network(String serverName, int syncIntervalMs, int heartbeatSeconds, int eventRetentionDays, int maxClockSkewSeconds, boolean allowDuplicateName,
-                          boolean denyAllDuringOutage, boolean startWithoutDatabase, int outageRetrySeconds) {}
+                          boolean denyAllDuringOutage, boolean startWithoutDatabase, int outageRetrySeconds, String proxyName, NetJail jail) {}
+
+    /**
+     * The network jail: ONE backend hosts JailReloaded and the jail; every other backend sends a jailed player there.
+     *
+     * @param backend             the {@code network.server-name} of the jail backend; blank = no network jail (each server with JailReloaded jails locally)
+     * @param returnMode          where a released prisoner is sent: ORIGINAL (the backend they were on, lobby when that is not possible), LOBBY or FIXED
+     * @param lobbyServer         the proxy name of the lobby
+     * @param fixedServer         the proxy name used by FIXED
+     * @param hold                restrict a jailed player who is not (yet) held by JailReloaded: no moving, building, chat or commands
+     * @param holdCommands        commands a held player may still use (without the slash)
+     * @param transferRetrySeconds how often the transfer is repeated while the player is still not where they belong
+     */
+    public record NetJail(String backend, String returnMode, String lobbyServer, String fixedServer, boolean hold, List<String> holdCommands, int transferRetrySeconds) {
+        public boolean enabled() {
+            return !backend.isBlank();
+        }
+    }
 
     /** Appeals filed against punishments (Discord Ticket Tool tickets are referenced, never created, by this plugin). */
     public record Appeals(boolean requireTicket, int minReason) {}
@@ -275,7 +292,19 @@ public final class Settings {
         this.network = new Network(srv, range(y, "network.sync-interval-ms", 1000, 250, 30_000, p), range(y, "network.heartbeat-seconds", 15, 5, 120, p),
                 range(y, "network.event-retention-days", 7, 1, 365, p), range(y, "network.max-clock-skew-seconds", 10, 0, 3600, p),
                 y.getBoolean("network.allow-duplicate-name", false), "DENY_ALL".equalsIgnoreCase(y.getString("network.outage.policy", "ENFORCE_KNOWN")),
-                y.getBoolean("network.outage.start-without-database", true), range(y, "network.outage.retry-seconds", 15, 5, 600, p));
+                y.getBoolean("network.outage.start-without-database", true), range(y, "network.outage.retry-seconds", 15, 5, 600, p),
+                y.getString("network.proxy-name", "").trim(),
+                new NetJail(y.getString("network.jail.backend", "").trim(), y.getString("network.jail.return.mode", "ORIGINAL").trim().toUpperCase(java.util.Locale.ROOT),
+                        y.getString("network.jail.return.lobby-server", "lobby").trim(), y.getString("network.jail.return.fixed-server", "").trim(),
+                        y.getBoolean("network.jail.hold.enabled", true), y.getStringList("network.jail.hold.allowed-commands"),
+                        range(y, "network.jail.transfer-retry-seconds", 5, 2, 120, p)));
+        for (String key : new String[]{"network.proxy-name", "network.jail.backend", "network.jail.return.lobby-server", "network.jail.return.fixed-server"}) {
+            String v = y.getString(key, "").trim();
+            if (!v.isEmpty() && !v.matches("[A-Za-z0-9][A-Za-z0-9._-]{0,39}")) p.add(key + ": use 1-40 letters, digits, '.', '_' or '-' (the name the proxy uses for that server)");
+        }
+        if (!network.jail.returnMode().matches("ORIGINAL|LOBBY|FIXED")) p.add("network.jail.return.mode: must be ORIGINAL, LOBBY or FIXED (got '" + network.jail.returnMode() + "')");
+        if (network.jail.returnMode().equals("FIXED") && network.jail.fixedServer().isBlank()) p.add("network.jail.return.fixed-server: required when network.jail.return.mode is FIXED");
+        if (network.jail.enabled() && !storage.shared()) p.add("network.jail.backend: only used with a shared database (database.type: mariadb | mysql); remove it on a standalone server");
         String policy = y.getString("network.outage.policy", "ENFORCE_KNOWN");
         if (!policy.equalsIgnoreCase("ENFORCE_KNOWN") && !policy.equalsIgnoreCase("DENY_ALL")) p.add("network.outage.policy: must be ENFORCE_KNOWN or DENY_ALL (got '" + policy + "')");
         this.casework = new Casework(y.getBoolean("casework.enabled", false), types(y.getStringList("casework.require-case-for"), "casework.require-case-for", p));

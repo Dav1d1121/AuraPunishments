@@ -25,6 +25,8 @@ public final class Core {
     public volatile Enforcement enforcement = Enforcement.NONE;
     /** The network side (shared database only): change sync, presence, registry. {@code null} on a standalone server. */
     public volatile NetworkService network;
+    /** The network jail (hold, transfer, return); {@code null} unless network.jail.backend is set on a shared database. */
+    public volatile NetworkJail netJail;
     public final NotificationService notifications;
     public final JudicialMode mode;
 
@@ -44,6 +46,17 @@ public final class Core {
         this.mode = new JudicialMode(this);
         this.auth.denialSink((a, node, what) -> emit(DomainEvent.of(DomainEvent.Type.SECURITY).key("security:" + a.name() + ":" + node + ":" + System.currentTimeMillis() / 60_000)
                 .actor(a.name()).summary("Refused: tried to " + what + " without " + node).build()));
+    }
+
+    /**
+     * JailReloaded for the court system (pretrial detention, jail sentences): only a server that really has it can do those. On a network
+     * the other backends have a remote port that merely queues jail PUNISHMENTS for the jail backend, which is not enough for custody.
+     */
+    public JailPort courtJail() {
+        JailPort j = jail;
+        if (j.authoritative()) return j;
+        return new dev.aura.punishments.integration.UnavailableJailPort("pretrial detention and court jail sentences can only be carried out on the network's jail backend '"
+                + settings.network.jail().backend() + "'; use the jail punishment from here, or do this on that backend");
     }
 
     public void emit(DomainEvent e) {

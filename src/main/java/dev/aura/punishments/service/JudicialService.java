@@ -165,8 +165,8 @@ public final class JudicialService extends Svc {
         }
         Result<Void> dur = core.auth.checkDuration(actor, type, duration, false);
         if (!dur.isOk()) return done(dur.cast());
-        if (type == PunishType.JAIL && !core.jail.available()) {
-            return done(Result.fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.jail.status() + "); a jail sentence cannot be imposed."));
+        if (type == PunishType.JAIL && !core.courtJail().available()) {
+            return done(Result.fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.courtJail().status() + "); a jail sentence cannot be imposed."));
         }
 
         return core.db.tx(c -> Repo.Cases.get(c, caseId)).handle((cs, ex) -> cs).thenCompose(cs0 -> {
@@ -279,12 +279,12 @@ public final class JudicialService extends Svc {
     private Outcome jailStep(Actor actor, Case cs, Custody cu, SentencePayload pl) {
         try {
             if (cu != null && !pl.newJail()) {
-                return core.jail.setRemaining(cs.accusedUuid(), cu.jailPrisonerId(), pl.remainingMs(), actor.name());
+                return core.courtJail().setRemaining(cs.accusedUuid(), cu.jailPrisonerId(), pl.remainingMs(), actor.name());
             }
             Settings s = core.settings;
             JailRequest req = new JailRequest(cs.accusedUuid(), cs.accusedName(), cs.id(), CustodyService.tag(cs.id()),
                     Text.truncate(pl.reason(), 100), actor.name(), pl.remainingMs(), s.custody.jailName(), s.custody.cellName(), s.custody.muteWhileHeld());
-            return core.jail.jail(req);
+            return core.courtJail().jail(req);
         } catch (Throwable t) {
             return Outcome.of(State.ERROR, "JailReloaded threw " + t.getClass().getSimpleName() + ": " + t.getMessage());
         }
@@ -591,7 +591,7 @@ public final class JudicialService extends Svc {
             });
         }
         // PENDING: the JailReloaded step may or may not have happened. Check reality.
-        return core.main.call(() -> core.jail.find(UUID.fromString(op.uuid().toString()))).thenCompose(found -> {
+        return core.main.call(() -> core.courtJail().find(UUID.fromString(op.uuid().toString()))).thenCompose(found -> {
             boolean applied = found.isPresent() && found.get().reason() != null && found.get().reason().contains(CustodyService.tag(pl.caseId()))
                     && (pl.newJail() || Math.abs(found.get().remainingMs() - pl.remainingMs()) < 5 * Durations.MINUTE);
             if (applied) {

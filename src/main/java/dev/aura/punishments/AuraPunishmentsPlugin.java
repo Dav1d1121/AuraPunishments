@@ -154,9 +154,18 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         };
 
         // (MainThread.later is added below via the wrapper)
-        JailPort port = JailBootstrap.connect(getServer(), getLogger(), settings.jailEnabled);
+        // network jail: only the jail backend needs JailReloaded; every other backend queues jail punishments for it
+        boolean networkJail = db.shared() && settings.network.jail().enabled();
+        boolean jailBackend = networkJail && settings.network.jail().backend().equals(settings.network.serverName());
+        JailPort port = networkJail && !jailBackend ? new dev.aura.punishments.integration.UnavailableJailPort("starting")
+                : JailBootstrap.connect(getServer(), getLogger(), settings.jailEnabled);
         core = new Core(db, Clock.SYSTEM, getLogger(), main, settings, offenses, port, null, e -> { });
         core.messages = messages;
+        if (networkJail) {
+            core.netJail = new NetworkJail(core);
+            if (!jailBackend) core.jail = new dev.aura.punishments.integration.RemoteJailPort(core.netJail);
+            getServer().getMessenger().registerOutgoingPluginChannel(this, BukkitEnforcement.PROXY_CHANNEL);
+        }
         discord = new DiscordService(() -> core.settings, getLogger(), db);
         discord.onAdminAlert(msg -> Bukkit.getScheduler().runTask(this, () -> {
             for (org.bukkit.entity.Player pl : Bukkit.getOnlinePlayers()) {
@@ -218,6 +227,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         pm.registerEvents(new ConnectionListener(core, punishments, resolver, (BukkitEnforcement) core.enforcement), this);
         pm.registerEvents(new ChatListener(this, core, punishments), this);
         pm.registerEvents(new CommandGuardListener(core, punishments, custody, jails, gui.prompts()), this);
+        if (core.netJail != null && settings.network.jail().hold()) pm.registerEvents(new dev.aura.punishments.listener.HoldListener(core), this);
         registerJailListener();
         pm.registerEvents(this, this); // administrator warning while judicial work is still open
 
@@ -258,7 +268,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
         if (db.shared()) {
             NetworkService network = new NetworkService(core, punishments);
             try {
-                var joined = network.start(getPluginMeta().getVersion(), false, settings.network.maxClockSkewSeconds() * 1000L, settings.network.allowDuplicateName()).get(30, TimeUnit.SECONDS);
+                var joined = network.start(getPluginMeta().getVersion(), core.netJail != null && core.netJail.isBackend(), settings.network.maxClockSkewSeconds() * 1000L, settings.network.allowDuplicateName()).get(30, TimeUnit.SECONDS);
                 if (!joined.isOk()) {
                     getLogger().severe("AuraPunishments cannot join the network: " + joined.message());
                     Bukkit.getPluginManager().disablePlugin(this);
@@ -270,6 +280,17 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
                 return false;
             }
             core.network = network;
+            if (core.netJail != null) {
+                network.onJailChange(() -> {
+                    core.netJail.refresh();
+                    jails.networkWork();
+                });
+                try {
+                    core.netJail.refresh().get(30, TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    getLogger().warning("Could not read the jail state yet (" + e.getMessage() + "); it is retried every few seconds.");
+                }
+            }
         }
         try {
             var loaded = punishments.loadCache().get(30, TimeUnit.SECONDS);
@@ -347,7 +368,7 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             org.bukkit.event.HandlerList.unregisterAll(jailListener);
             jailListener = null;
         }
-        if (core.jail.available()) {
+        if (core.jail.available() && core.jail.authoritative()) {
             jailListener = new JailEventListener(custody, jails);
             getServer().getPluginManager().registerEvents(jailListener, this);
         }
@@ -421,6 +442,14 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             tasks.add(Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
                 if (punishments.cache().consumeDirty()) saveSnapshotIfShared();
             }, 200L, 200L));
+        }
+        if (core.netJail != null) {
+            tasks.add(Bukkit.getScheduler().runTaskTimer(this, core.netJail::tick, 20L, 20L)); // hold, transfer and return, once a second
+            long jailTicks = Math.max(40L, core.settings.network.jail().transferRetrySeconds() * 20L);
+            tasks.add(Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+                core.netJail.refresh();   // safety net: the events normally say so first
+                jails.networkWork();      // on the jail backend: carry out what other servers queued
+            }, 60L, jailTicks));
         }
         if (network != null) {
             // what the other servers changed, applied here (a login never waits for this: it asks the database directly)
@@ -537,7 +566,8 @@ public class AuraPunishmentsPlugin extends JavaPlugin implements Gui.AdminHooks,
             core.settings = s;
             core.offenses = o;
             core.messages = m;
-            core.jail = JailBootstrap.connect(getServer(), getLogger(), s.jailEnabled);
+            core.jail = core.netJail != null && !core.netJail.isBackend() ? new dev.aura.punishments.integration.RemoteJailPort(core.netJail)
+                    : JailBootstrap.connect(getServer(), getLogger(), s.jailEnabled);
             registerJailListener();
             Actor who = sender == null ? Actor.console() : Actors.of(sender);
             core.db.tx(c -> {

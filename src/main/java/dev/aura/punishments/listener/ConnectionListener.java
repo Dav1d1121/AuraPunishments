@@ -39,6 +39,8 @@ public final class ConnectionListener implements Listener {
             e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_BANNED, enforcement.banScreen(ban.get()));
             return;
         }
+        // network jail: a player serving a jail is held from their very first tick on this backend and moved to the jail backend
+        if (core.netJail != null) core.netJail.admit(e.getUniqueId());
         // outage policy DENY_ALL: while the shared database cannot be reached nobody new is let in (operators excepted)
         if (core.settings.network.denyAllDuringOutage() && core.db.shared() && !core.db.healthy() && !org.bukkit.Bukkit.getOfflinePlayer(e.getUniqueId()).isOp()) {
             e.disallow(AsyncPlayerPreLoginEvent.Result.KICK_OTHER, net.kyori.adventure.text.Component.text(
@@ -63,5 +65,6 @@ public final class ConnectionListener implements Listener {
         // Remember the staff level so offline protection works without a permission backend.
         resolver.recordLevel(e.getPlayer().getUniqueId(), Actors.levelOf(e.getPlayer()));
         if (core.network != null) core.network.playerLeft(e.getPlayer().getUniqueId());
+        if (core.netJail != null) core.netJail.left(e.getPlayer().getUniqueId());
     }
 }

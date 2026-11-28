@@ -29,13 +29,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * Two (or three) servers of one network, each with its own services and its own in-memory index, sharing ONE real MariaDB database:
  * what a punishment on one server does on the other. Skipped when no MariaDB is reachable.
  */
-class NetworkTest {
+public class NetworkTest {
     Fx a;   // survival
     Fx b;   // towny
     Actor mod;
     Target steve;
 
-    static boolean reachable() {
+    public static boolean reachable() {
         try (java.net.Socket s = new java.net.Socket()) {
             s.connect(new java.net.InetSocketAddress(System.getProperty("ap.test.db.host", "127.0.0.1"), Integer.getInteger("ap.test.db.port", 3306)), 500);
             return true;

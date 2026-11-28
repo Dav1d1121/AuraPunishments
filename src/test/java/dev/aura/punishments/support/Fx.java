@@ -43,6 +43,10 @@ public final class Fx implements AutoCloseable {
     public long now = 1_800_000_000_000L;
     /** Network mode (a shared database): this server's side of the network, and what it did to the players connected to it. */
     public NetworkService network;
+    public NetworkJail netJail;
+    /** Every transfer the proxy was asked for: "uuid -> proxy server". */
+    public final List<String> transfers = new java.util.concurrent.CopyOnWriteArrayList<>();
+    public final List<String> hints = new java.util.concurrent.CopyOnWriteArrayList<>();
     public final List<UUID> disconnected = new java.util.concurrent.CopyOnWriteArrayList<>();
     public final List<UUID> muteNotices = new java.util.concurrent.CopyOnWriteArrayList<>();
     public final List<UUID> unmuteNotices = new java.util.concurrent.CopyOnWriteArrayList<>();
@@ -60,6 +64,8 @@ public final class Fx implements AutoCloseable {
         public String sharedDatabase = null;
         /** Join the network registry (heartbeat, change feed) like a real server does. */
         public boolean joinNetwork = false;
+        /** The network jail: the server-name of the jail backend (this fixture is that backend when its serverName equals it). */
+        public String jailBackend = null;
     }
 
     /** Set with -Dap.test.db=mariadb (gradle testMariadb): the same tests run against a real MariaDB/MySQL server, one throw-away database each. */
@@ -97,6 +103,12 @@ public final class Fx implements AutoCloseable {
         cfg.set("punishments.ip-bans.refuse-private-addresses", false); // the shipped file refuses private addresses; most fixtures use 10.x test addresses
         cfg.set("review.enabled", true); // the shipped file has owner review off for fresh installs (1.3.2); the existing review tests exercise it
         cfg.set("judicial.enabled", true); // the shipped file is judicial-off for fresh installs; most fixtures exercise the judicial system
+        if (m.jailBackend != null) {
+            cfg.set("database.type", "mariadb");
+            cfg.set("database.username", "aura");
+            cfg.set("network.server-name", m.serverName == null ? "testsrv" : m.serverName);
+            cfg.set("network.jail.backend", m.jailBackend);
+        }
         m.set.forEach(cfg::set);
         Settings s = Settings.parse(cfg);
         OffenseCatalog oc = OffenseCatalog.parse(off);
@@ -114,6 +126,8 @@ public final class Fx implements AutoCloseable {
             @Override public void disconnect(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { disconnected.add(uuid); }
             @Override public void noticeMute(UUID uuid, dev.aura.punishments.model.Records.Punishment p) { muteNotices.add(uuid); }
             @Override public void noticeUnmute(UUID uuid) { unmuteNotices.add(uuid); }
+            @Override public boolean transfer(UUID uuid, String proxyServer) { transfers.add(uuid + " -> " + proxyServer); return true; }
+            @Override public void hint(UUID uuid, String messageKey) { hints.add(uuid + " " + messageKey); }
             @Override public boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late) { if (!online.contains(uuid)) return false; delivered.add(n); return true; }
         };
         punishments = new PunishmentService(core);
@@ -127,13 +141,19 @@ public final class Fx implements AutoCloseable {
         appeals = new PunishmentAppeals(core, punishments);
         judicial = new JudicialService(core, custody, punishments);
         direct = new DirectService(core, punishments);
+        if (db.shared() && m.jailBackend != null) {
+            netJail = new NetworkJail(core);
+            core.netJail = netJail;
+            if (!netJail.isBackend()) core.jail = new dev.aura.punishments.integration.RemoteJailPort(netJail);
+        }
         if (db.shared() && m.joinNetwork) {
             network = new NetworkService(core, punishments);
             core.network = network;
-            var joined = network.start("test", false, 0, false).get();
+            var joined = network.start("test", netJail != null && netJail.isBackend(), 0, false).get();
             if (!joined.isOk()) throw new IllegalStateException(joined.message());
         }
         punishments.loadCache().get();
+        if (netJail != null) netJail.refresh().get();
     }
 
     /** A staff actor holding exactly these nodes. */

@@ -68,6 +68,32 @@ public final class BukkitEnforcement implements Enforcement {
         }
     }
 
+    /** The proxy's own plugin-message channel ("BungeeCord" is the name Velocity and BungeeCord both answer to). */
+    public static final String PROXY_CHANNEL = "BungeeCord";
+
+    @Override
+    public boolean transfer(UUID uuid, String proxyServer) {
+        Player pl = Bukkit.getPlayer(uuid);
+        if (pl == null || proxyServer == null || proxyServer.isBlank()) return false;
+        try {
+            java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+            java.io.DataOutputStream out = new java.io.DataOutputStream(bytes);
+            out.writeUTF("Connect");
+            out.writeUTF(proxyServer);
+            pl.sendPluginMessage(plugin, PROXY_CHANNEL, bytes.toByteArray());
+            return true;
+        } catch (java.io.IOException | RuntimeException e) {
+            core.log.warning("Could not ask the proxy to move " + pl.getName() + " to '" + proxyServer + "': " + e.getMessage());
+            return false;
+        }
+    }
+
+    @Override
+    public void hint(UUID uuid, String messageKey) {
+        Player pl = Bukkit.getPlayer(uuid);
+        if (pl != null) pl.sendActionBar(core.messages.get(messageKey));
+    }
+
     @Override
     public void noticeMute(UUID uuid, Punishment p) {
         Player pl = Bukkit.getPlayer(uuid);

@@ -18,6 +18,18 @@ public interface Enforcement {
     /** @return true when the player was online and the notification was shown to them. */
     boolean deliverNotification(UUID uuid, dev.aura.punishments.model.Records.Notification n, boolean late);
 
+    /**
+     * Ask the proxy to move the player to another backend (the proxy's name for it).
+     *
+     * @return true when the request was sent (it does not say the proxy complied: the caller checks again later)
+     */
+    default boolean transfer(UUID uuid, String proxyServer) {
+        return false;
+    }
+
+    /** A short line under the player's hotbar (the network jail tells held players what is happening). */
+    default void hint(UUID uuid, String messageKey) { }
+
     Enforcement NONE = new Enforcement() {
         @Override
         public boolean isOnline(UUID uuid) {

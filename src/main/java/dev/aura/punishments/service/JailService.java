@@ -5,6 +5,7 @@ import dev.aura.punishments.integration.JailPort.JailRequest;
 import dev.aura.punishments.integration.JailPort.Outcome;
 import dev.aura.punishments.integration.JailPort.PrisonerState;
 import dev.aura.punishments.integration.JailPort.State;
+import dev.aura.punishments.integration.RemoteJailPort;
 import dev.aura.punishments.model.PunishType;
 import dev.aura.punishments.model.Records.Punishment;
 import dev.aura.punishments.model.Simple.OpState;
@@ -81,7 +82,7 @@ public final class JailService extends Svc {
             Map<String, Punishment> m = new HashMap<>();
             for (Punishment p : list) m.put(p.targetName().toLowerCase(Locale.ROOT), p);
             heldByName = Map.copyOf(m);
-        }).exceptionally(t -> null);
+        }).exceptionally(t -> null).thenCompose(v -> core.netJail == null ? CompletableFuture.<Void>completedFuture(null) : core.netJail.refresh());
     }
 
     public CompletableFuture<Result<List<Punishment>>> live(Actor actor) {
@@ -150,9 +151,8 @@ public final class JailService extends Svc {
                         .summary("JailReloaded did not confirm jail punishment #" + after.id() + ": " + Text.truncate(String.valueOf(after.jailError()), 200)).build());
                 return Result.<Punishment>fail(Code.EXTERNAL, "The jail was not started: " + after.jailError());
             }
-            refreshIndex();
             return Result.ok(after);
-        });
+        }).thenCompose(res -> res.isOk() ? refreshIndex().thenApply(v -> res) : done(res)); // the hold is in force before the issuer is told
     }
 
     private Long openOp(java.sql.Connection c, long punishmentId, String kind) throws java.sql.SQLException {
@@ -163,6 +163,7 @@ public final class JailService extends Svc {
     /** Called inside the issuing transaction: record the pending operation for the new jail punishment. */
     void recordPlacing(java.sql.Connection c, Punishment p, long now) throws java.sql.SQLException {
         Repo.Punishments.setJail(c, p.id(), PLACING, null, null, null);
+        if (core.netJail != null) Repo.Punishments.setJailOrigin(c, p.id(), core.netJail.originFor(c, p.targetUuid(), now)); // where a release sends them back to
         Repo.Ops.addForPunishment(c, "JAIL_PLACE", p.id(), p.targetUuid(), null, now);
     }
 
@@ -197,7 +198,7 @@ public final class JailService extends Svc {
 
     /** Free the prisoner for a punishment that was just revoked (called by {@link PunishmentService#revoke}). */
     CompletableFuture<Result<Punishment>> releaseForRevoked(Actor actor, Punishment p, String reason) {
-        return releasePhysical(actor, p, reason);
+        return releasePhysical(actor, p, reason).thenCompose(r -> refreshIndex().thenApply(v -> r)); // the hold is lifted everywhere the moment it is revoked
     }
 
     private CompletableFuture<Result<Punishment>> releasePhysical(Actor actor, Punishment p, String reason) {
@@ -257,12 +258,12 @@ public final class JailService extends Svc {
             return Result.ok(Repo.Punishments.get(c, p.id()));
         }).thenApply(res -> {
             if (res.isOk()) {
-                refreshIndex();
+                if (released && core.netJail != null && res.value() != null) core.netJail.released(res.value());
                 core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_RELEASED).key("jail-released:" + p.id() + ":" + pending).player(p.targetName()).actor(actor.name())
                         .summary(pending ? "Jail release accepted (completes at next login)" : "Released from jail").field("Reason", Text.truncate(reason, 200)).build());
             }
             return res;
-        });
+        }).thenCompose(res -> res.isOk() ? refreshIndex().thenApply(v -> res) : done(res));
     }
 
     // ------------------------------------------------------------------ changing the time of a held prisoner
@@ -273,6 +274,19 @@ public final class JailService extends Svc {
      */
     CompletableFuture<Result<Void>> applyTimeChange(Actor actor, Punishment before, Punishment after) {
         if (after.expiresAt() == null) return done(Result.fail(Code.INVALID, "A jail punishment cannot be made permanent by a modification."));
+        if (!core.jail.authoritative()) {
+            // JailReloaded is on another backend: leave a durable instruction there (the difference, because JailReloaded counts only the time the prisoner is online)
+            String payload = before.expiresAt() == null ? "until:" + after.expiresAt() : "delta:" + (after.expiresAt() - before.expiresAt());
+            return db(c -> {
+                Repo.Punishments.lock(c, after.id());
+                Punishment fresh = Repo.Punishments.get(c, after.id());
+                // not inside JailReloaded yet: the placement reads the (already changed) end from the punishment itself
+                if (fresh == null || fresh.jailPrisonerId() == null || RemoteJailPort.placeholder(fresh.jailPrisonerId())) return Result.<Void>ok();
+                Repo.Ops.addForPunishment(c, "JAIL_TIME", after.id(), after.targetUuid(), payload, core.clock.now());
+                audit(c, actor, "jail.time.queued", after.targetUuid(), null, "punishment=" + after.id() + " " + payload, false);
+                return Result.<Void>ok();
+            });
+        }
         return core.main.call(() -> {
             var st = core.jail.find(after.targetUuid());
             if (st.isEmpty()) return Outcome.of(State.NOT_JAILED, "not held");
@@ -310,6 +324,7 @@ public final class JailService extends Svc {
             if (p != null) {
                 refreshIndex();
                 alertIfExternal(p);
+                if (core.netJail != null) core.netJail.released(p);
             }
         }).exceptionally(t -> {
             core.log.warning("Could not record a JailReloaded release: " + t.getMessage());
@@ -356,7 +371,8 @@ public final class JailService extends Svc {
 
     // ------------------------------------------------------------------ reconciliation
     public CompletableFuture<Result<Integer>> reconcile() {
-        if (!core.jail.available()) return done(Result.ok(0));
+        List<Punishment> freed = new java.util.concurrent.CopyOnWriteArrayList<>();
+        if (!core.jail.available() || !core.jail.authoritative()) return done(Result.ok(0));
         return core.main.call(() -> {
             Map<UUID, PrisonerState> m = new HashMap<>();
             for (PrisonerState s : core.jail.allPrisoners()) m.put(s.uuid(), s);
@@ -367,6 +383,7 @@ public final class JailService extends Svc {
             for (Punishment p : Repo.Punishments.liveStandaloneJail(c)) {
                 PrisonerState st = prisoners.get(p.targetUuid());
                 String state = p.jailState();
+                if (RemoteJailPort.placeholder(p.jailPrisonerId())) continue; // queued by another server: placeNetworked() carries it out
                 if (PLACING.equals(state)) {
                     String marker = "[" + tag(p.id()) + "]";
                     if (st != null && st.reason() != null && st.reason().startsWith(marker)) {
@@ -386,6 +403,7 @@ public final class JailService extends Svc {
                 boolean gone = st == null || (p.jailPrisonerId() != null && !p.jailPrisonerId().equals(st.jailPrisonerId()));
                 if (gone) {
                     applyReleased(c, p);
+                    freed.add(p);
                     changed++;
                 } else if (PENDING_PLACEMENT.equals(state) && !st.offlinePending()) {
                     Repo.Punishments.setJail(c, p.id(), HELD, st.jailName(), null, null);
@@ -395,6 +413,7 @@ public final class JailService extends Svc {
             return Result.ok(changed);
         })).thenApply(res -> {
             if (res.isOk() && res.value() > 0) refreshIndex();
+            if (res.isOk() && core.netJail != null) for (Punishment p : freed) core.netJail.released(p);
             return res;
         }).exceptionally(t -> {
             core.log.warning("Standalone jail reconciliation failed: " + t.getMessage());
@@ -404,7 +423,7 @@ public final class JailService extends Svc {
 
     /** Retry releases that were accepted for a revoked punishment but have not completed (JailReloaded was down, player offline...). */
     public CompletableFuture<Void> retryStuckReleases() {
-        if (!core.jail.available()) return CompletableFuture.completedFuture(null);
+        if (!core.jail.available() || !core.jail.authoritative()) return CompletableFuture.completedFuture(null);
         return core.db.tx(c -> Repo.Punishments.liveStandaloneJail(c)).thenCompose(list -> {
             CompletableFuture<Void> chain = CompletableFuture.completedFuture(null);
             for (Punishment p : list) {
@@ -413,12 +432,176 @@ public final class JailService extends Svc {
                     if (!stillHeld) return core.db.tx(c -> {
                         applyReleased(c, p);
                         return null;
-                    }).handle((x, ex) -> null);
+                    }).handle((x, ex) -> {
+                        if (ex == null && core.netJail != null) core.netJail.released(p);
+                        return null;
+                    });
                     return releasePhysical(Actor.system(), p, "Retry of an accepted release").handle((x, ex) -> null);
                 }));
             }
             return chain;
         }).thenCompose(v -> refreshIndex()).exceptionally(t -> null);
+    }
+
+    // ------------------------------------------------------------------ the network jail: the jail backend carries out what other servers queued
+    private final Map<Long, Integer> placementFailures = new ConcurrentHashMap<>();
+
+    /**
+     * On the jail backend: everything that was queued for JailReloaded, then the usual reconciliation. Cheap when nothing is queued (one query).
+     * Runs on every jail change another server reports and every few seconds.
+     */
+    public CompletableFuture<Void> networkWork() {
+        if (core.netJail == null || !core.netJail.isBackend() || !core.jail.available()) return CompletableFuture.completedFuture(null);
+        return placeNetworked().thenCompose(n -> processTimeOps()).thenCompose(n -> reconcile()).thenCompose(r -> retryStuckReleases()).exceptionally(t -> {
+            core.log.warning("Network jail work failed (it is retried): " + t.getMessage());
+            return null;
+        });
+    }
+
+    /** Jails ordered on other servers (placeholder prisoner id): adopt what JailReloaded already holds, place the rest, let expired ones run out. */
+    CompletableFuture<Integer> placeNetworked() {
+        return core.db.tx(c -> Repo.Punishments.liveStandaloneJail(c)).thenCompose(list -> {
+            CompletableFuture<Integer> chain = CompletableFuture.completedFuture(0);
+            for (Punishment p : list) {
+                if (!RemoteJailPort.placeholder(p.jailPrisonerId()) || RELEASING.equals(p.jailState())) continue;
+                chain = chain.thenCompose(n -> placeOne(p).thenApply(done -> n + (done ? 1 : 0)));
+            }
+            return chain;
+        }).thenApply(n -> {
+            if (n > 0) refreshIndex();
+            return n;
+        });
+    }
+
+    private CompletableFuture<Boolean> placeOne(Punishment p) {
+        long now = core.clock.now();
+        if (p.status() != PunishStatus.ACTIVE) return CompletableFuture.completedFuture(false); // revoked while queued: the release path resolves it
+        if (p.expiresAt() != null && now >= p.expiresAt()) {
+            // the sentence ran out before JailReloaded ever took the player: nothing to release
+            return core.db.tx(c -> applyReleased(c, p)).thenApply(x -> {
+                if (core.netJail != null) core.netJail.released(p);
+                return true;
+            }).exceptionally(t -> false);
+        }
+        long remaining = p.expiresAt() == null ? -1L : Math.max(1000L, p.expiresAt() - now);
+        var cfg = core.settings.jail;
+        String jailName = cfg.jailName().isBlank() ? core.settings.custody.jailName() : cfg.jailName();
+        String cellName = cfg.cellName().isBlank() ? core.settings.custody.cellName() : cfg.cellName();
+        JailRequest req = new JailRequest(p.targetUuid(), p.targetName(), 0L, tag(p.id()), Text.truncate(p.reason(), 100), p.issuerName(), remaining, jailName, cellName, cfg.muteWhileJailed());
+        return core.main.call(() -> {
+            selfOps.add(p.targetUuid());
+            try {
+                var held = core.jail.find(p.targetUuid());
+                if (held.isPresent() && held.get().reason() != null && held.get().reason().startsWith("[" + tag(p.id()) + "]")) {
+                    var s = held.get(); // a crash between JailReloaded and the database: adopt, never jail twice
+                    return new Outcome(s.offlinePending() ? State.JAILED_PENDING_PLACEMENT : State.JAILED, s.jailPrisonerId(), s.jailName(), "adopted");
+                }
+                return core.jail.jail(req);
+            } catch (Throwable t) {
+                return Outcome.of(State.ERROR, "JailReloaded threw " + t.getClass().getSimpleName() + ": " + t.getMessage());
+            } finally {
+                selfOps.remove(p.targetUuid());
+            }
+        }).thenCompose(out -> {
+            boolean ok = out.ok() && out.jailPrisonerId() != null && out.state() != State.ALREADY_JAILED;
+            return db(c -> {
+                long t = core.clock.now();
+                if (ok) {
+                    Repo.Punishments.lock(c, p.id()); // a time change takes the same lock: it either happened before this (seen below) or sees the real prisoner id
+                    Repo.Punishments.setJail(c, p.id(), out.state() == State.JAILED_PENDING_PLACEMENT ? PENDING_PLACEMENT : HELD, out.jailName(), out.jailPrisonerId(), null);
+                    Punishment nowRow = Repo.Punishments.get(c, p.id());
+                    if (nowRow != null && p.expiresAt() != null && nowRow.expiresAt() != null && !nowRow.expiresAt().equals(p.expiresAt())) {
+                        Repo.Ops.addForPunishment(c, "JAIL_TIME", p.id(), p.targetUuid(), "delta:" + (nowRow.expiresAt() - p.expiresAt()), t);
+                    }
+                    audit(c, Actor.system(), "jail.start", p.targetUuid(), null, "punishment=" + p.id() + " jail=" + out.jailName() + " tag=" + tag(p.id()) + " (network)", false);
+                    return Result.ok(true);
+                }
+                String msg = out.message() == null ? "JailReloaded did not confirm the jail." : out.message();
+                if (out.state() == State.ALREADY_JAILED) {
+                    // someone else's JailReloaded record holds the player: this punishment cannot be carried out, say so instead of pretending
+                    Repo.Punishments.end(c, p.id(), PunishStatus.REVOKED, "System", "Jail was not started: " + Text.truncate(msg, 200), t);
+                    Repo.Punishments.setJail(c, p.id(), FAILED, null, null, Text.truncate(msg, 250));
+                    audit(c, Actor.system(), "jail.failed", p.targetUuid(), null, "punishment=" + p.id() + " " + Text.truncate(msg, 150), false);
+                    return Result.ok(true);
+                }
+                Repo.Punishments.setJail(c, p.id(), p.jailState(), null, null, Text.truncate(msg, 250)); // stays queued; the player stays held; retried
+                return Result.ok(false);
+            }).thenApply(res -> {
+                if (!res.isOk()) return false;
+                if (!ok && out.state() == State.ALREADY_JAILED) {
+                    punishments.cache().remove(p);
+                    if (core.netJail != null) core.netJail.released(p);
+                    core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_FAILED).key("jail-failed:" + p.id()).player(p.targetName()).actor("System")
+                            .summary("JailReloaded did not take jail punishment #" + p.id() + ": " + Text.truncate(String.valueOf(out.message()), 200)).build());
+                } else if (!ok) {
+                    int n = placementFailures.merge(p.id(), 1, Integer::sum);
+                    if (n == 3) {
+                        core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_ALERT).key("jail-place:" + p.id()).player(p.targetName()).actor("System")
+                                .summary("JailReloaded on '" + core.db.origin() + "' keeps refusing jail punishment #" + p.id() + " (" + Text.truncate(String.valueOf(out.message()), 150)
+                                        + "). " + p.targetName() + " stays held until it works or the punishment is revoked.").build());
+                    }
+                } else {
+                    placementFailures.remove(p.id());
+                }
+                return ok || out.state() == State.ALREADY_JAILED;
+            });
+        });
+    }
+
+    /** Time changes (appeal, review) ordered on other servers: JailReloaded counts the prisoner's online time, so the DIFFERENCE is applied. */
+    CompletableFuture<Integer> processTimeOps() {
+        return core.db.tx(c -> {
+            List<dev.aura.punishments.model.Records.PendingOp> ops = new java.util.ArrayList<>();
+            for (var op : Repo.Ops.unfinished(c)) if ("JAIL_TIME".equals(op.kind()) && op.punishmentId() != null) ops.add(op);
+            return ops;
+        }).thenCompose(ops -> {
+            CompletableFuture<Integer> chain = CompletableFuture.completedFuture(0);
+            for (var op : ops) {
+                chain = chain.thenCompose(n -> db(c -> Result.ok(Repo.Punishments.get(c, op.punishmentId()))).thenCompose(pr -> {
+                    Punishment p = pr.isOk() ? pr.value() : null;
+                    if (p == null || !live(p.jailState()) || RemoteJailPort.placeholder(p.jailPrisonerId())) {
+                        return finishTimeOp(op.id(), OpState.DONE, null).thenApply(x -> n); // not inside JailReloaded: a queued jail takes its end from the punishment itself
+                    }
+                    return core.main.call(() -> {
+                        var st = core.jail.find(p.targetUuid());
+                        if (st.isEmpty()) return Outcome.of(State.NOT_JAILED, "not held");
+                        long now = core.clock.now();
+                        String pl = op.payload() == null ? "" : op.payload();
+                        long remaining;
+                        if (pl.startsWith("delta:")) {
+                            remaining = st.get().forever() ? (p.expiresAt() == null ? -1 : p.expiresAt() - now) : st.get().remainingMs() + Long.parseLong(pl.substring(6));
+                        } else {
+                            remaining = Long.parseLong(pl.substring(pl.indexOf(':') + 1)) - now;
+                        }
+                        selfOps.add(p.targetUuid());
+                        try {
+                            return core.jail.setRemaining(p.targetUuid(), p.jailPrisonerId(), Math.max(1000L, remaining), "network");
+                        } finally {
+                            selfOps.remove(p.targetUuid());
+                        }
+                    }).handle((out, ex) -> ex == null ? out : Outcome.of(State.ERROR, ex.getMessage())).thenCompose(out -> {
+                        boolean ok = out.state() == State.UPDATED || out.state() == State.NOT_JAILED;
+                        return finishTimeOp(op.id(), ok ? OpState.DONE : op.attempts() >= 5 ? OpState.FAILED : OpState.PENDING, ok ? null : String.valueOf(out.message()))
+                                .thenApply(x -> {
+                                    if (!ok && op.attempts() == 5) {
+                                        core.emit(DomainEvent.of(DomainEvent.Type.CUSTODY_ALERT).key("jail-time:" + op.id()).player(p.targetName()).actor("System")
+                                                .summary("Jail punishment #" + p.id() + " was shortened or lengthened on another server, but JailReloaded did not accept the new time ("
+                                                        + out.message() + "). Fix it with JailReloaded's /jail time command.").build());
+                                    }
+                                    return n + (ok ? 1 : 0);
+                                });
+                    });
+                }));
+            }
+            return chain;
+        });
+    }
+
+    private CompletableFuture<Void> finishTimeOp(long opId, OpState state, String error) {
+        return core.db.tx(c -> {
+            Repo.Ops.setState(c, opId, state, error, core.clock.now());
+            return (Void) null;
+        }).exceptionally(t -> null);
     }
 
     /** Startup recovery: same resolution as the periodic reconcile. */

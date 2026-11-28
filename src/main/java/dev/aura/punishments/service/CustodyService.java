@@ -79,8 +79,8 @@ public final class CustodyService extends Svc {
         if (!perm.isOk()) return done(perm.cast());
         Result<Void> access = targetAccess(actor);
         if (!access.isOk()) return done(access.cast());
-        if (!core.jail.available()) {
-            return done(Result.fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.jail.status() + "). Detention was not started."));
+        if (!core.courtJail().available()) {
+            return done(Result.fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.courtJail().status() + "). Detention was not started."));
         }
         return core.db.tx(c -> Repo.Cases.get(c, caseId)).handle((cs, ex) -> ex == null ? cs : null).thenCompose(cs -> {
             if (cs == null) return done(Result.<Custody>fail(Code.NOT_FOUND, "Case " + caseId + " does not exist."));
@@ -128,7 +128,7 @@ public final class CustodyService extends Svc {
             return core.main.call(() -> {
                 selfOps.add(cs.accusedUuid());
                 try {
-                    return core.jail.jail(req);
+                    return core.courtJail().jail(req);
                 } catch (Throwable t) {
                     return Outcome.of(State.ERROR, "JailReloaded threw " + t.getClass().getSimpleName() + ": " + t.getMessage());
                 } finally {
@@ -235,16 +235,16 @@ public final class CustodyService extends Svc {
             return Result.ok(fresh);
         }).thenCompose(r1 -> {
             if (!r1.isOk()) return done(r1);
-            if (!core.jail.available()) {
-                return revertRelease(cu, before, "JailReloaded is not available: " + core.jail.status())
-                        .thenApply(x -> Result.<Custody>fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.jail.status()
+            if (!core.courtJail().available()) {
+                return revertRelease(cu, before, "JailReloaded is not available: " + core.courtJail().status())
+                        .thenApply(x -> Result.<Custody>fail(Code.UNAVAILABLE, "JailReloaded is not available (" + core.courtJail().status()
                                 + "). The prisoner was NOT released; it will be retried automatically."));
             }
             // Step 2: JailReloaded.
             return core.main.call(() -> {
                 selfOps.add(uuid);
                 try {
-                    return core.jail.release(uuid, cu.jailPrisonerId(), actor.name());
+                    return core.courtJail().release(uuid, cu.jailPrisonerId(), actor.name());
                 } catch (Throwable t) {
                     return Outcome.of(State.ERROR, "JailReloaded threw " + t.getClass().getSimpleName() + ": " + t.getMessage());
                 } finally {
@@ -395,10 +395,10 @@ public final class CustodyService extends Svc {
     static final long IN_FLIGHT_GRACE_MS = 60_000;
 
     private CompletableFuture<Result<Integer>> reconcile(boolean startup) {
-        if (!core.jail.available()) return done(Result.fail(Code.UNAVAILABLE, "JailReloaded unavailable; reconciliation skipped."));
+        if (!core.courtJail().available()) return done(Result.fail(Code.UNAVAILABLE, "JailReloaded unavailable; reconciliation skipped."));
         return core.main.call(() -> {
             Map<UUID, PrisonerState> m = new java.util.HashMap<>();
-            for (PrisonerState ps : core.jail.allPrisoners()) m.put(ps.uuid(), ps);
+            for (PrisonerState ps : core.courtJail().allPrisoners()) m.put(ps.uuid(), ps);
             return m;
         }).thenCompose(snapshot -> {
             List<DomainEvent> events = new ArrayList<>();

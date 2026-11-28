@@ -410,7 +410,7 @@ public final class Repo {
                 rs.getString("offense_key"), bool(rs, "delivered"), longOrNull(rs, "review_deadline"),
                 bool(rs, "reviewed"), longOrNull(rs, "custody_id"), longOrNull(rs, "modified_at"), rs.getString("modified_by"),
                 longOrNull(rs, "original_expires_at"), rs.getString("uid"), rs.getString("origin"), rs.getString("op_id"),
-                rs.getString("jail_prisoner_id"), rs.getString("jail_name"), rs.getString("jail_state"), rs.getString("jail_error"));
+                rs.getString("jail_prisoner_id"), rs.getString("jail_name"), rs.getString("jail_state"), rs.getString("jail_error"), rs.getString("jail_origin"));
 
         public static long insert(Connection c, PunishType type, PunishStatus status, UUID target, String targetName, String ip,
                                   String reason, UUID issuer, String issuerName, long now, Long expiresAt, Long caseId,
@@ -435,6 +435,16 @@ public final class Repo {
         public static void setJail(Connection c, long id, String state, String jailName, String prisonerId, String error) throws SQLException {
             update(c, "UPDATE punishments SET jail_state=?, jail_name=COALESCE(?, jail_name), jail_prisoner_id=COALESCE(?, jail_prisoner_id), jail_error=? WHERE id=?",
                     state, jailName, prisonerId, error, id);
+        }
+
+        /** Take the row's lock for the rest of the transaction (the shared engines; one server has nobody to wait for). */
+        public static void lock(Connection c, long id) throws SQLException {
+            if (Dialect.of(c).shared()) query(c, "SELECT id FROM punishments WHERE id=? FOR UPDATE", rs -> rs.getLong(1), id);
+        }
+
+        /** The proxy name of the server the prisoner was on when jailed (where a release sends them back to). */
+        public static void setJailOrigin(Connection c, long id, String origin) throws SQLException {
+            update(c, "UPDATE punishments SET jail_origin=? WHERE id=?", origin, id);
         }
 
         private static final String LIVE_JAIL = "jail_state IN ('PLACING','HELD','PENDING_PLACEMENT','RELEASING')";
@@ -1000,14 +1010,19 @@ public final class Repo {
 
         public record Event(long id, long ts, String origin, String kind, UUID subject, Long ref, String detail) {}
 
-        public record Server(String name, String instanceId, String version, int schema, long startedAt, long seenAt, boolean jailBackend) {}
+        public record Server(String name, String instanceId, String version, int schema, long startedAt, long seenAt, boolean jailBackend, String proxyName) {
+            /** The name the proxy knows this backend by (defaults to the server name). */
+            public String proxy() {
+                return proxyName == null || proxyName.isBlank() ? name : proxyName;
+            }
+        }
 
         public record Presence(UUID uuid, String name, String server, long joinedAt, long seenAt) {}
 
         private static final RowMapper<Event> EVENT = rs -> new Event(rs.getLong("id"), rs.getLong("ts"), rs.getString("origin"), rs.getString("kind"),
                 uuid(rs, "subject_uuid"), longOrNull(rs, "ref_id"), rs.getString("detail"));
         private static final RowMapper<Server> SERVER = rs -> new Server(rs.getString("name"), rs.getString("instance_id"), rs.getString("plugin_version"),
-                rs.getInt("schema_version"), rs.getLong("started_at"), rs.getLong("seen_at"), bool(rs, "jail_backend"));
+                rs.getInt("schema_version"), rs.getLong("started_at"), rs.getLong("seen_at"), bool(rs, "jail_backend"), rs.getString("proxy_name"));
 
         // ---- events
         public static long lastEventId(Connection c) throws SQLException {
@@ -1031,11 +1046,11 @@ public final class Repo {
             return query(c, "SELECT * FROM network_servers ORDER BY name", SERVER);
         }
 
-        public static void register(Connection c, String name, String instance, String version, int schema, long now, boolean jail) throws SQLException {
-            update(c, Dialect.of(c).upsert("network_servers(name,instance_id,plugin_version,schema_version,started_at,seen_at,jail_backend) VALUES(?,?,?,?,?,?,?)",
+        public static void register(Connection c, String name, String instance, String version, int schema, long now, boolean jail, String proxyName) throws SQLException {
+            update(c, Dialect.of(c).upsert("network_servers(name,instance_id,plugin_version,schema_version,started_at,seen_at,jail_backend,proxy_name) VALUES(?,?,?,?,?,?,?,?)",
                     List.of("name"), List.of("instance_id={new:instance_id}", "plugin_version={new:plugin_version}", "schema_version={new:schema_version}",
-                            "started_at={new:started_at}", "seen_at={new:seen_at}", "jail_backend={new:jail_backend}")),
-                    name, instance, version, schema, now, now, jail ? 1 : 0);
+                            "started_at={new:started_at}", "seen_at={new:seen_at}", "jail_backend={new:jail_backend}", "proxy_name={new:proxy_name}")),
+                    name, instance, version, schema, now, now, jail ? 1 : 0, proxyName);
         }
 
         /** @return false when another instance has taken this name over (two servers configured with the same server-name) */

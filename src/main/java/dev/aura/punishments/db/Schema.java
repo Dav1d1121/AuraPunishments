@@ -500,8 +500,11 @@ public final class Schema {
                   schema_version INTEGER NOT NULL,
                   started_at INTEGER NOT NULL,
                   seen_at INTEGER NOT NULL,
-                  jail_backend INTEGER NOT NULL DEFAULT 0
+                  jail_backend INTEGER NOT NULL DEFAULT 0,
+                  proxy_name TEXT
                 )"""));
+        // where a jailed player was when the jail was ordered (the proxy's name for that backend): a release sends them back there
+        steps.add(sql("ALTER TABLE punishments ADD COLUMN jail_origin TEXT"));
         steps.add(sql("""
                 CREATE TABLE network_presence (
                   uuid TEXT PRIMARY KEY,
